@@ -1,0 +1,29 @@
+{
+  "name": "@inventracker/functions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "@inventracker/shared": "file:vendor/shared",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.0",
+    "pdf-parse": "^1.1.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/pdf-parse": "^1.1.5",
+    "vitest": "^3.0.8"
+  }
+}

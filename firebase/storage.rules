@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(orgId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isMember(orgId) {
+      return signedIn() && memberDoc(orgId).data.role in ["Owner", "Manager", "Staff"];
+    }
+
+    match /orgs/{orgId}/assets/{fileName} {
+      allow read: if isMember(orgId);
+      allow write: if isMember(orgId);
+    }
+  }
+}

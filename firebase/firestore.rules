@@ -1,0 +1,477 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userId() {
+      return request.auth.uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(userId()));
+    }
+
+    function isPlatformAdmin() {
+      return signedIn() && (
+        request.auth.token.platform_admin == true
+        || request.auth.token.email == "ianjjent@icloud.com"
+        || request.auth.token.email == "ianjent@icloud.com"
+        || (
+          exists(/databases/$(database)/documents/users/$(userId()))
+          && (
+            (
+              userDoc().data.platformRoles is map
+              && userDoc().data.platformRoles.platformAdmin == true
+            )
+            || userDoc().data.email == "ianjjent@icloud.com"
+            || userDoc().data.email == "ianjent@icloud.com"
+          )
+        )
+      );
+    }
+
+    function memberDoc(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(userId()));
+    }
+
+    function isMember(orgId) {
+      return signedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(userId()));
+    }
+
+    function role(orgId) {
+      return isMember(orgId) ? memberDoc(orgId).data.role : null;
+    }
+
+    function ownerByArray(orgId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/organizations/$(orgId))
+        && (
+          (
+            get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerUserIds is list
+            && get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerUserIds.hasAny([userId()])
+          )
+          || get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerUid == userId()
+        );
+    }
+
+    function roleIsOwner(roleValue) {
+      return roleValue == "Owner" || roleValue == "owner";
+    }
+
+    function roleIsManager(roleValue) {
+      return roleValue == "Manager" || roleValue == "manager";
+    }
+
+    function roleIsStaff(roleValue) {
+      return roleValue == "Staff" || roleValue == "staff" || roleValue == "employee" || roleValue == "viewer";
+    }
+
+    function isOwner(orgId) {
+      return ownerByArray(orgId) || roleIsOwner(role(orgId));
+    }
+
+    function inOrg(orgId) {
+      return isMember(orgId) || ownerByArray(orgId);
+    }
+
+    function isManager(orgId) {
+      return roleIsManager(role(orgId));
+    }
+
+    function isStaff(orgId) {
+      return roleIsStaff(role(orgId));
+    }
+
+    function managerPlus(orgId) {
+      return isOwner(orgId) || isManager(orgId);
+    }
+
+    function hasPermissionFlag(orgId, key) {
+      return isOwner(orgId) || (
+        isMember(orgId)
+        && memberDoc(orgId).data.permissionFlags is map
+        && memberDoc(orgId).data.permissionFlags[key] == true
+      );
+    }
+
+    function statusIsActive(statusValue) {
+      return ["active", "trialing"].hasAny([statusValue]);
+    }
+
+    function hasSubscriptionBypass() {
+      return signedIn()
+        && isPlatformAdmin()
+        && (
+          request.auth.token.email == "ianjjent@icloud.com"
+          || (
+            exists(/databases/$(database)/documents/users/$(userId()))
+            && userDoc().data.email == "ianjjent@icloud.com"
+          )
+        );
+    }
+
+    function hasActiveSubscription(orgId) {
+      return hasSubscriptionBypass() || (
+        exists(/databases/$(database)/documents/organizations/$(orgId))
+        && (
+          (
+            get(/databases/$(database)/documents/organizations/$(orgId)).data.subscription is map
+            && statusIsActive(
+              get(/databases/$(database)/documents/organizations/$(orgId)).data.subscription.status
+            )
+          )
+          || (
+            exists(/databases/$(database)/documents/organizations/$(orgId)/billing/default)
+            && statusIsActive(
+              get(/databases/$(database)/documents/organizations/$(orgId)/billing/default).data.subscriptionStatus
+            )
+          )
+        )
+      );
+    }
+
+    function canUseOrgData(orgId) {
+      return inOrg(orgId) && hasActiveSubscription(orgId);
+    }
+
+    function hasStore(orgId, storeId) {
+      return isOwner(orgId) || (
+        isMember(orgId)
+        && memberDoc(orgId).data.storeIds is list
+        && memberDoc(orgId).data.storeIds.hasAny([storeId])
+      );
+    }
+
+    function dataInAllowedStore(orgId, data) {
+      return !(data.storeId is string) || hasStore(orgId, data.storeId);
+    }
+
+    function isOwnProfile() {
+      return signedIn() && request.auth.uid == request.resource.data.userId;
+    }
+
+    function validNotificationPayload(data) {
+      return data.content is string
+        && data.content.size() > 0
+        && data.content.size() <= 4000;
+    }
+
+    match /users/{uid} {
+      allow read, create, update, delete: if signedIn() && uid == userId();
+
+      match /devices/{deviceId} {
+        allow read, create, update, delete: if signedIn() && uid == userId();
+      }
+    }
+
+    match /platformPreferenceProfiles/{profileId} {
+      allow read: if signedIn() && resource.data.userId == userId() && inOrg(resource.data.organizationId);
+      allow create: if isOwnProfile() && inOrg(request.resource.data.organizationId);
+      allow update: if signedIn() && resource.data.userId == userId() && request.resource.data.userId == userId() && inOrg(resource.data.organizationId);
+      allow delete: if false;
+    }
+
+    match /mediaAssets/{assetId} {
+      allow read: if signedIn() && (
+        resource.data.ownerUserId == userId() ||
+        (resource.data.organizationId is string && isMember(resource.data.organizationId))
+      );
+      allow create: if signedIn() && request.resource.data.ownerUserId == userId() && isMember(request.resource.data.organizationId);
+      allow update: if signedIn() && (
+        resource.data.ownerUserId == userId() ||
+        managerPlus(resource.data.organizationId)
+      );
+      allow delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if signedIn() && resource.data.organizationId is string && (managerPlus(resource.data.organizationId) || ownerByArray(resource.data.organizationId));
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    match /centralCatalogItems/{itemId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+
+    match /centralCatalog/{catalogId} {
+      allow read: if isPlatformAdmin();
+
+      match /items/{itemId} {
+        allow read, create, update, delete: if isPlatformAdmin();
+      }
+    }
+
+    match /siteContent/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /stripePlanOverrides/{overrideId} {
+      allow read: if true;
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /featureRequests/{requestId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.uid == userId());
+      allow create: if signedIn()
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0;
+      allow update, delete: if isPlatformAdmin();
+    }
+
+    match /contactInquiries/{inquiryId} {
+      allow read: if isPlatformAdmin();
+      allow create: if request.resource.data.email is string
+        && request.resource.data.email.size() > 3
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0;
+      allow update, delete: if isPlatformAdmin();
+    }
+
+    match /organizations/{orgId} {
+      allow read: if inOrg(orgId);
+      allow create: if signedIn() && (
+        (
+          request.resource.data.ownerUserIds is list
+          && request.resource.data.ownerUserIds.hasAny([userId()])
+        )
+        || request.resource.data.ownerUid == userId()
+      );
+      allow update, delete: if isOwner(orgId);
+
+      match /members/{memberUid} {
+        allow read: if signedIn() && (
+          inOrg(orgId) ||
+          memberUid == userId() ||
+          resource.data.userId == userId()
+        );
+        allow create, update: if isOwner(orgId) || (isManager(orgId) && !(request.resource.data.role == "Owner" || request.resource.data.role == "owner"));
+        allow delete: if isOwner(orgId);
+      }
+
+      match /pendingUsers/{pendingUserId} {
+        allow read: if managerPlus(orgId);
+        allow create, update, delete: if managerPlus(orgId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if inOrg(orgId);
+        allow create, update, delete: if managerPlus(orgId);
+      }
+
+      match /billing/{billingId} {
+        allow read: if inOrg(orgId);
+        allow create, update: if managerPlus(orgId);
+        allow delete: if isOwner(orgId);
+      }
+
+      match /vendors/{vendorId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if canUseOrgData(orgId) && hasPermissionFlag(orgId, "manageVendors");
+      }
+
+      match /companyCatalog/{itemId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+      }
+
+      match /storeItemOverrides/{overrideId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if managerPlus(orgId) && hasActiveSubscription(orgId) && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if managerPlus(orgId) && hasActiveSubscription(orgId) && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /storeAccessRequests/{requestId} {
+        allow read: if inOrg(orgId) && (
+          resource.data.requesterUid == userId() ||
+          hasPermissionFlag(orgId, "approveStoreAccessRequests")
+        );
+        allow create: if inOrg(orgId)
+          && hasPermissionFlag(orgId, "requestStoreAccess")
+          && request.resource.data.requesterUid == userId()
+          && request.resource.data.organizationId == orgId
+          && request.resource.data.status == "pending";
+        allow update: if inOrg(orgId) && hasPermissionFlag(orgId, "approveStoreAccessRequests");
+        allow delete: if isOwner(orgId);
+      }
+
+      match /stores/{storeId} {
+        allow read: if inOrg(orgId);
+        allow create, update, delete: if managerPlus(orgId);
+
+        match /catalog/{itemId} {
+          allow read: if hasStore(orgId, storeId);
+          allow create, update, delete: if hasStore(orgId, storeId);
+        }
+
+        // Root store-scoped operational collections (used by iOS/web sync paths)
+        match /inventoryBatches/{batchId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+        }
+
+        match /wasteRecords/{wasteId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+        }
+
+        match /orders/{orderId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+
+          match /lines/{lineId} {
+            allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          }
+        }
+
+        match /toDo/{todoId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+        }
+
+        match /transfers/{transferId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+        }
+      }
+
+      match /waste/{rowId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if canUseOrgData(orgId) && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /orders/{rowId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if canUseOrgData(orgId) && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /toDo/{rowId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if canUseOrgData(orgId) && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /transfers/{transferId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if canUseOrgData(orgId) && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if canUseOrgData(orgId) && dataInAllowedStore(orgId, resource.data);
+        allow create, update: if canUseOrgData(orgId)
+          && hasPermissionFlag(orgId, "sendNotifications")
+          && validNotificationPayload(request.resource.data)
+          && dataInAllowedStore(orgId, request.resource.data);
+        allow delete: if canUseOrgData(orgId)
+          && hasPermissionFlag(orgId, "sendNotifications")
+          && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /items/{itemId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+      }
+
+      match /productionProducts/{prodId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+
+        match /ingredients/{ingredientId} {
+          allow read: if canUseOrgData(orgId);
+          allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+        }
+      }
+
+      match /howtos/{guideId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+
+        match /steps/{stepId} {
+          allow read: if canUseOrgData(orgId);
+          allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+
+          match /blocks/{blockId} {
+            allow read: if canUseOrgData(orgId);
+            allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+          }
+        }
+      }
+
+      match /howToGuides/{guideId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if managerPlus(orgId) && hasActiveSubscription(orgId);
+      }
+
+      match /regions/{regionId} {
+        allow read: if inOrg(orgId);
+        allow create, update, delete: if managerPlus(orgId);
+
+        match /districts/{districtId} {
+          allow read: if inOrg(orgId);
+          allow create, update, delete: if managerPlus(orgId);
+
+          match /stores/{storeId} {
+            allow read: if inOrg(orgId);
+            allow create, update, delete: if managerPlus(orgId);
+
+            match /settings/{settingId} {
+              allow read: if hasStore(orgId, storeId);
+              allow create, update, delete: if managerPlus(orgId);
+            }
+
+            match /departments/{deptId} {
+              allow read: if hasStore(orgId, storeId);
+              allow create, update, delete: if managerPlus(orgId);
+            }
+
+            match /locations/{locationId} {
+              allow read: if hasStore(orgId, storeId);
+              allow create, update, delete: if managerPlus(orgId);
+            }
+
+            match /inventoryBatches/{batchId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+
+            match /wasteRecords/{wasteId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+
+            match /orders/{orderId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+
+              match /lines/{lineId} {
+                allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+                allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              }
+            }
+
+            match /toDo/{todoId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+
+            match /transfers/{transferId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+          }
+        }
+      }
+    }
+  }
+}

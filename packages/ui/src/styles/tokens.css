@@ -1,0 +1,31 @@
+:root {
+  --app-radius-card: 24px;
+  --app-radius-control: 14px;
+  --app-card-padding: 24px;
+  --app-shadow-light: 0 10px 30px rgba(2, 6, 23, 0.08);
+  --app-shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.18);
+  --app-border-light: rgba(15, 23, 42, 0.08);
+  --app-border-dark: rgba(255, 255, 255, 0.06);
+  --app-muted-light: #475569;
+  --app-muted-dark: #9ca3af;
+}
+
+html[data-theme="dark"] {
+  --app-surface: #0b1020;
+  --app-surface-soft: #11182a;
+  --app-text: #f8fafc;
+  --app-muted: var(--app-muted-dark);
+  --app-border: var(--app-border-dark);
+  --app-shadow: var(--app-shadow-dark);
+  --app-control-bg: #0f1728;
+}
+
+html[data-theme="light"] {
+  --app-surface: #ffffff;
+  --app-surface-soft: #f8fafc;
+  --app-text: #0f172a;
+  --app-muted: var(--app-muted-light);
+  --app-border: var(--app-border-light);
+  --app-shadow: var(--app-shadow-light);
+  --app-control-bg: #ffffff;
+}

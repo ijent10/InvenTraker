@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@inventracker/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@inventracker/shared/*": [
+        "../../packages/shared/src/*"
+      ],
+      "@inventracker/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@inventracker/ui/*": [
+        "../../packages/ui/src/*"
+      ]
+    },
+    "incremental": false,
+    "strict": true,
+    "noEmit": true,
+    "jsx": "preserve"
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

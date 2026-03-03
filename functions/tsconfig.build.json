@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "baseUrl": "..",
+    "paths": {
+      "@inventracker/shared": ["packages/shared/dist/index.d.ts"],
+      "@inventracker/shared/*": ["packages/shared/dist/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

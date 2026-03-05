@@ -1,16 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AppButton, AppCard, AppCheckbox, AppInput, AppTextarea } from "@inventracker/ui"
-import { useQuery } from "@tanstack/react-query"
+import { AppButton, AppCard, AppCheckbox, AppInput, AppTextarea, appButtonClass } from "@inventracker/ui"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { PageHead } from "@/components/page-head"
 import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
+  fetchOrganizationBillingStatus,
   fetchOrgSettings,
+  isProTierBilling,
   permissionCatalog,
   saveOrgSettings,
+  uploadMediaAsset,
   type OrgSettingsRecord,
   type RoleTemplateRecord
 } from "@/lib/data/firestore"
@@ -43,6 +46,7 @@ function inferBaseRole(title: string, permissionFlags: Record<string, boolean>):
 export default function OrganizationSettingsPage() {
   const { user } = useAuthUser()
   const { activeOrgId, effectivePermissions } = useOrgContext()
+  const queryClient = useQueryClient()
 
   const [form, setForm] = useState<Partial<OrgSettingsRecord>>({})
   const [roles, setRoles] = useState<RoleTemplateRecord[]>([])
@@ -57,6 +61,13 @@ export default function OrganizationSettingsPage() {
     queryFn: () => fetchOrgSettings(activeOrgId),
     enabled: Boolean(activeOrgId)
   })
+  const { data: billingStatus } = useQuery({
+    queryKey: ["org-settings-billing", activeOrgId],
+    queryFn: () => fetchOrganizationBillingStatus(activeOrgId),
+    enabled: Boolean(activeOrgId)
+  })
+
+  const canUseProBranding = isProTierBilling(billingStatus)
 
   useEffect(() => {
     if (!settings) return
@@ -103,6 +114,7 @@ export default function OrganizationSettingsPage() {
         user.uid
       )
       await refetch()
+      await queryClient.invalidateQueries({ queryKey: ["shell-org-settings", activeOrgId] })
       setStatusMessage("Organization settings saved.")
     } catch {
       setErrorMessage("Could not save organization settings.")
@@ -121,6 +133,37 @@ export default function OrganizationSettingsPage() {
     }
     setRoles((prev) => [...prev, nextRole])
     setSelectedRoleId("")
+  }
+
+  const uploadBrandLogo = async (file: File) => {
+    if (!activeOrgId || !user?.uid) return
+    if (!canUseProBranding) {
+      setErrorMessage("Custom branding is available on the Pro tier.")
+      return
+    }
+    setStatusMessage(null)
+    setErrorMessage(null)
+    try {
+      const uploaded = await uploadMediaAsset({
+        file,
+        orgId: activeOrgId,
+        userId: user.uid,
+        type: "image"
+      })
+      if (!uploaded?.downloadUrl) {
+        throw new Error("No logo URL")
+      }
+      setForm((prev) => ({
+        ...prev,
+        customBrandingEnabled: true,
+        replaceAppNameWithLogo: true,
+        brandLogoUrl: uploaded.downloadUrl,
+        brandLogoAssetId: uploaded.id
+      }))
+      setStatusMessage("Organization logo uploaded.")
+    } catch {
+      setErrorMessage("Could not upload organization logo.")
+    }
   }
 
   if (!effectivePermissions.manageOrgSettings) {
@@ -216,6 +259,78 @@ export default function OrganizationSettingsPage() {
               />
             ))}
           </div>
+        </AppCard>
+
+        <AppCard>
+          <h2 className="card-title">Branding (Pro)</h2>
+          <p className="secondary-text mt-1">
+            Pro organizations can replace InvenTraker app-name references with their own logo.
+          </p>
+          {!canUseProBranding ? (
+            <p className="mt-4 rounded-2xl border border-app-border bg-app-surface-soft px-4 py-3 text-sm text-app-muted">
+              Upgrade this organization to Pro to unlock logo branding.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              <AppCheckbox
+                checked={Boolean(form.customBrandingEnabled)}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, customBrandingEnabled: event.target.checked }))
+                }
+                label="Enable custom branding"
+              />
+              <AppCheckbox
+                checked={Boolean(form.replaceAppNameWithLogo)}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, replaceAppNameWithLogo: event.target.checked }))
+                }
+                label="Replace app-name references with logo in the signed-in shell"
+              />
+              <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
+                <p className="mb-2 text-xs uppercase tracking-wide text-app-muted">Organization logo</p>
+                {form.brandLogoUrl ? (
+                  <img
+                    src={form.brandLogoUrl}
+                    alt="Organization logo preview"
+                    className="h-16 w-auto max-w-full rounded-xl border border-app-border bg-white object-contain p-2"
+                  />
+                ) : (
+                  <p className="secondary-text text-sm">No logo uploaded yet.</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className={appButtonClass("secondary", "cursor-pointer !h-9 !px-3 !py-2")}>
+                    Upload Logo
+                    <AppInput
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (!file) return
+                        void uploadBrandLogo(file)
+                      }}
+                    />
+                  </label>
+                  {form.brandLogoUrl ? (
+                    <AppButton
+                      variant="secondary"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          brandLogoUrl: undefined,
+                          brandLogoAssetId: undefined,
+                          customBrandingEnabled: false,
+                          replaceAppNameWithLogo: false
+                        }))
+                      }
+                    >
+                      Remove Logo
+                    </AppButton>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
         </AppCard>
       </div>
 

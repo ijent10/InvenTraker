@@ -27,6 +27,7 @@ const csp = cspDirectives.join("; ")
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@inventracker/ui", "@inventracker/shared"],
   async headers() {

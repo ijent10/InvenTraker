@@ -2,7 +2,13 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 
-import { fetchStores, fetchUserOrganizations, type OrgContext } from "@/lib/data/firestore"
+import {
+  fetchStores,
+  fetchUserOrganizations,
+  permissionCatalog,
+  permissionDefaultsForRole,
+  type OrgContext
+} from "@/lib/data/firestore"
 import { listMyOrganizations } from "@/lib/firebase/functions"
 import { useAuthUser } from "@/hooks/use-auth-user"
 
@@ -174,60 +180,12 @@ function useOrgContextState(): OrgContextValue {
   const role = activeOrg?.role ?? "Staff"
   const canViewAdmin = isPlatformAdmin || orgs.some((entry) => entry.isPlatformAdmin)
 
-  const basePermissions: Record<string, boolean> = {
-    manageUsers: role === "Owner" || role === "Manager",
-    manageStores: role === "Owner" || role === "Manager",
-    manageOrgSettings: role === "Owner",
-    manageStoreSettings: role === "Owner" || role === "Manager",
-    viewOrganizationInventory: role === "Owner",
-    manageInventory: true,
-    editOrgInventoryMeta: role === "Owner" || role === "Manager",
-    editStoreInventory: role === "Owner" || role === "Manager",
-    adjustStoreQuantity: role === "Owner" || role === "Manager",
-    manageVendors: role === "Owner" || role === "Manager",
-    manageJobTitles: role === "Owner" || role === "Manager",
-    manageSales: role === "Owner" || role === "Manager",
-    manageOrders: true,
-    generateOrders: true,
-    viewInsights: true,
-    manageTodo: true,
-    sendNotifications: role === "Owner" || role === "Manager",
-    requestStoreAccess: role !== "Owner",
-    approveStoreAccessRequests: role === "Owner" || role === "Manager",
-    manageCentralCatalog: role === "Owner",
-    managePermissions: role === "Owner"
+  const basePermissions = permissionDefaultsForRole(role)
+  const ownerPermissions = Object.fromEntries(permissionCatalog.map((entry) => [entry.key, true])) as Record<string, boolean>
+  const effectivePermissions: Record<string, boolean> = role === "Owner" ? ownerPermissions : { ...basePermissions }
+  for (const [key, value] of Object.entries(activeOrg?.permissionFlags ?? {})) {
+    effectivePermissions[key] = value === true
   }
-
-  const effectivePermissions: Record<string, boolean> =
-    role === "Owner"
-      ? {
-          ...basePermissions,
-          manageUsers: true,
-          manageStores: true,
-          manageOrgSettings: true,
-          manageStoreSettings: true,
-          viewOrganizationInventory: true,
-          manageInventory: true,
-          editOrgInventoryMeta: true,
-          editStoreInventory: true,
-          adjustStoreQuantity: true,
-          manageVendors: true,
-          manageJobTitles: true,
-          manageSales: true,
-          manageOrders: true,
-          generateOrders: true,
-          viewInsights: true,
-          manageTodo: true,
-          sendNotifications: true,
-          requestStoreAccess: true,
-          approveStoreAccessRequests: true,
-          manageCentralCatalog: true,
-          managePermissions: true
-        }
-      : {
-          ...basePermissions,
-          ...(activeOrg?.permissionFlags ?? {})
-        }
 
   return {
     loading,

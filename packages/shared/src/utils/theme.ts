@@ -15,6 +15,7 @@ export type ModuleSemantic =
   | "expiration"
   | "waste"
   | "inventory"
+  | "healthChecks"
   | "orders"
   | "todo"
   | "insights"

@@ -130,6 +130,13 @@ export default function StoreSettingsPage() {
     setStatusMessage(null)
     setErrorMessage(null)
     try {
+      const reworkedBarcodeRule = {
+        enabled: Boolean(form.reworkedBarcodeRule?.enabled),
+        productCodeLength: Math.max(1, Number(form.reworkedBarcodeRule?.productCodeLength ?? 6)),
+        encodedPriceLength: Math.max(1, Number(form.reworkedBarcodeRule?.encodedPriceLength ?? 5)),
+        trailingDigitsLength: Math.max(0, Number(form.reworkedBarcodeRule?.trailingDigitsLength ?? 1)),
+        priceDivisor: Math.max(1, Number(form.reworkedBarcodeRule?.priceDivisor ?? 100))
+      }
       await saveStoreSettings(
         activeOrgId,
         activeStore,
@@ -143,7 +150,8 @@ export default function StoreSettingsPage() {
             .split(",")
             .map((entry) => entry.trim())
             .filter(Boolean),
-          jobTitles: localRoles.filter((entry) => entry.title.trim().length > 0)
+          jobTitles: localRoles.filter((entry) => entry.title.trim().length > 0),
+          reworkedBarcodeRule
         },
         user.uid
       )
@@ -238,6 +246,120 @@ export default function StoreSettingsPage() {
             />
             <p className="secondary-text text-xs">
               Sale controls and notification sending are now managed by each Role permission set.
+            </p>
+          </div>
+        </AppCard>
+
+        <AppCard>
+          <h2 className="card-title">Reworked Barcode Parsing</h2>
+          <p className="secondary-text mt-1 text-xs">
+            Configure how this store decodes reworked labels. Example: product digits + encoded package price + trailing digit.
+          </p>
+          <div className="mt-4 grid gap-3">
+            <AppCheckbox
+              checked={Boolean(form.reworkedBarcodeRule?.enabled)}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  reworkedBarcodeRule: {
+                    enabled: event.target.checked,
+                    productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
+                    encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
+                    trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
+                    priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+                  }
+                }))
+              }
+              label="Enable store barcode parsing rule for reworked items"
+            />
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <div>
+                <p className="secondary-text mb-1 text-xs">Product code digits (first segment)</p>
+                <AppInput
+                  type="number"
+                  min={1}
+                  value={String(form.reworkedBarcodeRule?.productCodeLength ?? 6)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reworkedBarcodeRule: {
+                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
+                        productCodeLength: Number(event.target.value || "6"),
+                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
+                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
+                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+                      }
+                    }))
+                  }
+                  placeholder="Example: 6"
+                />
+              </div>
+              <div>
+                <p className="secondary-text mb-1 text-xs">Encoded package price digits (middle segment)</p>
+                <AppInput
+                  type="number"
+                  min={1}
+                  value={String(form.reworkedBarcodeRule?.encodedPriceLength ?? 5)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reworkedBarcodeRule: {
+                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
+                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
+                        encodedPriceLength: Number(event.target.value || "5"),
+                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
+                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+                      }
+                    }))
+                  }
+                  placeholder="Example: 5"
+                />
+              </div>
+              <div>
+                <p className="secondary-text mb-1 text-xs">Trailing check/control digits (last segment)</p>
+                <AppInput
+                  type="number"
+                  min={0}
+                  value={String(form.reworkedBarcodeRule?.trailingDigitsLength ?? 1)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reworkedBarcodeRule: {
+                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
+                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
+                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
+                        trailingDigitsLength: Number(event.target.value || "1"),
+                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+                      }
+                    }))
+                  }
+                  placeholder="Example: 1"
+                />
+              </div>
+              <div>
+                <p className="secondary-text mb-1 text-xs">Price divisor (encoded cents to dollars)</p>
+                <AppInput
+                  type="number"
+                  min={1}
+                  value={String(form.reworkedBarcodeRule?.priceDivisor ?? 100)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      reworkedBarcodeRule: {
+                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
+                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
+                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
+                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
+                        priceDivisor: Number(event.target.value || "100")
+                      }
+                    }))
+                  }
+                  placeholder="Example: 100"
+                />
+              </div>
+            </div>
+            <p className="secondary-text text-xs">
+              With lengths 6 + 5 + 1 and divisor 100, barcode `657983008814` decodes package price as $8.81.
             </p>
           </div>
         </AppCard>

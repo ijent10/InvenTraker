@@ -6,14 +6,28 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		26E8157C2F3EAA3400ACF644 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 26E8157B2F3EAA3400ACF644 /* FirebaseAuth */; };
+		26E8157E2F3EAA3400ACF644 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 26E8157D2F3EAA3400ACF644 /* FirebaseCore */; };
+		26E815802F3EAA3400ACF644 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 26E8157F2F3EAA3400ACF644 /* FirebaseDatabase */; };
+		26E815822F3EAA3400ACF644 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 26E815812F3EAA3400ACF644 /* FirebaseFirestore */; };
+		B1F000112D0A000100000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = B1F000122D0A000100000001 /* FirebaseMessaging */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		26DF676D2F3568E400D108AE /* InstaTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InstaTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		26DF676D2F3568E400D108AE /* InvenTraker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InvenTraker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		26DF67F72F3D91C300D108AE /* InvenTraker-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "InvenTraker-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		26DF676F2F3568E400D108AE /* InstaTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = InstaTracker;
+			sourceTree = "<group>";
+		};
+		26DF678E2F35699C00D108AE /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +37,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B1F000112D0A000100000001 /* FirebaseMessaging in Frameworks */,
+				26E815802F3EAA3400ACF644 /* FirebaseDatabase in Frameworks */,
+				26E815822F3EAA3400ACF644 /* FirebaseFirestore in Frameworks */,
+				26E8157E2F3EAA3400ACF644 /* FirebaseCore in Frameworks */,
+				26E8157C2F3EAA3400ACF644 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -32,6 +51,8 @@
 		26DF67642F3568E400D108AE = {
 			isa = PBXGroup;
 			children = (
+				26DF67F72F3D91C300D108AE /* InvenTraker-Info.plist */,
+				26DF678E2F35699C00D108AE /* Models */,
 				26DF676F2F3568E400D108AE /* InstaTracker */,
 				26DF676E2F3568E400D108AE /* Products */,
 			);
@@ -40,7 +61,7 @@
 		26DF676E2F3568E400D108AE /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				26DF676D2F3568E400D108AE /* InstaTracker.app */,
+				26DF676D2F3568E400D108AE /* InvenTraker.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +69,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		26DF676C2F3568E400D108AE /* InstaTracker */ = {
+		26DF676C2F3568E400D108AE /* InvenTraker */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 26DF67782F3568E600D108AE /* Build configuration list for PBXNativeTarget "InstaTracker" */;
+			buildConfigurationList = 26DF67782F3568E600D108AE /* Build configuration list for PBXNativeTarget "InvenTraker" */;
 			buildPhases = (
 				26DF67692F3568E400D108AE /* Sources */,
 				26DF676A2F3568E400D108AE /* Frameworks */,
@@ -62,12 +83,18 @@
 			);
 			fileSystemSynchronizedGroups = (
 				26DF676F2F3568E400D108AE /* InstaTracker */,
+				26DF678E2F35699C00D108AE /* Models */,
 			);
-			name = InstaTracker;
+			name = InvenTraker;
 			packageProductDependencies = (
+				26E8157B2F3EAA3400ACF644 /* FirebaseAuth */,
+				26E8157D2F3EAA3400ACF644 /* FirebaseCore */,
+				26E8157F2F3EAA3400ACF644 /* FirebaseDatabase */,
+				26E815812F3EAA3400ACF644 /* FirebaseFirestore */,
+				B1F000122D0A000100000001 /* FirebaseMessaging */,
 			);
 			productName = InstaTracker;
-			productReference = 26DF676D2F3568E400D108AE /* InstaTracker.app */;
+			productReference = 26DF676D2F3568E400D108AE /* InvenTraker.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -82,10 +109,11 @@
 				TargetAttributes = {
 					26DF676C2F3568E400D108AE = {
 						CreatedOnToolsVersion = 26.0.1;
+						LastSwiftMigration = 2600;
 					};
 				};
 			};
-			buildConfigurationList = 26DF67682F3568E400D108AE /* Build configuration list for PBXProject "InstaTracker" */;
+			buildConfigurationList = 26DF67682F3568E400D108AE /* Build configuration list for PBXProject "InvenTraker" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -94,12 +122,15 @@
 			);
 			mainGroup = 26DF67642F3568E400D108AE;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 26DF676E2F3568E400D108AE /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				26DF676C2F3568E400D108AE /* InstaTracker */,
+				26DF676C2F3568E400D108AE /* InvenTraker */,
 			);
 		};
 /* End PBXProject section */
@@ -178,7 +209,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -236,7 +267,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -251,27 +282,41 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = InstaTracker/InvenTraker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JYQM3X4T3K;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "InvenTraker-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = InvenTraker;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow this device to scan barcodes.";
+					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "InvenTraker uses location to suggest your nearest assigned store.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SimpyComplicated.InstaTracker;
+				PRODUCT_BUNDLE_IDENTIFIER = SimpyComplicated.InvenTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Models/InvenTraker-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -283,27 +328,40 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = InstaTracker/InvenTraker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JYQM3X4T3K;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "InvenTraker-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = InvenTraker;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow this device to scan barcodes.";
+					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "InvenTraker uses location to suggest your nearest assigned store.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SimpyComplicated.InstaTracker;
+				PRODUCT_BUNDLE_IDENTIFIER = SimpyComplicated.InvenTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Models/InvenTraker-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -313,7 +371,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		26DF67682F3568E400D108AE /* Build configuration list for PBXProject "InstaTracker" */ = {
+		26DF67682F3568E400D108AE /* Build configuration list for PBXProject "InvenTraker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				26DF67762F3568E600D108AE /* Debug */,
@@ -322,7 +380,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		26DF67782F3568E600D108AE /* Build configuration list for PBXNativeTarget "InstaTracker" */ = {
+		26DF67782F3568E600D108AE /* Build configuration list for PBXNativeTarget "InvenTraker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				26DF67792F3568E600D108AE /* Debug */,
@@ -332,6 +390,45 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		26E8157B2F3EAA3400ACF644 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		26E8157D2F3EAA3400ACF644 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		26E8157F2F3EAA3400ACF644 /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
+		};
+		26E815812F3EAA3400ACF644 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		B1F000122D0A000100000001 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 26E8157A2F3EAA3400ACF644 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 26DF67652F3568E400D108AE /* Project object */;
 }

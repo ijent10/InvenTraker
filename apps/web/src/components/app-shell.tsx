@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Home,
   Box,
@@ -19,7 +19,8 @@ import {
   Shield,
   Building2,
   ChevronDown,
-  Bell
+  Bell,
+  ClipboardList
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -32,8 +33,10 @@ import { roleModules, type AppModule } from "@/lib/rbac/modules"
 import { ensureProfile } from "@/lib/firebase/functions"
 import {
   fetchExpirationEntries,
+  fetchOrgSettings,
   fetchOrgTodo,
   fetchOrganizationBillingStatus,
+  isProTierBilling,
   fetchStoreInventoryItems,
   fetchPreferenceProfile,
   formatStoreLabel
@@ -43,6 +46,7 @@ import { AppButton, appButtonClass } from "@inventracker/ui"
 const nav: Array<{ href: string; label: string; icon: (typeof Home); module: AppModule }> = [
   { href: "/app", label: "Dashboard", icon: Home, module: "dashboard" },
   { href: "/app/inventory", label: "Inventory", icon: Box, module: "inventory" },
+  { href: "/app/health-checks", label: "Health Checks", icon: ClipboardList, module: "healthChecks" },
   { href: "/app/expiration", label: "Expiration", icon: Clock3, module: "expiration" },
   { href: "/app/waste", label: "Waste", icon: Trash2, module: "waste" },
   { href: "/app/orders", label: "Orders", icon: ShoppingCart, module: "orders" },
@@ -82,15 +86,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [showStoreMenu, setShowStoreMenu] = useState(false)
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const shouldLoadNotificationDetails = showNotificationsMenu || pathname === "/app/notifications"
 
   const allowed = new Set(roleModules[role] ?? [])
   const visibleNav = nav.filter((item) => {
     if (!allowed.has(item.module)) return false
-    if (item.module === "stores") return effectivePermissions.manageStores
-    if (item.module === "users") return effectivePermissions.manageUsers
+    if (item.module === "dashboard") return effectivePermissions.viewDashboard
+    if (item.module === "inventory") return effectivePermissions.viewInventory
+    if (item.module === "healthChecks") return effectivePermissions.viewHealthChecks
+    if (item.module === "expiration") return effectivePermissions.viewExpiration
+    if (item.module === "waste") return effectivePermissions.viewWaste
+    if (item.module === "orders") return effectivePermissions.viewOrders
+    if (item.module === "todo") return effectivePermissions.viewTodo
+    if (item.module === "notifications") return effectivePermissions.viewNotifications
+    if (item.module === "insights") return effectivePermissions.viewInsights
+    if (item.module === "production") return effectivePermissions.viewProduction
+    if (item.module === "howtos") return effectivePermissions.viewHowTos
+    if (item.module === "stores") return effectivePermissions.viewStores
+    if (item.module === "users") return effectivePermissions.viewUsers
     if (item.module === "orgSettings") return effectivePermissions.manageOrgSettings
     if (item.module === "storeSettings") return effectivePermissions.manageStoreSettings
-    if (item.module === "notifications") return effectivePermissions.sendNotifications
     return true
   })
   const bottomNav = visibleNav.filter((item) =>
@@ -106,23 +121,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     enabled: Boolean(activeOrgId),
     staleTime: 20_000
   })
+  const { data: orgSettings } = useQuery({
+    queryKey: ["shell-org-settings", activeOrgId],
+    queryFn: () => fetchOrgSettings(activeOrgId),
+    enabled: Boolean(activeOrgId),
+    staleTime: 20_000
+  })
 
   const { data: todoRows = [] } = useQuery({
     queryKey: ["shell-notifications-todo", activeOrgId, activeStoreId],
     queryFn: () => fetchOrgTodo(activeOrgId, activeStoreId || undefined),
-    enabled: Boolean(activeOrgId)
+    enabled: Boolean(activeOrgId),
+    staleTime: 45_000,
+    refetchOnWindowFocus: false
   })
 
   const { data: expiringRows = [] } = useQuery({
     queryKey: ["shell-notifications-expiring", activeOrgId, activeStoreId],
     queryFn: () => fetchExpirationEntries(activeOrgId, activeStoreId || undefined, 3),
-    enabled: Boolean(activeOrgId)
+    enabled: Boolean(activeOrgId),
+    staleTime: 45_000,
+    refetchOnWindowFocus: false
   })
 
   const { data: inventoryRows = [] } = useQuery({
     queryKey: ["shell-notifications-inventory", activeOrgId, activeStoreId],
     queryFn: () => (activeStoreId ? fetchStoreInventoryItems(activeOrgId, activeStoreId) : Promise.resolve([])),
-    enabled: Boolean(activeOrgId && activeStoreId)
+    enabled: Boolean(activeOrgId && activeStoreId && shouldLoadNotificationDetails),
+    staleTime: 120_000,
+    refetchOnWindowFocus: false
   })
 
   const notifications = useMemo(() => {
@@ -160,76 +187,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return [...todoNotifications, ...expiringNotifications, ...lowStockNotifications].slice(0, 20)
   }, [expiringRows, inventoryRows, todoRows])
 
-  const invalidateStoreScopedQueries = () => {
-    const keys: Array<readonly unknown[]> = [
-      ["items"],
-      ["item"],
-      ["expiration"],
-      ["expiration-entries"],
-      ["org-todo"],
-      ["todo-expiring"],
-      ["todo-items"],
-      ["org-orders"],
-      ["orders"],
-      ["waste-records"],
-      ["insights"],
-      ["financial-health"],
-      ["store-inventory-items"],
-      ["store-overview-financial-health"],
-      ["shell-notifications-todo"],
-      ["shell-notifications-expiring"],
-      ["shell-notifications-inventory"]
-    ]
-    for (const key of keys) {
-      queryClient.removeQueries({ queryKey: key })
-      void queryClient.invalidateQueries({ queryKey: key })
-    }
-    void queryClient.refetchQueries({
-      predicate: (entry) =>
-        Array.isArray(entry.queryKey) &&
-        typeof entry.queryKey[0] === "string" &&
-        [
-          "items",
-          "expiration-entries",
-          "org-todo",
-          "org-orders",
-          "store-inventory-items",
-          "shell-notifications-todo",
-          "shell-notifications-expiring",
-          "shell-notifications-inventory"
-        ].includes(entry.queryKey[0])
+  const storeScopedQueryPrefixes = useMemo(
+    () =>
+      new Set([
+        "items",
+        "item",
+        "expiration",
+        "expiration-entries",
+        "org-todo",
+        "todo-expiring",
+        "todo-items",
+        "org-orders",
+        "orders",
+        "waste-records",
+        "insights",
+        "financial-health",
+        "store-inventory-items",
+        "store-overview-financial-health",
+        "shell-notifications-todo",
+        "shell-notifications-expiring",
+        "shell-notifications-inventory",
+        "howtos",
+        "notifications",
+        "production-items",
+        "production-products",
+        "production-ingredients",
+        "production-runs",
+        "production-spotchecks"
+      ]),
+    []
+  )
+
+  const invalidateStoreScopedQueries = useCallback(() => {
+    void queryClient.invalidateQueries({
+      predicate: (entry) => {
+        if (!Array.isArray(entry.queryKey)) return false
+        const prefix = entry.queryKey[0]
+        return typeof prefix === "string" && storeScopedQueryPrefixes.has(prefix)
+      }
     })
-  }
+  }, [queryClient, storeScopedQueryPrefixes])
 
   useEffect(() => {
     if (!activeOrgId) return
-    const keysToInvalidate: ReadonlyArray<readonly [string]> = [
-      ["items"],
-      ["item"],
-      ["expiration"],
-      ["org-todo"],
-      ["todo-expiring"],
-      ["todo-items"],
-      ["org-orders"],
-      ["orders"],
-      ["waste-records"],
-      ["insights"],
-      ["financial-health"],
-      ["howtos"],
-      ["notifications"],
-      ["production-items"],
-      ["production-products"],
-      ["production-ingredients"],
-      ["production-runs"],
-      ["production-spotchecks"],
-      ["shell-notifications-todo"],
-      ["shell-notifications-expiring"],
-      ["shell-notifications-inventory"]
-    ]
-    for (const key of keysToInvalidate) {
-      void queryClient.invalidateQueries({ queryKey: key as unknown as readonly unknown[] })
-    }
-  }, [activeOrgId, activeStoreId, queryClient])
+    invalidateStoreScopedQueries()
+  }, [activeOrgId, activeStoreId, invalidateStoreScopedQueries])
 
   useEffect(() => {
     const syncWebProfile = async () => {
@@ -294,7 +296,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hasSubscriptionBypass =
     isPlatformAdmin && normalizedEmail === "ianjjent@icloud.com"
   const needsPlan = Boolean(activeOrgId) && !hasActiveSubscription && !hasSubscriptionBypass
-  const canManageBilling = role === "Owner" || role === "Manager" || Boolean(effectivePermissions.manageOrgSettings)
+  const canManageBilling = Boolean(effectivePermissions.manageBilling || effectivePermissions.manageOrgSettings)
+  const proBrandingEnabled =
+    isProTierBilling(billingStatus) &&
+    Boolean(orgSettings?.customBrandingEnabled) &&
+    Boolean(orgSettings?.replaceAppNameWithLogo) &&
+    Boolean(orgSettings?.brandLogoUrl)
+  const sidebarBrandName = activeOrg?.organizationName?.trim() || "InvenTraker"
 
   if (needsPlan && activeOrgId) {
     return (
@@ -312,7 +320,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AuthRequired>
       <div className="min-h-screen md:grid md:grid-cols-[280px_1fr]">
         <aside className="hidden border-r border-app-border bg-app-surface p-6 md:block">
-          <p className="mb-6 text-2xl font-semibold">InvenTraker</p>
+          <div className="mb-6">
+            {proBrandingEnabled ? (
+              <img
+                src={orgSettings?.brandLogoUrl}
+                alt={`${sidebarBrandName} logo`}
+                className="h-12 w-auto max-w-[220px] rounded-xl border border-app-border bg-white object-contain p-2"
+              />
+            ) : (
+              <p className="text-2xl font-semibold">InvenTraker</p>
+            )}
+          </div>
           <nav className="space-y-2">
             {visibleNav.map((item) => {
               const active = isNavActive(item.href)

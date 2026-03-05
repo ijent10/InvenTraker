@@ -5,6 +5,7 @@ import {
   Box,
   Building2,
   ChartColumn,
+  ClipboardList,
   Clock3,
   Factory,
   ListTodo,
@@ -28,7 +29,7 @@ type DashboardCard = {
   title: string
   subtitle: string
   metric: string
-  module: "expiration" | "waste" | "inventory" | "orders" | "todo" | "insights" | "production" | "howtos" | "stores" | "users" | "storeSettings" | "orgSettings"
+  module: "expiration" | "waste" | "inventory" | "healthChecks" | "orders" | "todo" | "insights" | "production" | "howtos" | "stores" | "users" | "storeSettings" | "orgSettings"
   icon: typeof Clock3
 }
 
@@ -36,7 +37,7 @@ function moduleAccentForCard(
   module: DashboardCard["module"],
   accent: string
 ) {
-  if (module === "expiration" || module === "waste" || module === "inventory" || module === "orders" || module === "todo" || module === "insights" || module === "production" || module === "howtos") {
+  if (module === "expiration" || module === "waste" || module === "inventory" || module === "healthChecks" || module === "orders" || module === "todo" || module === "insights" || module === "production" || module === "howtos") {
     return getModuleAccent(module, accent)
   }
   return accent
@@ -46,6 +47,7 @@ const cardCatalog: DashboardCard[] = [
   { id: "expiration", href: "/app/expiration", icon: Clock3, title: "Expiration", subtitle: "Items expiring soon", metric: "Soon", module: "expiration" },
   { id: "waste", href: "/app/waste", icon: Trash2, title: "Waste", subtitle: "Track spoilage cost", metric: "Live", module: "waste" },
   { id: "inventory", href: "/app/inventory", icon: Box, title: "Inventory", subtitle: "Search UPC, tags, names", metric: "Active", module: "inventory" },
+  { id: "healthChecks", href: "/app/health-checks", icon: ClipboardList, title: "Health Checks", subtitle: "Assigned QA + safety forms", metric: "Daily", module: "healthChecks" },
   { id: "orders", href: "/app/orders", icon: ShoppingCart, title: "Orders", subtitle: "Suggested lines by vendor", metric: "Draft", module: "orders" },
   { id: "todo", href: "/app/todo", icon: ListTodo, title: "To-Do", subtitle: "Manual + auto tasks", metric: "Open", module: "todo" },
   { id: "insights", href: "/app/insights", icon: ChartColumn, title: "Insights", subtitle: "Financial health metrics", metric: "Weekly", module: "insights" },

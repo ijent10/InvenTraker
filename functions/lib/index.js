@@ -7,6 +7,7 @@ import { filterSafePatch } from "./utils/admin-safe-edit.js";
 import { extractHowToDraftFromPdf } from "./utils/pdf.js";
 import { resolvePreferenceProfile } from "./utils/preferences.js";
 import { findStorePath } from "./utils/store-path.js";
+import { enhanceFinancialHealth, enhanceHowToDraft, enhanceOrderSuggestions } from "./ai/custom-engine.js";
 export { sendOrgNotification, removeOrgNotification, sendPlatformNotification } from "./notifications.js";
 export { requestStoreAccess, reviewStoreAccessRequest } from "./store-access.js";
 export { createStripeCheckoutSession, createStripePortalSession, listPublicStripePlans, syncOrgBillingFromStripeSubscription } from "./stripe.js";
@@ -36,43 +37,173 @@ function daysUntilNextOrder(orderingDays, now) {
     const first = sorted[0];
     return first === undefined ? 0 : 7 - today + first;
 }
+const permissionKeys = [
+    "viewDashboard",
+    "viewInventory",
+    "viewExpiration",
+    "viewWaste",
+    "viewOrders",
+    "viewTodo",
+    "viewInsights",
+    "viewProduction",
+    "viewHowTos",
+    "viewHealthChecks",
+    "viewNotifications",
+    "viewStores",
+    "viewUsers",
+    "manageInventory",
+    "manageSales",
+    "manageOrders",
+    "generateOrders",
+    "manageTodo",
+    "sendNotifications",
+    "exportData",
+    "requestStoreAccess",
+    "approveStoreAccessRequests",
+    "adjustStoreQuantity",
+    "appSpotCheck",
+    "appReceive",
+    "appWaste",
+    "appExpiration",
+    "appTransfers",
+    "appRework",
+    "appProductionRuns",
+    "appChop",
+    "appHealthChecks",
+    "appNotificationsFeed",
+    "appManualEntry",
+    "appOfflineSync",
+    "manageUsers",
+    "inviteUsers",
+    "editUserRoles",
+    "resetUserCredentials",
+    "deactivateUsers",
+    "manageStores",
+    "createStores",
+    "editStores",
+    "archiveStores",
+    "manageOrgSettings",
+    "manageStoreSettings",
+    "manageHealthChecks",
+    "viewOrganizationInventory",
+    "editOrgInventoryMeta",
+    "editStoreInventory",
+    "manageVendors",
+    "manageJobTitles",
+    "manageCentralCatalog",
+    "managePermissions",
+    "viewBilling",
+    "manageBilling",
+    "viewAuditLogs",
+    "exportAuditLogs",
+    "manageFeatureRequests",
+    "manageContactInbox",
+    "managePublicContent",
+    "managePrivacyContent",
+    "manageTermsContent",
+    "manageFaqContent",
+    "manageIntegrations",
+    "manageSecuritySettings"
+];
 function permissionDefaultsForRole(role) {
+    const none = Object.fromEntries(permissionKeys.map((key) => [key, false]));
     if (role === "Owner") {
-        return {
-            manageUsers: true,
-            manageStores: true,
-            manageOrgSettings: true,
-            manageStoreSettings: true,
-            manageInventory: true,
-            manageSales: true,
-            sendNotifications: true,
-            requestStoreAccess: true,
-            approveStoreAccessRequests: true
-        };
+        return Object.fromEntries(permissionKeys.map((key) => [key, true]));
     }
     if (role === "Manager") {
         return {
-            manageUsers: true,
-            manageStores: true,
-            manageOrgSettings: false,
-            manageStoreSettings: true,
+            ...none,
+            viewDashboard: true,
+            viewInventory: true,
+            viewExpiration: true,
+            viewWaste: true,
+            viewOrders: true,
+            viewTodo: true,
+            viewInsights: true,
+            viewProduction: true,
+            viewHowTos: true,
+            viewHealthChecks: true,
+            viewNotifications: true,
+            viewStores: true,
+            viewUsers: true,
             manageInventory: true,
             manageSales: true,
+            manageOrders: true,
+            generateOrders: true,
+            manageTodo: true,
             sendNotifications: true,
+            exportData: true,
             requestStoreAccess: true,
-            approveStoreAccessRequests: true
+            approveStoreAccessRequests: true,
+            adjustStoreQuantity: true,
+            appSpotCheck: true,
+            appReceive: true,
+            appWaste: true,
+            appExpiration: true,
+            appTransfers: true,
+            appRework: true,
+            appProductionRuns: true,
+            appChop: true,
+            appHealthChecks: true,
+            appNotificationsFeed: true,
+            appManualEntry: true,
+            appOfflineSync: true,
+            manageUsers: true,
+            inviteUsers: true,
+            editUserRoles: true,
+            resetUserCredentials: true,
+            deactivateUsers: true,
+            manageStores: true,
+            createStores: false,
+            editStores: true,
+            archiveStores: false,
+            manageOrgSettings: false,
+            manageStoreSettings: true,
+            manageHealthChecks: true,
+            viewOrganizationInventory: false,
+            editOrgInventoryMeta: false,
+            editStoreInventory: true,
+            manageVendors: true,
+            manageJobTitles: true,
+            manageCentralCatalog: false,
+            managePermissions: false,
+            viewBilling: true,
+            manageBilling: false,
+            viewAuditLogs: true,
+            exportAuditLogs: true,
+            manageIntegrations: true
         };
     }
     return {
-        manageUsers: false,
-        manageStores: false,
-        manageOrgSettings: false,
-        manageStoreSettings: false,
+        ...none,
+        viewDashboard: true,
+        viewInventory: true,
+        viewExpiration: true,
+        viewWaste: true,
+        viewOrders: true,
+        viewTodo: true,
+        viewInsights: true,
+        viewProduction: true,
+        viewHowTos: true,
+        viewHealthChecks: true,
+        viewNotifications: true,
         manageInventory: true,
-        manageSales: false,
-        sendNotifications: false,
+        manageOrders: true,
+        generateOrders: true,
+        manageTodo: true,
         requestStoreAccess: true,
-        approveStoreAccessRequests: false
+        appSpotCheck: true,
+        appReceive: true,
+        appWaste: true,
+        appExpiration: true,
+        appTransfers: true,
+        appRework: true,
+        appProductionRuns: true,
+        appChop: true,
+        appHealthChecks: true,
+        appNotificationsFeed: true,
+        appManualEntry: true,
+        appOfflineSync: true
     };
 }
 function parseProjectId() {
@@ -187,9 +318,12 @@ export const listMyOrganizations = onCall(async (request) => {
         const locationIds = Array.isArray(memberData.locationIds)
             ? memberData.locationIds.filter((locationId) => typeof locationId === "string")
             : [];
-        const permissionFlags = typeof memberData.permissionFlags === "object" && memberData.permissionFlags
-            ? memberData.permissionFlags
-            : permissionDefaultsForRole(role);
+        const permissionFlags = {
+            ...permissionDefaultsForRole(role),
+            ...(typeof memberData.permissionFlags === "object" && memberData.permissionFlags
+                ? memberData.permissionFlags
+                : {})
+        };
         if (!memberSnap.exists && !isPlatformAdmin) {
             await memberRef.set({
                 organizationId: orgDoc.id,
@@ -507,11 +641,18 @@ export const pdfToHowtoDraft = onCall(async (request) => {
     try {
         const buffer = await downloadFromStoragePath(media.storagePath ?? "", media.storageBucket);
         const draft = await extractHowToDraftFromPdf(buffer);
+        const enhanced = await enhanceHowToDraft({
+            orgId: input.orgId,
+            storeId: input.storeId,
+            title: draft.title,
+            steps: draft.steps
+        });
         return {
             ok: true,
             fallback: false,
-            suggestedTitle: draft.title,
-            steps: draft.steps
+            suggestedTitle: enhanced.title,
+            steps: enhanced.steps,
+            ai: enhanced.ai
         };
     }
     catch (error) {
@@ -527,7 +668,14 @@ export const pdfToHowtoDraft = onCall(async (request) => {
             ok: false,
             fallback: true,
             reason,
-            steps: []
+            steps: [],
+            ai: {
+                intent: "pdf_howto_draft",
+                provider: "custom-rules",
+                model: "rules-v1",
+                usedModel: false,
+                fallbackReason: reason
+            }
         };
     }
 });
@@ -597,6 +745,12 @@ export const generateOrderSuggestions = onCall(async (request) => {
             minQuantity: min
         });
     });
+    const enhancedSuggestions = await enhanceOrderSuggestions({
+        orgId: input.orgId,
+        storeId: input.storeId,
+        vendorId: input.vendorId,
+        lines: suggestions
+    });
     const orderRef = adminDb
         .collection(`organizations/${input.orgId}/regions/${storePath.regionId}/districts/${storePath.districtId}/stores/${storePath.storeId}/orders`)
         .doc();
@@ -610,7 +764,7 @@ export const generateOrderSuggestions = onCall(async (request) => {
         vendorCutoffAt: null
     });
     const batch = adminDb.batch();
-    suggestions.forEach((line) => {
+    enhancedSuggestions.lines.forEach((line) => {
         batch.set(orderRef.collection("lines").doc(), line);
     });
     const todos = [
@@ -645,12 +799,16 @@ export const generateOrderSuggestions = onCall(async (request) => {
         storeId: input.storeId,
         targetPath: orderRef.path,
         action: "create",
-        after: { lines: suggestions.length }
+        after: { lines: enhancedSuggestions.lines.length, ai: enhancedSuggestions.ai }
     });
     return {
         orderId: orderRef.id,
-        lines: suggestions,
-        todosCreated: todos.length
+        lines: enhancedSuggestions.lines,
+        todosCreated: todos.length,
+        summary: enhancedSuggestions.summary,
+        riskAlerts: enhancedSuggestions.riskAlerts,
+        questionsForManager: enhancedSuggestions.questionsForManager,
+        ai: enhancedSuggestions.ai
     };
 });
 export const computeFinancialHealth = onCall(async (request) => {
@@ -728,12 +886,24 @@ export const computeFinancialHealth = onCall(async (request) => {
     }))
         .sort((a, b) => b.onHand - a.onHand)
         .slice(0, 25);
-    return {
+    const aiEnhanced = await enhanceFinancialHealth({
         inventoryValue,
         wasteCostWeek,
         wasteCostMonth,
         expiringSoonValue,
         overstocked
+    });
+    return {
+        inventoryValue,
+        wasteCostWeek,
+        wasteCostMonth,
+        expiringSoonValue,
+        overstocked,
+        summary: aiEnhanced.summary,
+        riskAlerts: aiEnhanced.riskAlerts,
+        recommendedActions: aiEnhanced.recommendedActions,
+        questionsForManager: aiEnhanced.questionsForManager,
+        ai: aiEnhanced.ai
     };
 });
 export const adminSafeEdit = onCall(async (request) => {

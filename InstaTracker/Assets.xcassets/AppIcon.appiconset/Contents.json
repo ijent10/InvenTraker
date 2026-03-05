@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "DC137174-DB4E-43AB-948C-5832ECF9C390 2.PNG",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -12,6 +13,7 @@
           "value" : "dark"
         }
       ],
+      "filename" : "DC137174-DB4E-43AB-948C-5832ECF9C390 1.PNG",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -23,6 +25,7 @@
           "value" : "tinted"
         }
       ],
+      "filename" : "DC137174-DB4E-43AB-948C-5832ECF9C390.PNG",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

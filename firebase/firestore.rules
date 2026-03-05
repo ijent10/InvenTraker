@@ -341,6 +341,11 @@ service cloud.firestore {
           allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
           allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
         }
+
+        match /healthCheckResponses/{responseId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+        }
       }
 
       match /waste/{rowId} {
@@ -376,6 +381,12 @@ service cloud.firestore {
         allow delete: if canUseOrgData(orgId)
           && hasPermissionFlag(orgId, "sendNotifications")
           && dataInAllowedStore(orgId, resource.data);
+      }
+
+      match /healthChecks/{healthCheckId} {
+        allow read: if canUseOrgData(orgId);
+        allow create, update, delete: if canUseOrgData(orgId)
+          && (hasPermissionFlag(orgId, "manageHealthChecks") || managerPlus(orgId));
       }
 
       match /items/{itemId} {
@@ -466,6 +477,11 @@ service cloud.firestore {
             }
 
             match /transfers/{transferId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+
+            match /healthCheckResponses/{responseId} {
               allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
               allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
             }

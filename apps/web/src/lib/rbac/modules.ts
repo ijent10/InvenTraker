@@ -1,6 +1,7 @@
 export type AppModule =
   | "dashboard"
   | "inventory"
+  | "healthChecks"
   | "expiration"
   | "waste"
   | "orders"
@@ -23,6 +24,7 @@ export const roleModules: Record<MemberRole, AppModule[]> = {
   Owner: [
     "dashboard",
     "inventory",
+    "healthChecks",
     "expiration",
     "waste",
     "orders",
@@ -41,6 +43,7 @@ export const roleModules: Record<MemberRole, AppModule[]> = {
   Manager: [
     "dashboard",
     "inventory",
+    "healthChecks",
     "expiration",
     "waste",
     "orders",
@@ -58,6 +61,7 @@ export const roleModules: Record<MemberRole, AppModule[]> = {
   Staff: [
     "dashboard",
     "inventory",
+    "healthChecks",
     "expiration",
     "waste",
     "orders",

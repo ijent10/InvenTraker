@@ -212,6 +212,15 @@ export type OrganizationBillingStatusRecord = {
   currentPeriodEnd?: Date | null
 }
 
+export function isProTierBilling(status: OrganizationBillingStatusRecord | null | undefined): boolean {
+  if (!status) return false
+  const normalizedStatus = (status.subscriptionStatus ?? "").trim().toLowerCase()
+  if (normalizedStatus !== "active" && normalizedStatus !== "trialing") return false
+  const planName = (status.planName ?? "").trim().toLowerCase()
+  const priceId = (status.priceId ?? "").trim().toLowerCase()
+  return planName.includes("pro") || priceId.includes("pro")
+}
+
 export type OrderSuggestionLine = {
   itemId: string
   itemName: string
@@ -366,11 +375,23 @@ export type RoleTemplateRecord = {
   singlePerStore?: boolean
 }
 
+export type ReworkedBarcodeRuleRecord = {
+  enabled: boolean
+  productCodeLength: number
+  encodedPriceLength: number
+  trailingDigitsLength: number
+  priceDivisor: number
+}
+
 export type OrgSettingsRecord = {
   id: string
   organizationId: string
   organizationName: string
   companyCode?: string
+  customBrandingEnabled: boolean
+  replaceAppNameWithLogo: boolean
+  brandLogoUrl?: string
+  brandLogoAssetId?: string
   canStoreRemoveItems: boolean
   maxSalePercent: number
   allowStoreRoleCreation: boolean
@@ -381,6 +402,7 @@ export type OrgSettingsRecord = {
   departments: string[]
   locationTemplates: string[]
   storeOverrideKeys: string[]
+  reworkedBarcodeRule: ReworkedBarcodeRuleRecord
   updatedAt?: unknown
   updatedBy?: string
 }
@@ -396,8 +418,72 @@ export type StoreSettingsRecord = {
   canStoreRemoveItems: boolean
   maxSalePercent: number
   featureFlags: Record<string, boolean>
+  reworkedBarcodeRule: ReworkedBarcodeRuleRecord
   updatedAt?: unknown
   updatedBy?: string
+}
+
+export type HealthCheckQuestionType =
+  | "text"
+  | "number"
+  | "true_false"
+  | "multiple_choice"
+  | "multiple_select"
+  | "insights_metric"
+  | "expiration_metric"
+  | "transfer_metric"
+
+export type HealthCheckQuestionRecord = {
+  id: string
+  prompt: string
+  inputType: HealthCheckQuestionType
+  required: boolean
+  options: string[]
+  metricKey?: string
+}
+
+export type HealthCheckFormRecord = {
+  id: string
+  organizationId: string
+  title: string
+  description?: string
+  scope: "organization" | "store"
+  storeId?: string
+  roleTargets: string[]
+  departmentTargets: string[]
+  questions: HealthCheckQuestionRecord[]
+  isActive: boolean
+  createdAt?: unknown
+  createdBy?: string
+  updatedAt?: unknown
+  updatedBy?: string
+}
+
+export type SaveHealthCheckFormInput = {
+  id?: string
+  title: string
+  description?: string
+  scope: "organization" | "store"
+  storeId?: string
+  roleTargets: string[]
+  departmentTargets: string[]
+  questions: HealthCheckQuestionRecord[]
+  isActive: boolean
+  actorUid: string
+}
+
+export type HealthCheckResponseRecord = {
+  id: string
+  organizationId: string
+  storeId: string
+  healthCheckId: string
+  healthCheckTitle: string
+  answers: Record<string, unknown>
+  submittedByUid?: string
+  submittedByName?: string
+  roleTitle?: string
+  departmentNames: string[]
+  submittedAt?: unknown
 }
 
 export type CentralCatalogItemRecord = {
@@ -550,22 +636,53 @@ export const permissionCatalog: Array<{
   description: string
   section: "general" | "app" | "web"
 }> = [
-  { key: "manageInventory", label: "View Inventory", description: "View inventory and item metadata.", section: "general" },
+  { key: "viewDashboard", label: "View Dashboard", description: "Open dashboard modules and metrics.", section: "general" },
+  { key: "viewInventory", label: "View Inventory", description: "View inventory and item metadata.", section: "general" },
+  { key: "viewExpiration", label: "View Expiration", description: "Access expiration and near-date workflows.", section: "general" },
+  { key: "viewWaste", label: "View Waste", description: "Access waste records and waste trends.", section: "general" },
+  { key: "viewOrders", label: "View Orders", description: "View and review order queues and history.", section: "general" },
+  { key: "viewTodo", label: "View To-Do", description: "Access task lists and recurring task schedules.", section: "general" },
+  { key: "viewInsights", label: "View Insights", description: "Access financial and trend insights.", section: "general" },
+  { key: "viewProduction", label: "View Production", description: "Open production and pull planning views.", section: "general" },
+  { key: "viewHowTos", label: "View How-To Library", description: "Browse searchable SOP and prep guides.", section: "general" },
+  { key: "viewHealthChecks", label: "View Health Checks", description: "See assigned health checks and history.", section: "general" },
+  { key: "viewNotifications", label: "View Notifications", description: "Read organization notifications and alerts.", section: "general" },
+  { key: "viewStores", label: "View Stores", description: "Open store list and store-level status.", section: "general" },
+  { key: "viewUsers", label: "View Users", description: "View user list, profiles, and role assignments.", section: "general" },
+  { key: "manageInventory", label: "Manage Inventory", description: "Manage inventory data and workflows.", section: "general" },
   { key: "manageSales", label: "Can put items on sale", description: "Put items on sale and set sale pricing.", section: "general" },
   { key: "manageOrders", label: "Manage Orders", description: "Edit and complete orders.", section: "general" },
   { key: "generateOrders", label: "Generate Orders", description: "Run order suggestions.", section: "general" },
-  { key: "viewInsights", label: "View Insights", description: "Access financial and trend insights.", section: "general" },
   { key: "manageTodo", label: "Manage To-Do", description: "Create and complete tasks.", section: "general" },
   { key: "sendNotifications", label: "Can send notifications", description: "Send web + mobile notifications.", section: "general" },
+  { key: "exportData", label: "Export Data", description: "Export inventory, transfers, waste, and reports.", section: "general" },
+  { key: "requestStoreAccess", label: "Request Store Access", description: "Request manager approval to access another store.", section: "general" },
+  { key: "approveStoreAccessRequests", label: "Approve Store Access Requests", description: "Approve or deny cross-store access requests.", section: "general" },
   { key: "adjustStoreQuantity", label: "Adjust Quantity", description: "Adjust on-hand quantity/batches.", section: "app" },
-  { key: "appSpotCheck", label: "Spot Check", description: "Run spot check flows in the mobile app.", section: "app" },
+  { key: "appSpotCheck", label: "Spot Check", description: "Run spot check workflows in the mobile app.", section: "app" },
   { key: "appReceive", label: "Receive Orders", description: "Receive deliveries and update stock in the mobile app.", section: "app" },
   { key: "appWaste", label: "Record Waste", description: "Record waste and spoilage in the mobile app.", section: "app" },
   { key: "appExpiration", label: "Expiration Tasks", description: "Manage expiration workflows in the mobile app.", section: "app" },
+  { key: "appTransfers", label: "Transfers", description: "Move inventory between departments on mobile.", section: "app" },
+  { key: "appRework", label: "Rework", description: "Use rework workflows for rewrapped items.", section: "app" },
+  { key: "appProductionRuns", label: "Production Runs", description: "Log production runs and yields in mobile.", section: "app" },
+  { key: "appChop", label: "Chop / Prep", description: "Access chop and prep conversion workflows.", section: "app" },
+  { key: "appHealthChecks", label: "Health Checks (App)", description: "Complete assigned health checks in app.", section: "app" },
+  { key: "appNotificationsFeed", label: "Notifications Feed (App)", description: "Access in-app notification feed.", section: "app" },
+  { key: "appManualEntry", label: "Manual Entry", description: "Use manual entry when barcode scan is unavailable.", section: "app" },
+  { key: "appOfflineSync", label: "Offline Sync", description: "Queue offline operations and sync when online.", section: "app" },
   { key: "manageUsers", label: "Manage Users", description: "Create, edit, disable users and memberships.", section: "web" },
+  { key: "inviteUsers", label: "Invite Users", description: "Invite and pre-stage new user accounts.", section: "web" },
+  { key: "editUserRoles", label: "Edit User Roles", description: "Change user roles and permission assignments.", section: "web" },
+  { key: "resetUserCredentials", label: "Reset User Credentials", description: "Trigger password reset and account recovery actions.", section: "web" },
+  { key: "deactivateUsers", label: "Deactivate Users", description: "Disable or re-enable users.", section: "web" },
   { key: "manageStores", label: "Manage Stores", description: "Create/edit stores and assignments.", section: "web" },
+  { key: "createStores", label: "Create Stores", description: "Create new stores in the organization.", section: "web" },
+  { key: "editStores", label: "Edit Stores", description: "Edit existing store metadata and assignments.", section: "web" },
+  { key: "archiveStores", label: "Archive Stores", description: "Archive or restore stores.", section: "web" },
   { key: "manageOrgSettings", label: "Manage Organization Settings", description: "Control org-wide policies.", section: "web" },
   { key: "manageStoreSettings", label: "Manage Store Settings", description: "Control store policy and templates.", section: "web" },
+  { key: "manageHealthChecks", label: "Manage Health Checks", description: "Create and assign health check forms.", section: "web" },
   { key: "viewOrganizationInventory", label: "View Organization Inventory", description: "Open org-wide inventory metadata across stores.", section: "web" },
   { key: "editOrgInventoryMeta", label: "Edit Org Inventory Fields", description: "Edit org-level item fields.", section: "web" },
   { key: "editStoreInventory", label: "Edit Store Inventory Fields", description: "Edit store-level overrides and stock.", section: "web" },
@@ -573,8 +690,18 @@ export const permissionCatalog: Array<{
   { key: "manageJobTitles", label: "Manage Roles", description: "Create/edit role templates.", section: "web" },
   { key: "manageCentralCatalog", label: "Manage Central Catalog", description: "Edit central database catalog.", section: "web" },
   { key: "managePermissions", label: "Manage Permissions", description: "Edit role permissions and grants.", section: "web" },
-  { key: "requestStoreAccess", label: "Request Store Access", description: "Request manager approval to access another store.", section: "web" },
-  { key: "approveStoreAccessRequests", label: "Approve Store Access Requests", description: "Approve or deny cross-store access requests.", section: "web" }
+  { key: "viewBilling", label: "View Billing", description: "View billing status, plan, and invoices.", section: "web" },
+  { key: "manageBilling", label: "Manage Billing", description: "Update plan, trial rules, and billing controls.", section: "web" },
+  { key: "viewAuditLogs", label: "View Audit Logs", description: "View security and data change logs.", section: "web" },
+  { key: "exportAuditLogs", label: "Export Audit Logs", description: "Export audit and compliance logs.", section: "web" },
+  { key: "manageFeatureRequests", label: "Manage Feature Requests", description: "Review and triage feature request inbox.", section: "web" },
+  { key: "manageContactInbox", label: "Manage Contact Inbox", description: "Review and respond to contact inquiries.", section: "web" },
+  { key: "managePublicContent", label: "Manage Public Content", description: "Edit public landing page and marketing copy.", section: "web" },
+  { key: "managePrivacyContent", label: "Manage Privacy Content", description: "Edit privacy policy content.", section: "web" },
+  { key: "manageTermsContent", label: "Manage Terms Content", description: "Edit terms and legal content.", section: "web" },
+  { key: "manageFaqContent", label: "Manage FAQ Content", description: "Edit FAQ questions and answers.", section: "web" },
+  { key: "manageIntegrations", label: "Manage Integrations", description: "Configure integrations and external services.", section: "web" },
+  { key: "manageSecuritySettings", label: "Manage Security Settings", description: "Control advanced security and compliance settings.", section: "web" }
 ]
 
 const defaultPermissionFlags: Record<string, boolean> = Object.fromEntries(
@@ -628,15 +755,16 @@ function normalizeJobTitles(raw: unknown) {
       const title = typeof record.title === "string" ? record.title.trim() : ""
       if (!title) return null
       if (title.toLowerCase() === "owner") return null
+      const baseRole = normalizeBaseRole(record.baseRole)
       return {
         id: typeof record.id === "string" && record.id.trim() ? record.id : `job_${index + 1}`,
         title,
-        baseRole: normalizeBaseRole(record.baseRole),
+        baseRole,
         singlePerStore: Boolean(record.singlePerStore),
         permissionFlags:
           record.permissionFlags && typeof record.permissionFlags === "object"
-            ? (record.permissionFlags as Record<string, boolean>)
-            : {}
+            ? { ...permissionDefaultsForRole(baseRole), ...(record.permissionFlags as Record<string, boolean>) }
+            : permissionDefaultsForRole(baseRole)
       }
     })
     .filter(Boolean) as RoleTemplateRecord[]
@@ -675,38 +803,68 @@ function normalizeRoleDefaults(raw: unknown) {
   return Array.from(byRole.values())
 }
 
-function permissionDefaultsForRole(role: MemberRole): Record<string, boolean> {
+const defaultReworkedBarcodeRule: ReworkedBarcodeRuleRecord = {
+  enabled: false,
+  productCodeLength: 6,
+  encodedPriceLength: 5,
+  trailingDigitsLength: 1,
+  priceDivisor: 100
+}
+
+function normalizeReworkedBarcodeRule(raw: unknown): ReworkedBarcodeRuleRecord {
+  const rule = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const productCodeLength = Number(rule.productCodeLength)
+  const encodedPriceLength = Number(rule.encodedPriceLength)
+  const trailingDigitsLength = Number(rule.trailingDigitsLength)
+  const priceDivisor = Number(rule.priceDivisor)
+
+  return {
+    enabled: rule.enabled === undefined ? defaultReworkedBarcodeRule.enabled : Boolean(rule.enabled),
+    productCodeLength:
+      Number.isFinite(productCodeLength) && productCodeLength >= 1
+        ? Math.floor(productCodeLength)
+        : defaultReworkedBarcodeRule.productCodeLength,
+    encodedPriceLength:
+      Number.isFinite(encodedPriceLength) && encodedPriceLength >= 1
+        ? Math.floor(encodedPriceLength)
+        : defaultReworkedBarcodeRule.encodedPriceLength,
+    trailingDigitsLength:
+      Number.isFinite(trailingDigitsLength) && trailingDigitsLength >= 0
+        ? Math.floor(trailingDigitsLength)
+        : defaultReworkedBarcodeRule.trailingDigitsLength,
+    priceDivisor:
+      Number.isFinite(priceDivisor) && priceDivisor > 0
+        ? Math.floor(priceDivisor)
+        : defaultReworkedBarcodeRule.priceDivisor
+  }
+}
+
+export function permissionDefaultsForRole(role: MemberRole): Record<string, boolean> {
+  const ownerDefaults = Object.fromEntries(permissionCatalog.map((entry) => [entry.key, true])) as Record<string, boolean>
   if (role === "Owner") {
-    return {
-      manageUsers: true,
-      manageStores: true,
-      manageOrgSettings: true,
-      manageStoreSettings: true,
-      viewOrganizationInventory: true,
-      manageInventory: true,
-      editOrgInventoryMeta: true,
-      editStoreInventory: true,
-      adjustStoreQuantity: true,
-      manageVendors: true,
-      manageJobTitles: true,
-      manageSales: true,
-      manageOrders: true,
-      generateOrders: true,
-      viewInsights: true,
-      manageTodo: true,
-      sendNotifications: true,
-      manageCentralCatalog: true,
-      managePermissions: true,
-      requestStoreAccess: true,
-      approveStoreAccessRequests: true
-    }
+    return ownerDefaults
   }
   if (role === "Manager") {
     return {
+      ...defaultPermissionFlags,
       manageUsers: true,
       manageStores: true,
+      viewDashboard: true,
+      viewInventory: true,
+      viewExpiration: true,
+      viewWaste: true,
+      viewOrders: true,
+      viewTodo: true,
+      viewInsights: true,
+      viewProduction: true,
+      viewHowTos: true,
+      viewHealthChecks: true,
+      viewNotifications: true,
+      viewStores: true,
+      viewUsers: true,
       manageOrgSettings: false,
       manageStoreSettings: true,
+      manageHealthChecks: true,
       viewOrganizationInventory: false,
       manageInventory: true,
       editOrgInventoryMeta: true,
@@ -717,20 +875,73 @@ function permissionDefaultsForRole(role: MemberRole): Record<string, boolean> {
       manageSales: true,
       manageOrders: true,
       generateOrders: true,
-      viewInsights: true,
       manageTodo: true,
       sendNotifications: true,
+      exportData: true,
+      appSpotCheck: true,
+      appReceive: true,
+      appWaste: true,
+      appExpiration: true,
+      appTransfers: true,
+      appRework: true,
+      appProductionRuns: true,
+      appChop: true,
+      appHealthChecks: true,
+      appNotificationsFeed: true,
+      appManualEntry: true,
+      appOfflineSync: true,
+      inviteUsers: true,
+      editUserRoles: true,
+      resetUserCredentials: true,
+      deactivateUsers: true,
+      createStores: false,
+      editStores: true,
+      archiveStores: false,
       manageCentralCatalog: false,
       managePermissions: false,
+      viewBilling: true,
+      manageBilling: false,
+      viewAuditLogs: true,
+      exportAuditLogs: true,
+      manageFeatureRequests: false,
+      manageContactInbox: false,
+      managePublicContent: false,
+      managePrivacyContent: false,
+      manageTermsContent: false,
+      manageFaqContent: false,
+      manageIntegrations: true,
+      manageSecuritySettings: false,
       requestStoreAccess: true,
       approveStoreAccessRequests: true
     }
   }
   return {
     ...defaultPermissionFlags,
+    viewDashboard: true,
+    viewInventory: true,
+    viewExpiration: true,
+    viewWaste: true,
+    viewOrders: true,
+    viewTodo: true,
     manageInventory: true,
-    viewInsights: true,
     manageOrders: true,
+    viewProduction: true,
+    viewHowTos: true,
+    viewHealthChecks: true,
+    viewNotifications: true,
+    appSpotCheck: true,
+    appReceive: true,
+    appWaste: true,
+    appExpiration: true,
+    appTransfers: true,
+    appRework: true,
+    appProductionRuns: true,
+    appChop: true,
+    appHealthChecks: true,
+    appNotificationsFeed: true,
+    appManualEntry: true,
+    appOfflineSync: true,
+    viewInsights: true,
     generateOrders: true,
     manageTodo: true,
     requestStoreAccess: true,
@@ -1080,6 +1291,7 @@ export async function fetchUserOrganizations(uid: string): Promise<OrgContext[]>
     isPlatformAdmin: boolean
   ) => {
     const role = normalizeMemberRole(member?.role ?? (ownerByArray ? "Owner" : "Staff"))
+    const rawFlags = (member?.permissionFlags as Record<string, boolean> | undefined) ?? {}
     rowsByOrgId.set(orgId, {
       organizationId: orgId,
       organizationName: orgName,
@@ -1087,7 +1299,7 @@ export async function fetchUserOrganizations(uid: string): Promise<OrgContext[]>
       storeIds: member?.storeIds ?? [],
       departmentIds: member?.departmentIds ?? [],
       locationIds: member?.locationIds ?? [],
-      permissionFlags: (member?.permissionFlags as Record<string, boolean> | undefined) ?? permissionDefaultsForRole(role),
+      permissionFlags: { ...permissionDefaultsForRole(role), ...rawFlags },
       isPlatformAdmin
     })
   }
@@ -1676,9 +1888,10 @@ export async function fetchMembers(orgId: string): Promise<MemberRecord[]> {
           data.assignmentType === "corporate" || data.assignmentType === "store"
             ? (data.assignmentType as "corporate" | "store")
             : "store",
-        permissionFlags:
-          (data.permissionFlags as Record<string, boolean> | undefined) ??
-          permissionDefaultsForRole(normalizeMemberRole(data.role)),
+        permissionFlags: {
+          ...permissionDefaultsForRole(normalizeMemberRole(data.role)),
+          ...((data.permissionFlags as Record<string, boolean> | undefined) ?? {})
+        },
         profileImageUrl: typeof data.profileImageUrl === "string" ? data.profileImageUrl : undefined,
         canManageStoreUsersOnly: Boolean(data.canManageStoreUsersOnly),
         status:
@@ -1733,7 +1946,7 @@ export async function upsertMember(orgId: string, input: UpsertMemberInput): Pro
       employeeId: input.employeeId ?? null,
       jobTitle: input.jobTitle ?? null,
       assignmentType: input.assignmentType ?? "store",
-      permissionFlags: input.permissionFlags ?? defaultPermissionFlags,
+      permissionFlags: input.permissionFlags ?? permissionDefaultsForRole(role),
       profileImageUrl: input.profileImageUrl ?? null,
       canManageStoreUsersOnly: Boolean(input.canManageStoreUsersOnly),
       status: "active",
@@ -3501,6 +3714,10 @@ const baseJobTitles: OrgSettingsRecord["jobTitles"] = [
 
 const defaultOrgSettings: Omit<OrgSettingsRecord, "id" | "organizationId"> = {
   organizationName: "",
+  customBrandingEnabled: false,
+  replaceAppNameWithLogo: false,
+  brandLogoUrl: undefined,
+  brandLogoAssetId: undefined,
   canStoreRemoveItems: false,
   maxSalePercent: 30,
   allowStoreRoleCreation: false,
@@ -3519,7 +3736,8 @@ const defaultOrgSettings: Omit<OrgSettingsRecord, "id" | "organizationId"> = {
   roleDefaults: baseRoleDefaults,
   departments: [],
   locationTemplates: [],
-  storeOverrideKeys: []
+  storeOverrideKeys: [],
+  reworkedBarcodeRule: { ...defaultReworkedBarcodeRule }
 }
 
 const defaultStoreSettings: Omit<StoreSettingsRecord, "id" | "organizationId" | "storeId"> = {
@@ -3539,7 +3757,8 @@ const defaultStoreSettings: Omit<StoreSettingsRecord, "id" | "organizationId" | 
     insights: true,
     production: true,
     howtos: true
-  }
+  },
+  reworkedBarcodeRule: { ...defaultReworkedBarcodeRule }
 }
 
 export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord> {
@@ -3563,6 +3782,10 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord
     organizationId: orgId,
     organizationName: String(data.organizationName ?? orgName),
     companyCode: asString(data.companyCode) ?? asString(orgSnap.data()?.companyCode),
+    customBrandingEnabled: Boolean(data.customBrandingEnabled),
+    replaceAppNameWithLogo: Boolean(data.replaceAppNameWithLogo),
+    brandLogoUrl: asString(data.brandLogoUrl),
+    brandLogoAssetId: asString(data.brandLogoAssetId),
     canStoreRemoveItems: Boolean(data.canStoreRemoveItems),
     maxSalePercent: Number(data.maxSalePercent ?? 30),
     allowStoreRoleCreation: Boolean(data.allowStoreRoleCreation),
@@ -3578,6 +3801,7 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord
     departments: (data.departments as string[] | undefined) ?? [],
     locationTemplates: (data.locationTemplates as string[] | undefined) ?? [],
     storeOverrideKeys: (data.storeOverrideKeys as string[] | undefined) ?? [],
+    reworkedBarcodeRule: normalizeReworkedBarcodeRule(data.reworkedBarcodeRule),
     updatedAt: data.updatedAt,
     updatedBy: typeof data.updatedBy === "string" ? data.updatedBy : undefined
   }
@@ -3603,11 +3827,14 @@ export async function saveOrgSettings(
   if (Object.keys(orgDocPatch).length > 0) {
     await updateDoc(doc(db, "organizations", orgId), orgDocPatch)
   }
+  const sanitizedPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined)
+  ) as Partial<OrgSettingsRecord>
   await setDoc(
     doc(db, "organizations", orgId, "settings", "default"),
     {
       organizationId: orgId,
-      ...patch,
+      ...sanitizedPatch,
       updatedAt: serverTimestamp(),
       updatedBy: actorUserId
     },
@@ -3655,6 +3882,7 @@ export async function fetchStoreSettings(orgId: string, store: StoreWithPath): P
     canStoreRemoveItems: Boolean(data.canStoreRemoveItems),
     maxSalePercent: Number(data.maxSalePercent ?? 30),
     featureFlags: (data.featureFlags as Record<string, boolean> | undefined) ?? defaultStoreSettings.featureFlags,
+    reworkedBarcodeRule: normalizeReworkedBarcodeRule(data.reworkedBarcodeRule),
     updatedAt: data.updatedAt,
     updatedBy: typeof data.updatedBy === "string" ? data.updatedBy : undefined
   }
@@ -4298,9 +4526,223 @@ export async function upsertStripePlanOverride(
   )
 }
 
+function normalizeHealthCheckQuestionType(raw: unknown): HealthCheckQuestionType {
+  const type = typeof raw === "string" ? raw.trim().toLowerCase() : ""
+  switch (type) {
+    case "multiple_choice":
+    case "multiple_select":
+    case "number":
+    case "true_false":
+    case "insights_metric":
+    case "expiration_metric":
+    case "transfer_metric":
+      return type
+    default:
+      return "text"
+  }
+}
+
+function normalizeHealthCheckQuestion(id: string, data: Record<string, unknown>): HealthCheckQuestionRecord {
+  return {
+    id,
+    prompt: asString(data.prompt) ?? "",
+    inputType: normalizeHealthCheckQuestionType(data.inputType),
+    required: data.required === undefined ? true : Boolean(data.required),
+    options: asStringArray(data.options),
+    metricKey: asString(data.metricKey)
+  }
+}
+
+function normalizeHealthCheckForm(id: string, data: Record<string, unknown>): HealthCheckFormRecord {
+  const rawQuestions = Array.isArray(data.questions) ? data.questions : []
+  const questions = rawQuestions
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null
+      const questionData = entry as Record<string, unknown>
+      const questionId = asString(questionData.id) ?? `q_${index + 1}`
+      return normalizeHealthCheckQuestion(questionId, questionData)
+    })
+    .filter((entry): entry is HealthCheckQuestionRecord => Boolean(entry))
+
+  return {
+    id,
+    organizationId: asString(data.organizationId) ?? "",
+    title: asString(data.title) ?? "Untitled Health Check",
+    description: asString(data.description),
+    scope: data.scope === "store" ? "store" : "organization",
+    storeId: asString(data.storeId),
+    roleTargets: asStringArray(data.roleTargets),
+    departmentTargets: asStringArray(data.departmentTargets),
+    questions,
+    isActive: data.isActive === undefined ? true : Boolean(data.isActive),
+    createdAt: data.createdAt,
+    createdBy: asString(data.createdBy),
+    updatedAt: data.updatedAt,
+    updatedBy: asString(data.updatedBy)
+  }
+}
+
+export async function fetchHealthChecks(orgId: string, storeId?: string): Promise<HealthCheckFormRecord[]> {
+  if (!db || !orgId) return []
+  const snap = await getDocs(
+    query(collection(db, "organizations", orgId, "healthChecks"), orderBy("updatedAt", "desc"), limit(300))
+  ).catch(() => null)
+  if (!snap) return []
+
+  const forms = snap.docs.map((entry) =>
+    normalizeHealthCheckForm(entry.id, entry.data() as Record<string, unknown>)
+  )
+
+  return forms
+    .filter((form) => {
+      if (form.scope === "organization") return true
+      if (!storeId) return true
+      return (form.storeId ?? "").trim() === storeId.trim()
+    })
+    .sort((left, right) => {
+      const leftUpdated = asTimestampDate(left.updatedAt)?.getTime() ?? 0
+      const rightUpdated = asTimestampDate(right.updatedAt)?.getTime() ?? 0
+      return rightUpdated - leftUpdated
+    })
+}
+
+export async function saveHealthCheckForm(orgId: string, input: SaveHealthCheckFormInput): Promise<string> {
+  if (!db || !orgId || !input.actorUid) return ""
+  const ref = input.id
+    ? doc(db, "organizations", orgId, "healthChecks", input.id)
+    : doc(collection(db, "organizations", orgId, "healthChecks"))
+  const existingCreatedAt = input.id
+    ? (await getDoc(ref).catch(() => null))?.data()?.createdAt
+    : undefined
+
+  const normalizedQuestions = input.questions
+    .map((question, index) => ({
+      id: question.id?.trim() || `q_${index + 1}`,
+      prompt: question.prompt.trim(),
+      inputType: normalizeHealthCheckQuestionType(question.inputType),
+      required: question.required !== false,
+      options: question.options.map((entry) => entry.trim()).filter(Boolean),
+      metricKey: question.metricKey?.trim() || null
+    }))
+    .filter((question) => question.prompt.length > 0)
+
+  await setDoc(
+    ref,
+    {
+      organizationId: orgId,
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      scope: input.scope === "store" ? "store" : "organization",
+      storeId: input.scope === "store" ? input.storeId?.trim() || null : null,
+      roleTargets: Array.from(new Set(input.roleTargets.map((entry) => entry.trim()).filter(Boolean))),
+      departmentTargets: Array.from(new Set(input.departmentTargets.map((entry) => entry.trim()).filter(Boolean))),
+      questions: normalizedQuestions,
+      isActive: input.isActive,
+      createdBy: input.actorUid,
+      createdAt: input.id ? existingCreatedAt ?? serverTimestamp() : serverTimestamp(),
+      updatedBy: input.actorUid,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+
+  return ref.id
+}
+
+export async function deleteHealthCheckForm(orgId: string, formId: string): Promise<void> {
+  if (!db || !orgId || !formId) return
+  await deleteDoc(doc(db, "organizations", orgId, "healthChecks", formId))
+}
+
+export async function submitHealthCheckResponse(
+  orgId: string,
+  storeId: string,
+  form: Pick<HealthCheckFormRecord, "id" | "title">,
+  answers: Record<string, unknown>,
+  actor: {
+    uid: string
+    name?: string
+    roleTitle?: string
+    departmentNames?: string[]
+  }
+): Promise<string> {
+  if (!db || !orgId || !storeId || !actor.uid) return ""
+  const stores = await fetchStores(orgId).catch(() => [] as StoreWithPath[])
+  const resolvedStore = stores.find((entry) => entry.id === storeId)
+  const responseCollection = resolvedStore
+    ? storeCollectionPath(orgId, resolvedStore, "healthCheckResponses")
+    : collection(db, "organizations", orgId, "stores", storeId, "healthCheckResponses")
+  const ref = doc(responseCollection)
+  await setDoc(
+    ref,
+    {
+      organizationId: orgId,
+      storeId,
+      healthCheckId: form.id,
+      healthCheckTitle: form.title,
+      answers,
+      submittedByUid: actor.uid,
+      submittedByName: actor.name ?? null,
+      roleTitle: actor.roleTitle ?? null,
+      departmentNames: actor.departmentNames ?? [],
+      submittedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+  return ref.id
+}
+
+export async function fetchHealthCheckResponses(
+  orgId: string,
+  storeId?: string
+): Promise<HealthCheckResponseRecord[]> {
+  if (!db || !orgId) return []
+  const stores = storeId
+    ? (await fetchStores(orgId).catch(() => [] as StoreWithPath[])).filter((entry) => entry.id === storeId)
+    : await fetchStores(orgId).catch(() => [] as StoreWithPath[])
+  const rows: HealthCheckResponseRecord[] = []
+
+  await Promise.all(
+    stores.map(async (store) => {
+      const snap = await getDocs(
+        query(
+          storeCollectionPath(orgId, store, "healthCheckResponses"),
+          orderBy("submittedAt", "desc"),
+          limit(300)
+        )
+      ).catch(() => null)
+      for (const entry of snap?.docs ?? []) {
+        const data = entry.data() as Record<string, unknown>
+        rows.push({
+          id: entry.id,
+          organizationId: asString(data.organizationId) ?? orgId,
+          storeId: asString(data.storeId) ?? store.id,
+          healthCheckId: asString(data.healthCheckId) ?? "",
+          healthCheckTitle: asString(data.healthCheckTitle) ?? "Health Check",
+          answers: data.answers && typeof data.answers === "object" ? (data.answers as Record<string, unknown>) : {},
+          submittedByUid: asString(data.submittedByUid),
+          submittedByName: asString(data.submittedByName),
+          roleTitle: asString(data.roleTitle),
+          departmentNames: asStringArray(data.departmentNames),
+          submittedAt: data.submittedAt
+        })
+      }
+    })
+  )
+
+  return rows.sort((left, right) => {
+    const leftTime = asTimestampDate(left.submittedAt)?.getTime() ?? 0
+    const rightTime = asTimestampDate(right.submittedAt)?.getTime() ?? 0
+    return rightTime - leftTime
+  })
+}
+
 export const modulePathMap: Record<AppModule, string> = {
   dashboard: "/app",
   inventory: "/app/inventory",
+  healthChecks: "/app/health-checks",
   expiration: "/app/expiration",
   waste: "/app/waste",
   orders: "/app/orders",

@@ -50,6 +50,16 @@ final class FeatureRequestService {
 #endif
     }
 
+    func flushPendingRequestsIfPossible() async {
+#if canImport(FirebaseFirestore)
+        do {
+            try await flushFallbackQueueIfPossible()
+        } catch {
+            // Keep queue for later retries.
+        }
+#endif
+    }
+
     func submit(
         title rawTitle: String,
         details rawDetails: String,
@@ -86,17 +96,24 @@ final class FeatureRequestService {
             let payload: [String: Any] = [
                 "id": request.id,
                 "title": request.title,
+                // Canonical web/rules fields
+                "content": request.details,
+                "uid": request.createdByUid,
+                "email": request.createdByEmail as Any,
+                // Backward-compatible iOS fields
                 "details": request.details,
                 "category": request.category,
-                "status": "open",
+                "status": "new",
                 "createdByUid": request.createdByUid,
                 "createdByEmail": request.createdByEmail as Any,
                 "organizationId": request.organizationId as Any,
                 "source": request.source,
-                "createdAt": Timestamp(date: request.createdAt)
+                "createdAt": Timestamp(date: request.createdAt),
+                "updatedAt": Timestamp(date: request.createdAt)
             ]
 
             do {
+                try await flushFallbackQueueIfPossible()
                 try await Firestore.firestore()
                     .collection("featureRequests")
                     .document(request.id)
@@ -109,6 +126,47 @@ final class FeatureRequestService {
 #endif
         enqueueFallback(request)
     }
+
+#if canImport(FirebaseFirestore)
+    private func flushFallbackQueueIfPossible() async throws {
+        guard firestoreEnabled else { return }
+
+        var queue = loadFallbackQueue()
+        guard !queue.isEmpty else { return }
+
+        var remaining: [PendingFeatureRequest] = []
+        for pending in queue {
+            let payload: [String: Any] = [
+                "id": pending.id,
+                "title": pending.title,
+                "content": pending.details,
+                "uid": pending.createdByUid,
+                "email": pending.createdByEmail as Any,
+                "details": pending.details,
+                "category": pending.category,
+                "status": "new",
+                "createdByUid": pending.createdByUid,
+                "createdByEmail": pending.createdByEmail as Any,
+                "organizationId": pending.organizationId as Any,
+                "source": pending.source,
+                "createdAt": Timestamp(date: pending.createdAt),
+                "updatedAt": Timestamp(date: pending.createdAt)
+            ]
+            do {
+                try await Firestore.firestore()
+                    .collection("featureRequests")
+                    .document(pending.id)
+                    .setData(payload, merge: true)
+            } catch {
+                remaining.append(pending)
+            }
+        }
+
+        if remaining.count != queue.count {
+            saveFallbackQueue(remaining)
+        }
+    }
+#endif
 
     private func enqueueFallback(_ request: PendingFeatureRequest) {
         var queue = loadFallbackQueue()

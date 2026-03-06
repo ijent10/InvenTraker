@@ -4456,12 +4456,15 @@ export async function fetchFeatureRequests(): Promise<FeatureRequestRecord[]> {
   const snap = await getDocs(query(collection(db, "featureRequests"), orderBy("createdAt", "desc"), limit(1000)))
   return snap.docs.map((entry) => {
     const data = entry.data() as Record<string, unknown>
+    const content = asString(data.content) ?? asString(data.details) ?? ""
+    const email = asString(data.email) ?? asString(data.createdByEmail) ?? undefined
+    const uid = asString(data.uid) ?? asString(data.createdByUid) ?? undefined
     return {
       id: entry.id,
       title: asString(data.title) ?? "",
-      content: asString(data.content) ?? "",
-      email: asString(data.email) ?? undefined,
-      uid: asString(data.uid) ?? undefined,
+      content,
+      email,
+      uid,
       status:
         data.status === "planned" || data.status === "shipped" || data.status === "closed" || data.status === "new"
           ? data.status

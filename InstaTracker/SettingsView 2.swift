@@ -175,6 +175,9 @@ struct SettingsView: View {
         }
         .onAppear {
             syncNotifications()
+            Task {
+                await FeatureRequestService.shared.flushPendingRequestsIfPossible()
+            }
         }
         .onChange(of: settings.notificationsEnabled) { _, _ in syncNotifications() }
         .onChange(of: settings.expirationNotificationDays) { _, _ in syncNotifications() }

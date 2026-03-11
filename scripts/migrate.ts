@@ -10,12 +10,14 @@ import { run as run006 } from "./migrations/006_platform_preference_profiles_bac
 import { run as run007 } from "./migrations/007_audit_logs_root_backfill"
 import { run as run010 } from "./migrations/010_store_inventory_canonicalization"
 import { run as run011 } from "./migrations/011_store_access_requests_bootstrap"
+import { run as run012 } from "./migrations/012_store_inventory_unscoped_cleanup"
+import { run as run013 } from "./migrations/013_item_submissions_bootstrap"
 
 const registryPath = path.resolve("/Users/ianjent/Desktop/InvenTracker/meta/migrations/registry.json")
 
 type Registry = { applied: string[] }
 
-const ordered = [run001, run002, run003, run004, run005, run006, run007, run010, run011]
+const ordered = [run001, run002, run003, run004, run005, run006, run007, run010, run011, run012, run013]
 
 async function readRegistry(): Promise<Registry> {
   try {

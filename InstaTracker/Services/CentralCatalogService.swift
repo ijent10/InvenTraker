@@ -218,6 +218,92 @@ final class CentralCatalogService {
     }
 
     @discardableResult
+    func submitItemDraftForVerification(
+        organizationId: String,
+        storeId: String,
+        submittedByUid: String,
+        scannedUPC: String,
+        draftItem: InventoryItem?,
+        note: String? = nil
+    ) async -> String? {
+#if canImport(FirebaseFirestore)
+        guard firestoreEnabled else { return nil }
+        let normalizedOrgID = organizationId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedUID = submittedByUid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedOrgID.isEmpty, !normalizedStoreID.isEmpty, !normalizedUID.isEmpty else { return nil }
+
+        let normalizedUPC = normalizeUPC(scannedUPC)
+        let submittedName: String = {
+            if let draftItem {
+                let trimmed = draftItem.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            if !normalizedUPC.isEmpty { return "Draft Item \(String(normalizedUPC.suffix(6)))" }
+            return "Draft Item"
+        }()
+
+        let tags = draftItem?.tags ?? []
+        let payloadDraft: [String: Any] = [
+            "backendItemId": draftItem?.backendId as Any,
+            "name": submittedName,
+            "upc": normalizedUPC.isEmpty ? (draftItem?.upc as Any) : normalizedUPC,
+            "unit": draftItem?.unit.rawValue ?? MeasurementUnit.pieces.rawValue,
+            "price": draftItem?.price ?? 0,
+            "defaultExpirationDays": draftItem?.effectiveDefaultExpiration ?? 7,
+            "defaultPackedExpiration": draftItem?.effectiveDefaultPackedExpiration ?? 7,
+            "minQuantity": draftItem?.minimumQuantity ?? 0,
+            "qtyPerCase": draftItem?.quantityPerBox ?? 1,
+            "caseSize": max(1, Double(draftItem?.quantityPerBox ?? 1)),
+            "vendorId": draftItem?.vendor?.backendId as Any,
+            "vendorName": draftItem?.vendor?.name as Any,
+            "department": draftItem?.department as Any,
+            "departmentLocation": draftItem?.departmentLocation as Any,
+            "tags": tags,
+            "photoUrl": NSNull(),
+            "photoAssetId": NSNull(),
+            "reworkItemCode": draftItem?.reworkItemCode as Any,
+            "canBeReworked": draftItem?.canBeReworked ?? false,
+            "reworkShelfLifeDays": draftItem?.effectiveReworkShelfLifeDays ?? 1,
+            "maxReworkCount": draftItem?.effectiveMaxReworkCount ?? 1
+        ]
+
+        let db = Firestore.firestore()
+        let ref = db.collection("organizations")
+            .document(normalizedOrgID)
+            .collection("itemSubmissions")
+            .document()
+        do {
+            try await ref.setData([
+                "organizationId": normalizedOrgID,
+                "storeId": normalizedStoreID,
+                "submittedByUid": normalizedUID,
+                "status": "pending",
+                "scannedUpc": normalizedUPC.isEmpty ? NSNull() : normalizedUPC,
+                "note": (note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? note as Any : NSNull(),
+                "itemDraft": payloadDraft,
+                "createdAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp(),
+                "reviewedAt": NSNull(),
+                "reviewedByUid": NSNull(),
+                "reviewNote": NSNull()
+            ])
+            return ref.documentID
+        } catch {
+            return nil
+        }
+#else
+        _ = organizationId
+        _ = storeId
+        _ = submittedByUid
+        _ = scannedUPC
+        _ = draftItem
+        _ = note
+        return nil
+#endif
+    }
+
+    @discardableResult
     func upsertCompanyProductWithoutUPC(
         title rawTitle: String,
         tags rawTags: [String],

@@ -24,6 +24,14 @@ export default function AdminContentPage() {
   const [contactEmail, setContactEmail] = useState("")
   const [contactPhone, setContactPhone] = useState("")
   const [faq, setFaq] = useState<SiteFaqEntry[]>([{ id: "faq_1", question: "", answer: "" }])
+  const [featureRequestCategories, setFeatureRequestCategories] = useState<string[]>([
+    "workflow",
+    "inventory",
+    "analytics",
+    "account",
+    "other"
+  ])
+  const [newFeatureCategory, setNewFeatureCategory] = useState("")
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +42,11 @@ export default function AdminContentPage() {
     setContactEmail(data.contactEmail)
     setContactPhone(data.contactPhone)
     setFaq(data.faq.length ? data.faq : [{ id: "faq_1", question: "", answer: "" }])
+    setFeatureRequestCategories(
+      data.featureRequestCategories.length
+        ? data.featureRequestCategories
+        : ["workflow", "inventory", "analytics", "account", "other"]
+    )
   }, [data])
 
   const save = async () => {
@@ -46,7 +59,8 @@ export default function AdminContentPage() {
         termsContent,
         contactEmail,
         contactPhone,
-        faq: faq.map((entry, index) => ({ ...entry, id: entry.id || `faq_${index + 1}` }))
+        faq: faq.map((entry, index) => ({ ...entry, id: entry.id || `faq_${index + 1}` })),
+        featureRequestCategories
       })
       setMessage("Public content saved.")
     } catch (error) {
@@ -140,6 +154,47 @@ export default function AdminContentPage() {
                 onClick={() => setFaq((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev))}
               >
                 − Remove last
+              </AppButton>
+            </div>
+          </div>
+        </AppCard>
+
+        <AppCard>
+          <h2 className="card-title">Feature Request Categories</h2>
+          <p className="secondary-text mt-2">These categories show in user request forms and in the admin inbox.</p>
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {featureRequestCategories.map((category) => (
+                <AppButton
+                  key={category}
+                  type="button"
+                  variant="secondary"
+                  className="!h-8 !rounded-full !px-3 !py-1 !text-xs"
+                  onClick={() =>
+                    setFeatureRequestCategories((prev) => prev.filter((entry) => entry !== category))
+                  }
+                >
+                  <span>{category}</span>
+                  <span className="text-app-muted">×</span>
+                </AppButton>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <AppInput
+                placeholder="Add category"
+                value={newFeatureCategory}
+                onChange={(event) => setNewFeatureCategory(event.target.value)}
+              />
+              <AppButton
+                variant="secondary"
+                onClick={() => {
+                  const next = newFeatureCategory.trim().toLowerCase()
+                  if (!next) return
+                  setFeatureRequestCategories((prev) => (prev.includes(next) ? prev : [...prev, next]))
+                  setNewFeatureCategory("")
+                }}
+              >
+                Add
               </AppButton>
             </div>
           </div>

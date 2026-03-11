@@ -209,6 +209,40 @@ export async function reviewStoreAccessRequest(input: {
   return result.data
 }
 
+export async function reviewItemSubmission(input: {
+  orgId: string
+  submissionId: string
+  decision: "approved" | "rejected" | "promoted"
+  reviewNote?: string
+  centralOverride?: {
+    name?: string
+    upc?: string
+    defaultExpirationDays?: number
+    photoUrl?: string
+    photoAssetId?: string
+  }
+}): Promise<{ ok: boolean; submissionId: string; status: "approved" | "rejected" | "promoted" } | null> {
+  if (!functions) return null
+  const callable = httpsCallable<
+    {
+      orgId: string
+      submissionId: string
+      decision: "approved" | "rejected" | "promoted"
+      reviewNote?: string
+      centralOverride?: {
+        name?: string
+        upc?: string
+        defaultExpirationDays?: number
+        photoUrl?: string
+        photoAssetId?: string
+      }
+    },
+    { ok: boolean; submissionId: string; status: "approved" | "rejected" | "promoted" }
+  >(functions, "reviewItemSubmission")
+  const result = await callable(input)
+  return result.data
+}
+
 export async function savePublicSiteContentByCallable(input: {
   privacyContent?: string
   termsContent?: string
@@ -253,6 +287,74 @@ export async function createCheckoutSession(input: {
   return result.data
 }
 
+export async function createEmbeddedCheckoutSession(input: {
+  orgId: string
+  priceId: string
+  returnUrl: string
+  trialFromPlanDays?: number
+}): Promise<{
+  ok: boolean
+  clientSecret?: string | null
+  url?: string | null
+  sessionId?: string | null
+  pending?: boolean
+  sessionDocPath: string
+} | null> {
+  if (!functions) return null
+  const callable = httpsCallable<
+    { orgId: string; priceId: string; returnUrl: string; trialFromPlanDays?: number },
+    {
+      ok: boolean
+      clientSecret?: string | null
+      url?: string | null
+      sessionId?: string | null
+      pending?: boolean
+      sessionDocPath: string
+    }
+  >(functions, "createStripeEmbeddedCheckoutSession")
+  const result = await callable(input)
+  return result.data
+}
+
+export async function getCheckoutSessionStatus(input: {
+  orgId: string
+  sessionId: string
+}): Promise<{
+  ok: boolean
+  sessionId: string
+  status: string
+  paymentStatus: string
+  mode: string
+  customerEmail?: string | null
+  billingUpdated: boolean
+  subscriptionStatus: string
+  planName?: string | null
+  priceId?: string | null
+  currentPeriodEnd?: string | null
+  orgId: string
+} | null> {
+  if (!functions) return null
+  const callable = httpsCallable<
+    { orgId: string; sessionId: string },
+    {
+      ok: boolean
+      sessionId: string
+      status: string
+      paymentStatus: string
+      mode: string
+      customerEmail?: string | null
+      billingUpdated: boolean
+      subscriptionStatus: string
+      planName?: string | null
+      priceId?: string | null
+      currentPeriodEnd?: string | null
+      orgId: string
+    }
+  >(functions, "getStripeCheckoutSessionStatus")
+  const result = await callable(input)
+  return result.data
+}
+
 export async function createBillingPortalSession(input: {
   orgId: string
   returnUrl: string
@@ -262,6 +364,36 @@ export async function createBillingPortalSession(input: {
     functions,
     "createStripePortalSession"
   )
+  const result = await callable(input)
+  return result.data
+}
+
+export async function reconcileOrganizationBilling(input: {
+  orgId: string
+}): Promise<{
+  ok: boolean
+  orgId: string
+  subscriptionStatus: string
+  planName: string
+  planTier: "starter" | "growth" | "pro" | "custom"
+  priceId?: string | null
+  stripeProductId?: string | null
+  currentPeriodEnd?: string | null
+} | null> {
+  if (!functions) return null
+  const callable = httpsCallable<
+    { orgId: string },
+    {
+      ok: boolean
+      orgId: string
+      subscriptionStatus: string
+      planName: string
+      planTier: "starter" | "growth" | "pro" | "custom"
+      priceId?: string | null
+      stripeProductId?: string | null
+      currentPeriodEnd?: string | null
+    }
+  >(functions, "reconcileOrganizationBilling")
   const result = await callable(input)
   return result.data
 }

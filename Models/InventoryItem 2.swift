@@ -31,6 +31,7 @@ final class InventoryItem {
     var departmentLocation: String?
     var isPrepackaged: Bool
     var rewrapsWithUniqueBarcode: Bool
+    var reworkItemCode: String?
     var canBeReworked: Bool
     var reworkShelfLifeDays: Int
     var maxReworkCount: Int
@@ -74,6 +75,7 @@ final class InventoryItem {
         departmentLocation: String? = nil,
         isPrepackaged: Bool = false,
         rewrapsWithUniqueBarcode: Bool = false,
+        reworkItemCode: String? = nil,
         canBeReworked: Bool = false,
         reworkShelfLifeDays: Int = 1,
         maxReworkCount: Int = 1,
@@ -98,6 +100,7 @@ final class InventoryItem {
         self.departmentLocation = departmentLocation
         self.isPrepackaged = isPrepackaged
         self.rewrapsWithUniqueBarcode = rewrapsWithUniqueBarcode
+        self.reworkItemCode = reworkItemCode
         self.canBeReworked = canBeReworked
         self.reworkShelfLifeDays = max(1, reworkShelfLifeDays)
         self.maxReworkCount = max(1, maxReworkCount)

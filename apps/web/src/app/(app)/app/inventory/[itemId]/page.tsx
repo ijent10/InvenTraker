@@ -21,6 +21,7 @@ type PackagingMode = "standard" | "prepackaged" | "rewrappable"
 type FormState = {
   name: string
   upc: string
+  reworkItemCode: string
   price: string
   quantityPerBox: string
   defaultExpiration: string
@@ -43,6 +44,7 @@ function formFromItem(item: ItemRecord): FormState {
   return {
     name: item.name,
     upc: item.upc ?? "",
+    reworkItemCode: item.reworkItemCode ?? "",
     price: item.price.toFixed(2),
     quantityPerBox: String(item.quantityPerBox),
     defaultExpiration: String(item.defaultExpiration),
@@ -107,6 +109,10 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
       const patch: Partial<ItemRecord> = {
         name: form.name.trim(),
         upc: form.upc.trim(),
+        reworkItemCode:
+          packagingMode === "rewrappable"
+            ? (form.reworkItemCode.trim() || form.upc.trim() || undefined)
+            : "",
         price: Math.max(0, Number(form.price || "0")),
         quantityPerBox: Math.max(1, Number(form.quantityPerBox || "1")),
         qtyPerCase: Math.max(1, Number(form.quantityPerBox || "1")),
@@ -213,6 +219,16 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
               onChange={(event) => setForm((prev) => (prev ? { ...prev, upc: event.target.value } : prev))}
               disabled={!effectivePermissions.editOrgInventoryMeta}
             />
+            {form.packaging === "rewrappable" ? (
+              <AppInput
+                placeholder="Item code used by rewrap scanner"
+                value={form.reworkItemCode}
+                onChange={(event) =>
+                  setForm((prev) => (prev ? { ...prev, reworkItemCode: event.target.value } : prev))
+                }
+                disabled={!effectivePermissions.editOrgInventoryMeta}
+              />
+            ) : null}
             <div className="grid grid-cols-2 gap-3">
               <AppInput
                 type="number"

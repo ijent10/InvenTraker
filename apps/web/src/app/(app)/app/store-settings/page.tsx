@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AppButton, AppCard, AppCheckbox, AppInput, AppTextarea } from "@inventracker/ui"
+import { AppButton, AppCard, AppCheckbox, AppInput, AppSelect } from "@inventracker/ui"
 import { useQuery } from "@tanstack/react-query"
 
 import { PageHead } from "@/components/page-head"
@@ -15,6 +15,8 @@ import {
   removeVendor,
   saveStoreSettings,
   upsertVendor,
+  type DepartmentConfigRecord,
+  type ReworkedBarcodeSectionRecord,
   type RoleTemplateRecord,
   type StoreSettingsRecord
 } from "@/lib/data/firestore"
@@ -51,6 +53,120 @@ function inferBaseRole(title: string, permissionFlags: Record<string, boolean>):
   return "Staff"
 }
 
+function makeId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function cleanText(value: string): string {
+  return value.trim()
+}
+
+function normalizeDepartmentConfigs(configs: DepartmentConfigRecord[]): DepartmentConfigRecord[] {
+  const seen = new Set<string>()
+  const rows: DepartmentConfigRecord[] = []
+  for (const config of configs) {
+    const name = cleanText(config.name)
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    const locationSeen = new Set<string>()
+    const locations: string[] = []
+    for (const rawLocation of config.locations ?? []) {
+      const location = cleanText(rawLocation)
+      if (!location) continue
+      const locationKey = location.toLowerCase()
+      if (locationSeen.has(locationKey)) continue
+      locationSeen.add(locationKey)
+      locations.push(location)
+    }
+    rows.push({
+      id: cleanText(config.id) || makeId("department"),
+      name,
+      locations
+    })
+  }
+  return rows
+}
+
+function ensureOneItemCodeSection(sections: ReworkedBarcodeSectionRecord[]): ReworkedBarcodeSectionRecord[] {
+  if (sections.length === 0) return sections
+  const firstSelectedIndex = sections.findIndex((section) => section.useAsItemCode)
+  if (firstSelectedIndex < 0) {
+    const fallbackIndex = sections.findIndex((section) => section.type === "other")
+    const index = fallbackIndex >= 0 ? fallbackIndex : 0
+    return sections.map((section, sectionIndex) => ({
+      ...section,
+      useAsItemCode: sectionIndex === index
+    }))
+  }
+  return sections.map((section, sectionIndex) => ({
+    ...section,
+    useAsItemCode: sectionIndex === firstSelectedIndex
+  }))
+}
+
+function normalizeBarcodeSections(sections: ReworkedBarcodeSectionRecord[]): ReworkedBarcodeSectionRecord[] {
+  const normalized = sections
+    .map((section, index) => {
+      const type = section.type === "price" || section.type === "weight" || section.type === "other"
+        ? section.type
+        : "other"
+      return {
+        id: cleanText(section.id) || makeId(`barcode_section_${index + 1}`),
+        name: cleanText(section.name) || `Section ${index + 1}`,
+        digits: Math.max(1, Number(section.digits || 1)),
+        type,
+        useAsItemCode: Boolean(section.useAsItemCode),
+        decimalPlaces:
+          type === "price" || type === "weight"
+            ? Math.max(0, Number(section.decimalPlaces ?? (type === "price" ? 2 : 3)))
+            : undefined,
+        weightUnit: type === "weight" ? section.weightUnit ?? "lbs" : undefined
+      } as ReworkedBarcodeSectionRecord
+    })
+    .filter((section) => section.digits > 0)
+  return ensureOneItemCodeSection(normalized)
+}
+
+function deriveLegacyRuleParts(sections: ReworkedBarcodeSectionRecord[]) {
+  const normalizedSections = normalizeBarcodeSections(sections)
+  const itemCode = normalizedSections.find((section) => section.useAsItemCode) ?? normalizedSections[0]
+  const price = normalizedSections.find((section) => section.type === "price")
+  const trailingDigitsLength = normalizedSections
+    .filter((section) => section.id !== itemCode?.id && section.id !== price?.id)
+    .reduce((sum, section) => sum + Math.max(0, section.digits), 0)
+  const productCodeLength = Math.max(1, Number(itemCode?.digits ?? 6))
+  const encodedPriceLength = Math.max(1, Number(price?.digits ?? 5))
+  const priceDivisor = Math.pow(10, Math.max(0, Number(price?.decimalPlaces ?? 2)))
+  return {
+    sections: normalizedSections,
+    productCodeLength,
+    encodedPriceLength,
+    trailingDigitsLength,
+    priceDivisor
+  }
+}
+
+function sectionFormatHint(section: ReworkedBarcodeSectionRecord): string {
+  const digits = Math.max(1, Number(section.digits || 1))
+  if (section.type === "price") {
+    const decimals = Math.max(0, Number(section.decimalPlaces ?? 2))
+    const leftDigits = Math.max(1, digits - decimals)
+    return `${"0".repeat(leftDigits)}${decimals > 0 ? `.${"0".repeat(decimals)}` : ""}`
+  }
+  if (section.type === "weight") {
+    const decimals = Math.max(0, Number(section.decimalPlaces ?? 3))
+    const leftDigits = Math.max(1, digits - decimals)
+    const unit = section.weightUnit ?? "lbs"
+    return `${"0".repeat(leftDigits)}${decimals > 0 ? `.${"0".repeat(decimals)}` : ""} ${unit}`
+  }
+  return "Raw segment"
+}
+
 export default function StoreSettingsPage() {
   const { user } = useAuthUser()
   const { activeOrgId, activeStore, effectivePermissions } = useOrgContext()
@@ -62,8 +178,9 @@ export default function StoreSettingsPage() {
   const [form, setForm] = useState<Partial<StoreSettingsRecord>>({})
   const [localRoles, setLocalRoles] = useState<RoleTemplateRecord[]>([])
   const [selectedRoleKey, setSelectedRoleKey] = useState<string>("")
-  const [departmentsText, setDepartmentsText] = useState("")
-  const [locationsText, setLocationsText] = useState("")
+  const [departmentConfigs, setDepartmentConfigs] = useState<DepartmentConfigRecord[]>([])
+  const [newDepartmentName, setNewDepartmentName] = useState("")
+  const [newLocationsByDepartment, setNewLocationsByDepartment] = useState<Record<string, string>>({})
   const [vendorName, setVendorName] = useState("")
   const [vendorDays, setVendorDays] = useState("")
   const [vendorLeadDays, setVendorLeadDays] = useState("0")
@@ -93,9 +210,8 @@ export default function StoreSettingsPage() {
     if (!settings) return
     setForm(settings)
     setLocalRoles(settings.jobTitles ?? [])
+    setDepartmentConfigs(normalizeDepartmentConfigs(settings.departmentConfigs ?? []))
     setSelectedRoleKey("")
-    setDepartmentsText((settings.departments ?? []).join(", "))
-    setLocationsText((settings.locationTemplates ?? []).join(", "))
   }, [settings])
 
   const permissionSections = useMemo(
@@ -130,26 +246,25 @@ export default function StoreSettingsPage() {
     setStatusMessage(null)
     setErrorMessage(null)
     try {
+      const normalizedConfigs = normalizeDepartmentConfigs(departmentConfigs)
+      const preparedSections = deriveLegacyRuleParts(form.reworkedBarcodeRule?.sections ?? [])
       const reworkedBarcodeRule = {
         enabled: Boolean(form.reworkedBarcodeRule?.enabled),
-        productCodeLength: Math.max(1, Number(form.reworkedBarcodeRule?.productCodeLength ?? 6)),
-        encodedPriceLength: Math.max(1, Number(form.reworkedBarcodeRule?.encodedPriceLength ?? 5)),
-        trailingDigitsLength: Math.max(0, Number(form.reworkedBarcodeRule?.trailingDigitsLength ?? 1)),
-        priceDivisor: Math.max(1, Number(form.reworkedBarcodeRule?.priceDivisor ?? 100))
+        ruleName: cleanText(form.reworkedBarcodeRule?.ruleName ?? "") || "Default Rule",
+        sections: preparedSections.sections,
+        productCodeLength: preparedSections.productCodeLength,
+        encodedPriceLength: preparedSections.encodedPriceLength,
+        trailingDigitsLength: preparedSections.trailingDigitsLength,
+        priceDivisor: preparedSections.priceDivisor
       }
       await saveStoreSettings(
         activeOrgId,
         activeStore,
         {
           ...form,
-          departments: departmentsText
-            .split(",")
-            .map((entry) => entry.trim())
-            .filter(Boolean),
-          locationTemplates: locationsText
-            .split(",")
-            .map((entry) => entry.trim())
-            .filter(Boolean),
+          departmentConfigs: normalizedConfigs,
+          departments: normalizedConfigs.map((entry) => entry.name),
+          locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
           jobTitles: localRoles.filter((entry) => entry.title.trim().length > 0),
           reworkedBarcodeRule
         },
@@ -199,6 +314,145 @@ export default function StoreSettingsPage() {
     }
     setLocalRoles((prev) => [...prev, nextRole])
     setSelectedRoleKey("")
+  }
+
+  const addDepartment = () => {
+    const name = cleanText(newDepartmentName)
+    if (!name) return
+    setDepartmentConfigs((prev) =>
+      normalizeDepartmentConfigs([
+        ...prev,
+        {
+          id: makeId("department"),
+          name,
+          locations: []
+        }
+      ])
+    )
+    setNewDepartmentName("")
+  }
+
+  const addLocation = (departmentId: string) => {
+    const location = cleanText(newLocationsByDepartment[departmentId] ?? "")
+    if (!location) return
+    setDepartmentConfigs((prev) =>
+      prev.map((department) =>
+        department.id === departmentId
+          ? {
+              ...department,
+              locations: Array.from(new Set([...department.locations, location]))
+            }
+          : department
+      )
+    )
+    setNewLocationsByDepartment((prev) => ({ ...prev, [departmentId]: "" }))
+  }
+
+  const barcodeSections = form.reworkedBarcodeRule?.sections ?? []
+
+  const composeRule = (
+    enabled: boolean,
+    ruleName: string,
+    sections: ReworkedBarcodeSectionRecord[]
+  ): StoreSettingsRecord["reworkedBarcodeRule"] => {
+    const legacy = deriveLegacyRuleParts(sections)
+    return {
+      enabled,
+      ruleName: cleanText(ruleName) || "Default Rule",
+      sections: legacy.sections,
+      productCodeLength: legacy.productCodeLength,
+      encodedPriceLength: legacy.encodedPriceLength,
+      trailingDigitsLength: legacy.trailingDigitsLength,
+      priceDivisor: legacy.priceDivisor
+    }
+  }
+
+  const addBarcodeSection = () => {
+    setForm((prev) => ({
+      ...prev,
+      reworkedBarcodeRule: composeRule(
+        Boolean(prev.reworkedBarcodeRule?.enabled),
+        prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+        [
+          ...(prev.reworkedBarcodeRule?.sections ?? []),
+          {
+            id: makeId("barcode_section"),
+            name: `Section ${(prev.reworkedBarcodeRule?.sections?.length ?? 0) + 1}`,
+            digits: 1,
+            type: "other",
+            useAsItemCode: false
+          }
+        ]
+      )
+    }))
+  }
+
+  const updateBarcodeSection = (
+    sectionId: string,
+    patch: Partial<ReworkedBarcodeSectionRecord>
+  ) => {
+    setForm((prev) => {
+      const sections = (prev.reworkedBarcodeRule?.sections ?? []).map((section) =>
+        section.id === sectionId ? { ...section, ...patch } : section
+      )
+      return {
+        ...prev,
+        reworkedBarcodeRule: composeRule(
+          Boolean(prev.reworkedBarcodeRule?.enabled),
+          prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+          sections
+        )
+      }
+    })
+  }
+
+  const removeBarcodeSection = (sectionId: string) => {
+    setForm((prev) => {
+      const sections = (prev.reworkedBarcodeRule?.sections ?? []).filter((section) => section.id !== sectionId)
+      return {
+        ...prev,
+        reworkedBarcodeRule: composeRule(
+          Boolean(prev.reworkedBarcodeRule?.enabled),
+          prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+          ensureOneItemCodeSection(sections)
+        )
+      }
+    })
+  }
+
+  const moveBarcodeSection = (sectionId: string, direction: "up" | "down") => {
+    setForm((prev) => {
+      const sections = [...(prev.reworkedBarcodeRule?.sections ?? [])]
+      const index = sections.findIndex((section) => section.id === sectionId)
+      if (index < 0) return prev
+      const targetIndex = direction === "up" ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= sections.length) return prev
+      const [picked] = sections.splice(index, 1)
+      if (!picked) return prev
+      sections.splice(targetIndex, 0, picked)
+      return {
+        ...prev,
+        reworkedBarcodeRule: composeRule(
+          Boolean(prev.reworkedBarcodeRule?.enabled),
+          prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+          sections
+        )
+      }
+    })
+  }
+
+  const setItemCodeSection = (sectionId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      reworkedBarcodeRule: composeRule(
+        Boolean(prev.reworkedBarcodeRule?.enabled),
+        prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+        (prev.reworkedBarcodeRule?.sections ?? []).map((section) => ({
+          ...section,
+          useAsItemCode: section.id === sectionId
+        }))
+      )
+    }))
   }
 
   if (!effectivePermissions.manageStoreSettings) {
@@ -253,7 +507,7 @@ export default function StoreSettingsPage() {
         <AppCard>
           <h2 className="card-title">Reworked Barcode Parsing</h2>
           <p className="secondary-text mt-1 text-xs">
-            Configure how this store decodes reworked labels. Example: product digits + encoded package price + trailing digit.
+            Build an ordered parser. Mark one section as the Item Code so rewrapped scans match the right product.
           </p>
           <div className="mt-4 grid gap-3">
             <AppCheckbox
@@ -261,105 +515,138 @@ export default function StoreSettingsPage() {
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  reworkedBarcodeRule: {
-                    enabled: event.target.checked,
-                    productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
-                    encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
-                    trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
-                    priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
-                  }
+                  reworkedBarcodeRule: composeRule(
+                    event.target.checked,
+                    prev.reworkedBarcodeRule?.ruleName ?? "Default Rule",
+                    prev.reworkedBarcodeRule?.sections ?? []
+                  )
                 }))
               }
-              label="Enable store barcode parsing rule for reworked items"
+              label="Enable parser for rewrapped item barcodes"
             />
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <div>
-                <p className="secondary-text mb-1 text-xs">Product code digits (first segment)</p>
-                <AppInput
-                  type="number"
-                  min={1}
-                  value={String(form.reworkedBarcodeRule?.productCodeLength ?? 6)}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      reworkedBarcodeRule: {
-                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
-                        productCodeLength: Number(event.target.value || "6"),
-                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
-                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
-                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+            <AppInput
+              value={form.reworkedBarcodeRule?.ruleName ?? "Default Rule"}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  reworkedBarcodeRule: composeRule(
+                    Boolean(prev.reworkedBarcodeRule?.enabled),
+                    event.target.value,
+                    prev.reworkedBarcodeRule?.sections ?? []
+                  )
+                }))
+              }
+              placeholder="Rule name (example: Cheese)"
+            />
+            {barcodeSections.length === 0 ? (
+              <p className="secondary-text rounded-xl border border-app-border px-3 py-2 text-xs">
+                No sections yet. Add one for item code, one for price/weight, and any trailing segments.
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              {barcodeSections.map((section, index) => (
+                <div key={section.id} className="rounded-2xl border border-app-border p-3">
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <AppInput
+                      value={section.name}
+                      onChange={(event) => updateBarcodeSection(section.id, { name: event.target.value })}
+                      placeholder="Section label"
+                    />
+                    <AppInput
+                      type="number"
+                      min={1}
+                      value={String(section.digits)}
+                      onChange={(event) =>
+                        updateBarcodeSection(section.id, { digits: Math.max(1, Number(event.target.value || "1")) })
                       }
-                    }))
-                  }
-                  placeholder="Example: 6"
-                />
-              </div>
-              <div>
-                <p className="secondary-text mb-1 text-xs">Encoded package price digits (middle segment)</p>
-                <AppInput
-                  type="number"
-                  min={1}
-                  value={String(form.reworkedBarcodeRule?.encodedPriceLength ?? 5)}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      reworkedBarcodeRule: {
-                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
-                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
-                        encodedPriceLength: Number(event.target.value || "5"),
-                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
-                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
+                      placeholder="Digits"
+                    />
+                    <AppSelect
+                      value={section.type}
+                      onChange={(event) =>
+                        updateBarcodeSection(section.id, {
+                          type: event.target.value as ReworkedBarcodeSectionRecord["type"]
+                        })
                       }
-                    }))
-                  }
-                  placeholder="Example: 5"
-                />
-              </div>
-              <div>
-                <p className="secondary-text mb-1 text-xs">Trailing check/control digits (last segment)</p>
-                <AppInput
-                  type="number"
-                  min={0}
-                  value={String(form.reworkedBarcodeRule?.trailingDigitsLength ?? 1)}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      reworkedBarcodeRule: {
-                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
-                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
-                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
-                        trailingDigitsLength: Number(event.target.value || "1"),
-                        priceDivisor: Number(prev.reworkedBarcodeRule?.priceDivisor ?? 100)
-                      }
-                    }))
-                  }
-                  placeholder="Example: 1"
-                />
-              </div>
-              <div>
-                <p className="secondary-text mb-1 text-xs">Price divisor (encoded cents to dollars)</p>
-                <AppInput
-                  type="number"
-                  min={1}
-                  value={String(form.reworkedBarcodeRule?.priceDivisor ?? 100)}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      reworkedBarcodeRule: {
-                        enabled: Boolean(prev.reworkedBarcodeRule?.enabled),
-                        productCodeLength: Number(prev.reworkedBarcodeRule?.productCodeLength ?? 6),
-                        encodedPriceLength: Number(prev.reworkedBarcodeRule?.encodedPriceLength ?? 5),
-                        trailingDigitsLength: Number(prev.reworkedBarcodeRule?.trailingDigitsLength ?? 1),
-                        priceDivisor: Number(event.target.value || "100")
-                      }
-                    }))
-                  }
-                  placeholder="Example: 100"
-                />
-              </div>
+                    >
+                      <option value="other">Other</option>
+                      <option value="price">Price</option>
+                      <option value="weight">Weight</option>
+                    </AppSelect>
+                  </div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {(section.type === "price" || section.type === "weight") ? (
+                      <AppInput
+                        type="number"
+                        min={0}
+                        value={String(section.decimalPlaces ?? (section.type === "price" ? 2 : 3))}
+                        onChange={(event) =>
+                          updateBarcodeSection(section.id, {
+                            decimalPlaces: Math.max(0, Number(event.target.value || "0"))
+                          })
+                        }
+                        placeholder="Decimal places"
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-app-border bg-app-surface px-3 py-2 text-xs text-app-muted">
+                        No decimals for this section type.
+                      </div>
+                    )}
+                    {section.type === "weight" ? (
+                      <AppSelect
+                        value={section.weightUnit ?? "lbs"}
+                        onChange={(event) =>
+                          updateBarcodeSection(section.id, {
+                            weightUnit: event.target.value as ReworkedBarcodeSectionRecord["weightUnit"]
+                          })
+                        }
+                      >
+                        <option value="lbs">Pounds (lbs)</option>
+                        <option value="oz">Ounces (oz)</option>
+                        <option value="kg">Kilograms (kg)</option>
+                        <option value="g">Grams (g)</option>
+                        <option value="each">Each</option>
+                      </AppSelect>
+                    ) : (
+                      <div className="rounded-xl border border-app-border bg-app-surface px-3 py-2 text-xs text-app-muted">
+                        Weight unit applies only to weight sections.
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <AppCheckbox
+                      checked={Boolean(section.useAsItemCode)}
+                      onChange={() => setItemCodeSection(section.id)}
+                      label="Use this section as Item Code"
+                    />
+                    <div className="flex items-center gap-2">
+                      <AppButton variant="secondary" onClick={() => moveBarcodeSection(section.id, "up")} disabled={index === 0}>
+                        Up
+                      </AppButton>
+                      <AppButton
+                        variant="secondary"
+                        onClick={() => moveBarcodeSection(section.id, "down")}
+                        disabled={index === barcodeSections.length - 1}
+                      >
+                        Down
+                      </AppButton>
+                      <AppButton variant="secondary" onClick={() => removeBarcodeSection(section.id)}>
+                        Remove
+                      </AppButton>
+                    </div>
+                  </div>
+                  <p className="secondary-text mt-2 text-xs">
+                    Parsed format: <span className="font-semibold">{sectionFormatHint(section)}</span>
+                  </p>
+                </div>
+              ))}
             </div>
+            <AppButton variant="secondary" onClick={addBarcodeSection}>
+              Add Section
+            </AppButton>
             <p className="secondary-text text-xs">
-              With lengths 6 + 5 + 1 and divisor 100, barcode `657983008814` decodes package price as $8.81.
+              Example for Fresh Market: Item Code (6, Other) + Price (5, Price, 2 decimals) + Trailing (1, Other) parses
+              `657983008814` as item code `657983` and package price `$8.81`.
             </p>
           </div>
         </AppCard>
@@ -367,18 +654,87 @@ export default function StoreSettingsPage() {
         <AppCard>
           <h2 className="card-title">Departments + Locations</h2>
           <div className="mt-4 grid gap-3">
-            <AppTextarea
-              className="min-h-[90px]"
-              value={departmentsText}
-              onChange={(event) => setDepartmentsText(event.target.value)}
-              placeholder="Departments (comma-separated)"
-            />
-            <AppTextarea
-              className="min-h-[90px]"
-              value={locationsText}
-              onChange={(event) => setLocationsText(event.target.value)}
-              placeholder="Location templates (comma-separated)"
-            />
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+              <AppInput
+                value={newDepartmentName}
+                onChange={(event) => setNewDepartmentName(event.target.value)}
+                placeholder="Department name (example: Cheese)"
+              />
+              <AppButton variant="secondary" onClick={addDepartment}>
+                Add Department
+              </AppButton>
+            </div>
+            {departmentConfigs.length === 0 ? (
+              <p className="secondary-text rounded-xl border border-app-border px-3 py-2 text-xs">
+                No departments yet. Add one, then add locations inside it.
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              {departmentConfigs.map((department) => (
+                <div key={department.id} className="rounded-2xl border border-app-border p-3">
+                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                    <AppInput
+                      value={department.name}
+                      onChange={(event) =>
+                        setDepartmentConfigs((prev) =>
+                          prev.map((entry) =>
+                            entry.id === department.id ? { ...entry, name: event.target.value } : entry
+                          )
+                        )
+                      }
+                      placeholder="Department name"
+                    />
+                    <AppButton
+                      variant="secondary"
+                      onClick={() =>
+                        setDepartmentConfigs((prev) => prev.filter((entry) => entry.id !== department.id))
+                      }
+                    >
+                      Remove
+                    </AppButton>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {department.locations.map((location) => (
+                      <AppButton
+                        key={`${department.id}-${location}`}
+                        variant="secondary"
+                        className="!h-auto !rounded-full !border-app-border !px-3 !py-1 !text-xs !text-app-muted hover:!border-rose-400 hover:!text-rose-300"
+                        onClick={() =>
+                          setDepartmentConfigs((prev) =>
+                            prev.map((entry) =>
+                              entry.id === department.id
+                                ? {
+                                    ...entry,
+                                    locations: entry.locations.filter((row) => row !== location)
+                                  }
+                                : entry
+                            )
+                          )
+                        }
+                        title="Remove location"
+                      >
+                        {location} ×
+                      </AppButton>
+                    ))}
+                    {department.locations.length === 0 ? (
+                      <p className="secondary-text text-xs">No locations yet.</p>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto]">
+                    <AppInput
+                      value={newLocationsByDepartment[department.id] ?? ""}
+                      onChange={(event) =>
+                        setNewLocationsByDepartment((prev) => ({ ...prev, [department.id]: event.target.value }))
+                      }
+                      placeholder="Add location (example: Cooler 1)"
+                    />
+                    <AppButton variant="secondary" onClick={() => addLocation(department.id)}>
+                      Add Location
+                    </AppButton>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </AppCard>
 

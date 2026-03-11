@@ -9,6 +9,7 @@ import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
   computeFinancialHealthFromOrgData,
+  fetchStoreInventoryItems,
   fetchOrgWasteRecords
 } from "@/lib/data/firestore"
 
@@ -87,6 +88,28 @@ export default function InsightsPage() {
     retry: 1,
     enabled: Boolean(activeOrgId && effectivePermissions.viewInsights)
   })
+
+  const { data: scopedItems = [] } = useQuery({
+    queryKey: ["insights-items", activeOrgId, scopedStoreId],
+    queryFn: () => (scopedStoreId ? fetchStoreInventoryItems(activeOrgId, scopedStoreId) : Promise.resolve([])),
+    enabled: Boolean(activeOrgId && effectivePermissions.viewInsights && scopedStoreId)
+  })
+
+  const healthGrade = useMemo(() => {
+    const lowStockCount = scopedItems.filter((item) => item.totalQuantity < item.minimumQuantity).length
+    const expiringPenalty = Math.min(30, Math.round((financial?.expiringSoonValue ?? 0) / 60))
+    const wastePenalty = Math.min(35, Math.round((financial?.wasteCostWeek ?? 0) / 40))
+    const lowStockPenalty = Math.min(25, lowStockCount * 2)
+    const score = Math.max(0, 100 - expiringPenalty - wastePenalty - lowStockPenalty)
+
+    let grade = "A"
+    if (score < 90) grade = "B"
+    if (score < 80) grade = "C"
+    if (score < 70) grade = "D"
+    if (score < 60) grade = "F"
+
+    return { score, grade, lowStockCount }
+  }, [financial?.expiringSoonValue, financial?.wasteCostWeek, scopedItems])
 
   const mostWasted = useMemo(() => {
     const grouped = new Map<string, number>()
@@ -201,6 +224,15 @@ export default function InsightsPage() {
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {visibleSections.inventory ? (
+            <AppCard>
+              <p className="secondary-text">Inventory Health Grade</p>
+              <p className="mt-2 text-3xl font-semibold">{healthGrade.grade}</p>
+              <p className="secondary-text mt-1">
+                Score {healthGrade.score}/100 · {healthGrade.lowStockCount} low stock items
+              </p>
+            </AppCard>
+          ) : null}
           {visibleSections.inventory ? (
             <AppCard>
               <p className="secondary-text">Inventory Value</p>

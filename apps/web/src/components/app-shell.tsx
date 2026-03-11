@@ -20,7 +20,8 @@ import {
   Building2,
   ChevronDown,
   Bell,
-  ClipboardList
+  ClipboardList,
+  ScanLine
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -46,6 +47,7 @@ import { AppButton, appButtonClass } from "@inventracker/ui"
 const nav: Array<{ href: string; label: string; icon: (typeof Home); module: AppModule }> = [
   { href: "/app", label: "Dashboard", icon: Home, module: "dashboard" },
   { href: "/app/inventory", label: "Inventory", icon: Box, module: "inventory" },
+  { href: "/app/spot-check", label: "Spot Check", icon: ScanLine, module: "inventory" },
   { href: "/app/health-checks", label: "Health Checks", icon: ClipboardList, module: "healthChecks" },
   { href: "/app/expiration", label: "Expiration", icon: Clock3, module: "expiration" },
   { href: "/app/waste", label: "Waste", icon: Trash2, module: "waste" },
@@ -64,7 +66,7 @@ const nav: Array<{ href: string; label: string; icon: (typeof Home); module: App
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const queryClient = useQueryClient()
-  const { user, isPlatformAdmin } = useAuthUser()
+  const { user } = useAuthUser()
   const {
     loading,
     storesLoading,
@@ -93,6 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!allowed.has(item.module)) return false
     if (item.module === "dashboard") return effectivePermissions.viewDashboard
     if (item.module === "inventory") return effectivePermissions.viewInventory
+    if (item.href === "/app/spot-check") return effectivePermissions.appSpotCheck
     if (item.module === "healthChecks") return effectivePermissions.viewHealthChecks
     if (item.module === "expiration") return effectivePermissions.viewExpiration
     if (item.module === "waste") return effectivePermissions.viewWaste
@@ -292,17 +295,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const normalizedSubscriptionStatus = (billingStatus?.subscriptionStatus ?? "inactive").trim().toLowerCase()
   const hasActiveSubscription =
     normalizedSubscriptionStatus === "active" || normalizedSubscriptionStatus === "trialing"
-  const normalizedEmail = user?.email?.trim().toLowerCase() ?? ""
-  const hasSubscriptionBypass =
-    isPlatformAdmin && normalizedEmail === "ianjjent@icloud.com"
-  const needsPlan = Boolean(activeOrgId) && !hasActiveSubscription && !hasSubscriptionBypass
+  const needsPlan = Boolean(activeOrgId) && !hasActiveSubscription
   const canManageBilling = Boolean(effectivePermissions.manageBilling || effectivePermissions.manageOrgSettings)
+  const currentTheme =
+    typeof document !== "undefined" && document.documentElement.dataset.theme === "light" ? "light" : "dark"
+  const preferredBrandLogoUrl =
+    currentTheme === "light"
+      ? orgSettings?.logoLightUrl || orgSettings?.brandLogoUrl || orgSettings?.logoDarkUrl
+      : orgSettings?.logoDarkUrl || orgSettings?.brandLogoUrl || orgSettings?.logoLightUrl
+  const hasBrandLogo = Boolean(preferredBrandLogoUrl)
   const proBrandingEnabled =
     isProTierBilling(billingStatus) &&
     Boolean(orgSettings?.customBrandingEnabled) &&
     Boolean(orgSettings?.replaceAppNameWithLogo) &&
-    Boolean(orgSettings?.brandLogoUrl)
-  const sidebarBrandName = activeOrg?.organizationName?.trim() || "InvenTraker"
+    hasBrandLogo
+  const sidebarBrandName =
+    orgSettings?.brandDisplayName?.trim() || activeOrg?.organizationName?.trim() || "InvenTraker"
+  const showIconOnlyBranding = orgSettings?.appHeaderStyle === "icon_only"
 
   if (needsPlan && activeOrgId) {
     return (
@@ -321,12 +330,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen md:grid md:grid-cols-[280px_1fr]">
         <aside className="hidden border-r border-app-border bg-app-surface p-6 md:block">
           <div className="mb-6">
-            {proBrandingEnabled ? (
-              <img
-                src={orgSettings?.brandLogoUrl}
-                alt={`${sidebarBrandName} logo`}
-                className="h-12 w-auto max-w-[220px] rounded-xl border border-app-border bg-white object-contain p-2"
-              />
+            {proBrandingEnabled && preferredBrandLogoUrl ? (
+              <div className={`flex items-center gap-3 ${showIconOnlyBranding ? "" : "min-h-[52px]"}`}>
+                <img
+                  src={preferredBrandLogoUrl}
+                  alt={`${sidebarBrandName} logo`}
+                  className="h-12 w-auto max-w-[220px] rounded-xl border border-app-border bg-white object-contain p-2"
+                />
+                {!showIconOnlyBranding ? <p className="text-lg font-semibold">{sidebarBrandName}</p> : null}
+              </div>
             ) : (
               <p className="text-2xl font-semibold">InvenTraker</p>
             )}
@@ -457,7 +469,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     <Bell className="h-4 w-4" />
                     {notifications.length > 0 ? (
-                      <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
+                      <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-[20px] max-w-[34px] items-center justify-center overflow-hidden rounded-full bg-rose-500 px-1.5 text-[10px] font-semibold leading-none text-white">
                         {notifications.length > 99 ? "99+" : notifications.length}
                       </span>
                     ) : null}

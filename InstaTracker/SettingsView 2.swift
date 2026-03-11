@@ -11,12 +11,17 @@ struct SettingsView: View {
     @Query(filter: #Predicate<InventoryItem> { !$0.isArchived }) private var items: [InventoryItem]
     
     @State private var showingCustomWasteReasons = false
-    @State private var showingDepartmentManagement = false
+    @State private var showingDepartmentReference = false
     @State private var showingRewrapPricingManagement = false
     @State private var showingFeatureRequestComposer = false
 
     private var activeOrganizationId: String {
         session.activeOrganizationId ?? "local-default"
+    }
+
+    private var activeOrganizationName: String? {
+        guard let orgId = session.activeOrganizationId else { return nil }
+        return session.organizations.first(where: { $0.id == orgId })?.name
     }
 
     private var scopedVendors: [Vendor] {
@@ -50,6 +55,9 @@ struct SettingsView: View {
             }
             
             Section("Waste Types") {
+                Text("Enabled waste types will influence auto-order recommendation calculations.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button(action: { showingCustomWasteReasons = true }) {
                     HStack {
                         Text("Manage Waste Types")
@@ -64,9 +72,9 @@ struct SettingsView: View {
             }
 
             Section("Departments") {
-                Button(action: { showingDepartmentManagement = true }) {
+                Button(action: { showingDepartmentReference = true }) {
                     HStack {
-                        Text("Manage Departments")
+                        Text("View Departments")
                             .foregroundStyle(settings.accentColor)
                         Spacer()
                         Text("\(settings.departmentConfigs.count)")
@@ -164,14 +172,19 @@ struct SettingsView: View {
         .sheet(isPresented: $showingCustomWasteReasons) {
             CustomWasteReasonsView()
         }
-        .sheet(isPresented: $showingDepartmentManagement) {
-            DepartmentManagementView()
+        .sheet(isPresented: $showingDepartmentReference) {
+            DepartmentReadOnlyView()
         }
         .sheet(isPresented: $showingRewrapPricingManagement) {
             RewrapPricingSettingsView(organizationId: activeOrganizationId)
         }
         .sheet(isPresented: $showingFeatureRequestComposer) {
-            FeatureRequestComposerView(organizationId: activeOrganizationId)
+            FeatureRequestComposerView(
+                organizationId: activeOrganizationId,
+                organizationName: activeOrganizationName,
+                storeId: settings.normalizedActiveStoreID,
+                membership: session.activeMembership
+            )
         }
         .onAppear {
             syncNotifications()
@@ -204,6 +217,9 @@ struct CustomWasteReasonsView: View {
         NavigationStack {
             List {
                 Section("Waste Types") {
+                    Text("Toggle on to include that waste type in auto-order recommendation calculations.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     if rules.isEmpty {
                         Text("No waste types configured yet")
                             .foregroundStyle(.secondary)
@@ -220,7 +236,7 @@ struct CustomWasteReasonsView: View {
                                 .textInputAutocapitalization(.words)
                                 
                                 Toggle(
-                                    "Affects",
+                                    "Affects Auto-Order Suggestions",
                                     isOn: Binding(
                                         get: { rules[index].affectsOrders },
                                         set: { rules[index].affectsOrders = $0 }
@@ -243,7 +259,7 @@ struct CustomWasteReasonsView: View {
                     HStack {
                         TextField("New waste type", text: $newReason)
                             .textInputAutocapitalization(.words)
-                        Toggle("Affects", isOn: $newReasonAffectsOrders)
+                        Toggle("Affects Auto-Order Suggestions", isOn: $newReasonAffectsOrders)
                             .labelsHidden()
                         Button("Add") {
                             let trimmed = newReason.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -285,53 +301,39 @@ struct CustomWasteReasonsView: View {
     }
 }
 
-struct DepartmentManagementView: View {
+struct DepartmentReadOnlyView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var settings = AppSettings.shared
-
-    @State private var departments: [DepartmentConfig] = []
-    @State private var newDepartmentName = ""
-    @State private var hasLoaded = false
 
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Text("Departments and locations are managed on the web dashboard.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Section("Departments") {
-                    if departments.isEmpty {
+                    if settings.departmentConfigs.isEmpty {
                         Text("No departments configured yet")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach($departments) { $department in
-                            NavigationLink {
-                                DepartmentLocationEditorView(department: $department)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(department.name.isEmpty ? "Unnamed Department" : department.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text("\(department.locations.count) location(s)")
+                        ForEach(settings.departmentConfigs) { department in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(department.name.isEmpty ? "Unnamed Department" : department.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                if department.locations.isEmpty {
+                                    Text("No locations")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text(department.locations.joined(separator: ", "))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
                         }
-                        .onDelete { offsets in
-                            departments.remove(atOffsets: offsets)
-                        }
-                    }
-                }
-
-                Section("Add Department") {
-                    HStack {
-                        TextField("Department name", text: $newDepartmentName)
-                            .textInputAutocapitalization(.words)
-                        Button("Add") {
-                            let trimmed = newDepartmentName.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
-                            departments.append(DepartmentConfig(name: trimmed))
-                            newDepartmentName = ""
-                        }
-                        .disabled(newDepartmentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -345,75 +347,8 @@ struct DepartmentManagementView: View {
                     .foregroundStyle(settings.accentColor)
                 }
             }
-            .onAppear {
-                guard !hasLoaded else { return }
-                departments = settings.departmentConfigs
-                hasLoaded = true
-            }
-            .onChange(of: departments) { _, newValue in
-                settings.departmentConfigs = newValue
-            }
             .tint(settings.accentColor)
         }
-    }
-}
-
-private struct DepartmentLocationEditorView: View {
-    @Binding var department: DepartmentConfig
-    @State private var newLocation = ""
-    @StateObject private var settings = AppSettings.shared
-
-    var body: some View {
-        List {
-            Section("Department") {
-                TextField("Department name", text: $department.name)
-                    .textInputAutocapitalization(.words)
-            }
-
-            Section("Locations") {
-                if department.locations.isEmpty {
-                    Text("No locations yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(department.locations.indices), id: \.self) { index in
-                        HStack {
-                            TextField(
-                                "Location",
-                                text: Binding(
-                                    get: { department.locations[index] },
-                                    set: { department.locations[index] = $0 }
-                                )
-                            )
-                            .textInputAutocapitalization(.words)
-
-                            Button(role: .destructive) {
-                                department.locations.remove(at: index)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-
-            Section("Add Location") {
-                HStack {
-                    TextField("Shelf, cooler, rack...", text: $newLocation)
-                        .textInputAutocapitalization(.words)
-                    Button("Add") {
-                        let trimmed = newLocation.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        department.locations.append(trimmed)
-                        newLocation = ""
-                    }
-                    .disabled(newLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .navigationTitle(department.name.isEmpty ? "Department" : department.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .tint(settings.accentColor)
     }
 }
 
@@ -533,6 +468,9 @@ private struct FeatureRequestComposerView: View {
     @StateObject private var settings = AppSettings.shared
 
     let organizationId: String
+    let organizationName: String?
+    let storeId: String?
+    let membership: OrgMembership?
 
     @State private var title = ""
     @State private var details = ""
@@ -609,14 +547,19 @@ private struct FeatureRequestComposerView: View {
         statusMessage = nil
 
         do {
-            try await FeatureRequestService.shared.submit(
+            let submitResult = try await FeatureRequestService.shared.submit(
                 title: title,
                 details: details,
                 category: category,
                 user: session.firebaseUser,
-                organizationId: organizationId
+                membership: membership,
+                organizationId: organizationId,
+                organizationName: organizationName,
+                storeId: storeId
             )
-            statusMessage = "Feature request sent."
+            statusMessage = submitResult == .sent
+                ? "Feature request sent."
+                : "Saved offline. It will sync when connection is available."
             title = ""
             details = ""
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {

@@ -14,9 +14,25 @@ const createCheckoutSessionRequestSchema = z.object({
   trialFromPlanDays: z.number().int().min(0).max(90).optional()
 })
 
+const createEmbeddedCheckoutSessionRequestSchema = z.object({
+  orgId: z.string().min(1),
+  priceId: z.string().min(1),
+  returnUrl: z.string().url(),
+  trialFromPlanDays: z.number().int().min(0).max(90).optional()
+})
+
+const getCheckoutSessionStatusRequestSchema = z.object({
+  orgId: z.string().min(1),
+  sessionId: z.string().min(1)
+})
+
 const createPortalSessionRequestSchema = z.object({
   orgId: z.string().min(1),
   returnUrl: z.string().url()
+})
+
+const reconcileBillingRequestSchema = z.object({
+  orgId: z.string().min(1)
 })
 
 const listPublicStripePlansRequestSchema = z.object({}).default({})
@@ -49,6 +65,12 @@ type StripePlanOverride = {
   saleLabel?: string
 }
 
+type PlanTier = "starter" | "growth" | "pro" | "custom"
+
+const stripeSecretBinding = {
+  secrets: ["STRIPE_SECRET_KEY"] as Array<string>
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -78,6 +100,137 @@ async function stripeApiGet<T>(secretKey: string, endpoint: string, search: URLS
     throw new Error(`Stripe API ${endpoint} failed (${response.status}): ${body}`)
   }
   return (await response.json()) as T
+}
+
+async function stripeApiGetByPath<T>(secretKey: string, endpointPath: string, search?: URLSearchParams): Promise<T> {
+  const suffix = search ? `?${search.toString()}` : ""
+  const url = `https://api.stripe.com/v1/${endpointPath}${suffix}`
+  const response = await fetch(url, { headers: stripeHeaders(secretKey), method: "GET" })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Stripe API ${endpointPath} failed (${response.status}): ${body}`)
+  }
+  return (await response.json()) as T
+}
+
+async function fetchStripeProductName(secretKey: string, productId: string | null): Promise<string | null> {
+  const normalizedProductId = String(productId ?? "").trim()
+  if (!normalizedProductId) return null
+  type StripeProduct = { name?: string }
+  try {
+    const product = await stripeApiGetByPath<StripeProduct>(
+      secretKey,
+      `products/${encodeURIComponent(normalizedProductId)}`
+    )
+    return typeof product?.name === "string" && product.name.trim().length > 0 ? product.name.trim() : null
+  } catch {
+    return null
+  }
+}
+
+async function stripeApiPost<T>(secretKey: string, endpoint: string, body: URLSearchParams): Promise<T> {
+  const url = `https://api.stripe.com/v1/${endpoint}`
+  const response = await fetch(url, {
+    method: "POST",
+    headers: stripeHeaders(secretKey),
+    body
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`Stripe API ${endpoint} failed (${response.status}): ${text}`)
+  }
+  return JSON.parse(text) as T
+}
+
+async function resolveStripeCustomerIdForBillingPortal(input: {
+  secretKey: string
+  uid: string
+  orgId: string
+}): Promise<string> {
+  const { secretKey, uid, orgId } = input
+
+  const billingSnap = await adminDb.doc(`organizations/${orgId}/billing/default`).get().catch(() => null)
+  const billingData = (billingSnap?.data() as Record<string, unknown> | undefined) ?? {}
+  const billingCustomerId = firstNonEmptyString([
+    billingData.stripeCustomerId,
+    billingData.customerId
+  ])
+  if (billingCustomerId) return billingCustomerId
+
+  const customerDoc = await adminDb.doc(`customers/${uid}`).get().catch(() => null)
+  const customerData = (customerDoc?.data() as Record<string, unknown> | undefined) ?? {}
+  const mappedCustomerId = firstNonEmptyString([
+    customerData.stripeId,
+    customerData.customerId,
+    customerData.id
+  ])
+  if (mappedCustomerId) return mappedCustomerId
+
+  const subscriptionId = firstNonEmptyString([billingData.stripeSubscriptionId])
+  if (subscriptionId) {
+    type StripeSubscription = {
+      customer?: string | { id?: string } | null
+    }
+    try {
+      const subscription = await stripeApiGetByPath<StripeSubscription>(
+        secretKey,
+        `subscriptions/${encodeURIComponent(subscriptionId)}`
+      )
+      const fromSubscription = firstNonEmptyString([
+        subscription.customer,
+        typeof subscription.customer === "object" && subscription.customer ? subscription.customer.id : null
+      ])
+      if (fromSubscription) return fromSubscription
+    } catch {
+      // Continue to email lookup/create path.
+    }
+  }
+
+  const authUser = await adminAuth.getUser(uid).catch(() => null)
+  const email = typeof authUser?.email === "string" ? authUser.email.trim() : ""
+  if (email) {
+    type StripeCustomer = { id?: string }
+    type StripeList<T> = { data?: T[] }
+    const listed = await stripeApiGet<StripeList<StripeCustomer>>(
+      secretKey,
+      "customers",
+      new URLSearchParams({
+        email,
+        limit: "1"
+      })
+    ).catch(() => null)
+    const existing = listed?.data?.[0]
+    const existingId = firstNonEmptyString([existing?.id])
+    if (existingId) return existingId
+  }
+
+  type StripeCustomerCreateResponse = { id?: string }
+  const createParams = new URLSearchParams()
+  if (email) {
+    createParams.set("email", email)
+  }
+  createParams.set("metadata[firebase_uid]", uid)
+  createParams.set("metadata[orgId]", orgId)
+
+  const created = await stripeApiPost<StripeCustomerCreateResponse>(
+    secretKey,
+    "customers",
+    createParams
+  )
+  const createdId = firstNonEmptyString([created.id])
+  if (!createdId) {
+    throw new Error("Stripe customer could not be resolved for billing portal.")
+  }
+  return createdId
+}
+
+function firstNonEmptyString(values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  return null
 }
 
 async function fetchStripePlansFromApi(secretKey: string): Promise<StripePlanSummary[]> {
@@ -293,6 +446,23 @@ function extractPriceId(data: Record<string, unknown>): string | null {
   return null
 }
 
+function extractProductId(data: Record<string, unknown>): string | null {
+  if (typeof data.productId === "string" && data.productId.trim()) return data.productId.trim()
+  const itemsRaw = data.items
+  if (Array.isArray(itemsRaw) && itemsRaw.length > 0) {
+    const first = itemsRaw[0] as Record<string, unknown>
+    if (first.price && typeof first.price === "object") {
+      const price = first.price as Record<string, unknown>
+      if (typeof price.product === "string" && price.product.trim()) return price.product.trim()
+      if (price.product && typeof price.product === "object") {
+        const product = price.product as Record<string, unknown>
+        if (typeof product.id === "string" && product.id.trim()) return product.id.trim()
+      }
+    }
+  }
+  return null
+}
+
 function extractPlanName(data: Record<string, unknown>, priceId: string | null): string {
   if (typeof data.planName === "string" && data.planName.trim()) return data.planName.trim()
   const itemsRaw = data.items
@@ -310,6 +480,105 @@ function extractPlanName(data: Record<string, unknown>, priceId: string | null):
   return "Subscription"
 }
 
+function inferPlanTier(planName: string | null, priceId: string | null): "starter" | "growth" | "pro" | "custom" {
+  const combined = `${planName ?? ""} ${priceId ?? ""}`.trim().toLowerCase()
+  if (combined.includes("plus")) return "pro"
+  if (combined.includes("starter")) return "starter"
+  if (combined.includes("growth")) return "growth"
+  if (combined.includes("pro")) return "pro"
+  return "custom"
+}
+
+function inferTierFromUnitAmount(unitAmountCents: number | null): PlanTier {
+  const amount = Number(unitAmountCents ?? NaN)
+  if (!Number.isFinite(amount) || amount <= 0) return "custom"
+
+  const starterThreshold = Number(process.env.STRIPE_STARTER_THRESHOLD_CENTS ?? 4900)
+  const growthThreshold = Number(process.env.STRIPE_GROWTH_THRESHOLD_CENTS ?? 9900)
+  const proThreshold = Number(process.env.STRIPE_PRO_THRESHOLD_CENTS ?? 19900)
+
+  if (Number.isFinite(proThreshold) && amount >= proThreshold) return "pro"
+  if (Number.isFinite(growthThreshold) && amount >= growthThreshold) return "growth"
+  if (Number.isFinite(starterThreshold) && amount >= starterThreshold) return "starter"
+  return "custom"
+}
+
+function configuredPlanProductMap(): Record<Exclude<PlanTier, "custom">, string[]> {
+  const starter = String(process.env.STRIPE_STARTER_PRODUCT_ID ?? "prod_U3w3aRWIJ8XYxp")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  const growth = String(process.env.STRIPE_GROWTH_PRODUCT_ID ?? "prod_U3w4m9RfBxuajU")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  const pro = String(process.env.STRIPE_PRO_PRODUCT_ID ?? "prod_U3w5Qbr2l2eQGP")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return { starter, growth, pro }
+}
+
+function inferTierFromProductId(productId: string | null): PlanTier {
+  const normalized = String(productId ?? "").trim()
+  if (!normalized) return "custom"
+  const map = configuredPlanProductMap()
+  if (map.starter.includes(normalized)) return "starter"
+  if (map.growth.includes(normalized)) return "growth"
+  if (map.pro.includes(normalized)) return "pro"
+  return "custom"
+}
+
+function derivePlanTier(input: {
+  planName: string | null
+  priceId: string | null
+  productId: string | null
+  unitAmountCents?: number | null
+}): PlanTier {
+  const byProduct = inferTierFromProductId(input.productId)
+  if (byProduct !== "custom") return byProduct
+  const byNameOrPrice = inferPlanTier(input.planName, input.priceId)
+  if (byNameOrPrice !== "custom") return byNameOrPrice
+  return inferTierFromUnitAmount(input.unitAmountCents ?? null)
+}
+
+function tierEntitlements(tier: "starter" | "growth" | "pro" | "custom"): Record<string, boolean> {
+  if (tier === "pro") {
+    return {
+      multiStore: true,
+      advancedInsights: true,
+      customBranding: true,
+      healthChecks: true,
+      transferWorkflows: true
+    }
+  }
+  if (tier === "growth") {
+    return {
+      multiStore: true,
+      advancedInsights: true,
+      customBranding: false,
+      healthChecks: true,
+      transferWorkflows: true
+    }
+  }
+  if (tier === "starter") {
+    return {
+      multiStore: false,
+      advancedInsights: false,
+      customBranding: false,
+      healthChecks: true,
+      transferWorkflows: true
+    }
+  }
+  return {
+    multiStore: false,
+    advancedInsights: false,
+    customBranding: false,
+    healthChecks: false,
+    transferWorkflows: false
+  }
+}
+
 function normalizeHost(value: string): string {
   return value.trim().toLowerCase()
 }
@@ -319,7 +588,14 @@ function allowedRedirectHosts(): Set<string> {
     .split(",")
     .map((entry) => normalizeHost(entry))
     .filter(Boolean)
-  const defaults = ["localhost", "127.0.0.1", "inventracker.com", "www.inventracker.com"]
+  const defaults = [
+    "localhost",
+    "127.0.0.1",
+    "inventracker.com",
+    "www.inventracker.com",
+    "inventraker.com",
+    "www.inventraker.com"
+  ]
   return new Set([...defaults, ...configured])
 }
 
@@ -331,7 +607,7 @@ function assertAllowedRedirectUrl(rawUrl: string, fieldName: "successUrl" | "can
     throw new HttpsError("invalid-argument", `${fieldName} must be a valid URL.`)
   }
 
-  const host = normalizeHost(parsed.host)
+  const host = normalizeHost(parsed.hostname)
   if (!allowedRedirectHosts().has(host)) {
     throw new HttpsError(
       "permission-denied",
@@ -360,6 +636,141 @@ async function isActiveStripePrice(priceId: string): Promise<boolean> {
     .limit(1)
     .get()
   return !byDocId.empty
+}
+
+async function isActiveStripePriceFromApi(secretKey: string, priceId: string): Promise<boolean> {
+  type StripePrice = { id?: string; active?: boolean }
+  try {
+    const price = await stripeApiGetByPath<StripePrice>(secretKey, `prices/${encodeURIComponent(priceId)}`)
+    return Boolean(price?.id && price.active)
+  } catch {
+    return false
+  }
+}
+
+async function resolveActiveCheckoutPriceId(candidateId: string, secretKey: string | null): Promise<string | null> {
+  const normalized = String(candidateId ?? "").trim()
+  if (!normalized) return null
+
+  if (normalized.startsWith("price_")) {
+    const active = secretKey
+      ? await isActiveStripePriceFromApi(secretKey, normalized)
+      : await isActiveStripePrice(normalized)
+    return active ? normalized : null
+  }
+
+  if (normalized.startsWith("prod_")) {
+    if (secretKey) {
+      type StripeList<T> = { data?: T[] }
+      type StripePrice = { id?: string; active?: boolean; unit_amount?: number }
+      try {
+        const response = await stripeApiGet<StripeList<StripePrice>>(
+          secretKey,
+          "prices",
+          new URLSearchParams({
+            active: "true",
+            product: normalized,
+            type: "recurring",
+            limit: "100"
+          })
+        )
+        const prices = (Array.isArray(response.data) ? response.data : [])
+          .map((entry) => ({
+            id: String(entry.id ?? "").trim(),
+            active: Boolean(entry.active ?? true),
+            unitAmount: Number(entry.unit_amount ?? 0)
+          }))
+          .filter((entry) => entry.id.length > 0 && entry.active)
+          .sort((a, b) => a.unitAmount - b.unitAmount)
+        return prices[0]?.id ?? null
+      } catch {
+        return null
+      }
+    }
+
+    const snapshot = await adminDb
+      .collection("products")
+      .doc(normalized)
+      .collection("prices")
+      .where("active", "==", true)
+      .limit(100)
+      .get()
+      .catch(() => null)
+    if (!snapshot || snapshot.empty) return null
+
+    const prices = snapshot.docs
+      .map((doc) => {
+        const data = (doc.data() as Record<string, unknown>) ?? {}
+        const id = typeof data.id === "string" && data.id.trim() ? data.id.trim() : doc.id
+        const unitAmount = Number(data.unit_amount ?? data.unitAmount ?? 0)
+        return {
+          id,
+          unitAmount: Number.isFinite(unitAmount) ? unitAmount : 0
+        }
+      })
+      .filter((entry) => entry.id.length > 0)
+      .sort((a, b) => a.unitAmount - b.unitAmount)
+
+    return prices[0]?.id ?? null
+  }
+
+  if (secretKey && (await isActiveStripePriceFromApi(secretKey, normalized))) {
+    return normalized
+  }
+
+  const byIdSnapshot = await adminDb
+    .collectionGroup("prices")
+    .where("active", "==", true)
+    .where("id", "==", normalized)
+    .limit(1)
+    .get()
+    .catch(() => null)
+  if (byIdSnapshot && !byIdSnapshot.empty) {
+    const doc = byIdSnapshot.docs.at(0)
+    if (doc) {
+      const data = (doc.data() as Record<string, unknown>) ?? {}
+      const mappedId = typeof data.id === "string" && data.id.trim() ? data.id.trim() : doc.id
+      if (mappedId) return mappedId
+    }
+  }
+
+  const byDocSnapshot = await adminDb
+    .collectionGroup("prices")
+    .where("active", "==", true)
+    .where(FieldPath.documentId(), "==", normalized)
+    .limit(1)
+    .get()
+    .catch(() => null)
+  if (byDocSnapshot && !byDocSnapshot.empty) {
+    const doc = byDocSnapshot.docs.at(0)
+    if (doc) {
+      const data = (doc.data() as Record<string, unknown>) ?? {}
+      const mappedId = typeof data.id === "string" && data.id.trim() ? data.id.trim() : doc.id
+      if (mappedId) return mappedId
+    }
+  }
+
+  return null
+}
+
+function appendCheckoutBaseParams(params: URLSearchParams, input: {
+  orgId: string
+  uid: string
+  priceId: string
+  trialFromPlanDays?: number
+}) {
+  params.set("mode", "subscription")
+  params.set("line_items[0][price]", input.priceId)
+  params.set("line_items[0][quantity]", "1")
+  params.set("allow_promotion_codes", "true")
+  params.set("metadata[orgId]", input.orgId)
+  params.set("metadata[billingOwnerUid]", input.uid)
+  params.set("subscription_data[metadata][orgId]", input.orgId)
+  params.set("subscription_data[metadata][billingOwnerUid]", input.uid)
+  params.set("client_reference_id", input.orgId)
+  if (Number.isFinite(Number(input.trialFromPlanDays)) && Number(input.trialFromPlanDays) > 0) {
+    params.set("subscription_data[trial_period_days]", String(Number(input.trialFromPlanDays)))
+  }
 }
 
 async function resolveOrganizationIdForSubscription(
@@ -399,21 +810,63 @@ async function applyBillingSnapshot(input: {
   currentPeriodEnd: Date | null
   priceId: string | null
   planName: string
+  planTier?: PlanTier
+  stripeProductId?: string | null
   billingOwnerUid: string | null
   stripeCustomerUid: string
+  stripeCustomerId?: string | null
   stripeSubscriptionId: string
   fallbackUsed: boolean
 }) {
+  const normalizedStatus = normalizeStatus(input.status)
+  const isActive = normalizedStatus === "active" || normalizedStatus === "trialing"
   const billingRef = adminDb.doc(`organizations/${input.orgId}/billing/default`)
+  let tier = input.planTier ?? derivePlanTier({
+    planName: input.planName,
+    priceId: input.priceId,
+    productId: input.stripeProductId ?? null
+  })
+  if (tier === "custom" && isActive) {
+    const existing = await billingRef.get().catch(() => null)
+    const existingData = (existing?.data() as Record<string, unknown> | undefined) ?? {}
+    const existingTierRaw = firstNonEmptyString([existingData.planTier])
+    const existingTier =
+      existingTierRaw === "starter" || existingTierRaw === "growth" || existingTierRaw === "pro"
+        ? existingTierRaw
+        : null
+    if (existingTier) {
+      tier = existingTier
+    } else {
+      const inferredFromStoredPlan = inferPlanTier(firstNonEmptyString([existingData.planName]), null)
+      if (inferredFromStoredPlan !== "custom") {
+        tier = inferredFromStoredPlan
+      }
+    }
+  }
+  const entitlements = tierEntitlements(tier)
+
   await billingRef.set(
     {
       organizationId: input.orgId,
-      subscriptionStatus: input.status,
+      subscriptionStatus: normalizedStatus,
       currentPeriodEnd: input.currentPeriodEnd ? Timestamp.fromDate(input.currentPeriodEnd) : null,
       priceId: input.priceId,
       planName: input.planName,
+      planTier: tier,
+      entitlements,
+      isActive,
+      paymentVerification: {
+        provider: "stripe",
+        verified: isActive,
+        verifiedAt: FieldValue.serverTimestamp(),
+        sourceSubscriptionId: input.stripeSubscriptionId,
+        sourceCustomerUid: input.stripeCustomerUid,
+        sourceCustomerId: input.stripeCustomerId ?? null
+      },
       billingOwnerUid: input.billingOwnerUid,
       stripeCustomerUid: input.stripeCustomerUid,
+      stripeCustomerId: input.stripeCustomerId ?? null,
+      stripeProductId: input.stripeProductId ?? null,
       stripeSubscriptionId: input.stripeSubscriptionId,
       metadataFallbackUsed: input.fallbackUsed,
       updatedAt: FieldValue.serverTimestamp()
@@ -424,11 +877,14 @@ async function applyBillingSnapshot(input: {
   await adminDb.doc(`organizations/${input.orgId}`).set(
     {
       planId: input.priceId ?? "unknown",
+      planName: input.planName,
+      planTier: tier,
       subscription: {
-        status: input.status,
+        status: normalizedStatus,
         renewsAt: input.currentPeriodEnd ? Timestamp.fromDate(input.currentPeriodEnd) : null,
         startedAt: FieldValue.serverTimestamp()
       },
+      entitlements,
       updatedAt: FieldValue.serverTimestamp()
     },
     { merge: true }
@@ -446,7 +902,10 @@ async function applyBillingSnapshot(input: {
         org_id: input.orgId,
         org_role: role,
         org_plan: input.planName,
-        subscription_status: input.status
+        org_plan_tier: tier,
+        org_price_id: input.priceId ?? null,
+        subscription_status: normalizedStatus,
+        billing_verified: isActive
       })
     } catch (error) {
       console.error("Failed to update custom claims for org member", {
@@ -458,7 +917,7 @@ async function applyBillingSnapshot(input: {
   }
 }
 
-export const createStripeCheckoutSession = onCall(async (request) => {
+export const createStripeCheckoutSession = onCall(stripeSecretBinding, async (request) => {
   const uid = requireAuth(request)
   const input = createCheckoutSessionRequestSchema.parse(request.data ?? {})
   await requireOrgMembership(input.orgId, uid)
@@ -466,15 +925,50 @@ export const createStripeCheckoutSession = onCall(async (request) => {
 
   assertAllowedRedirectUrl(input.successUrl, "successUrl")
   assertAllowedRedirectUrl(input.cancelUrl, "cancelUrl")
-  const priceIsActive = await isActiveStripePrice(input.priceId)
-  if (!priceIsActive) {
+  const secretKey = stripeSecretKey()
+  const resolvedPriceId = await resolveActiveCheckoutPriceId(input.priceId, secretKey)
+  if (!resolvedPriceId) {
     throw new HttpsError("invalid-argument", "Selected plan is unavailable.")
+  }
+
+  if (secretKey) {
+    type StripeCheckoutSessionCreateResponse = {
+      id?: string
+      url?: string | null
+    }
+
+    try {
+      const params = new URLSearchParams()
+      appendCheckoutBaseParams(params, {
+        orgId: input.orgId,
+        uid,
+        priceId: resolvedPriceId,
+        trialFromPlanDays: input.trialFromPlanDays
+      })
+      params.set("success_url", input.successUrl)
+      params.set("cancel_url", input.cancelUrl)
+
+      const session = await stripeApiPost<StripeCheckoutSessionCreateResponse>(
+        secretKey,
+        "checkout/sessions",
+        params
+      )
+      const url = firstNonEmptyString([session.url])
+      if (!url) {
+        throw new Error("Stripe did not return a checkout URL.")
+      }
+      const sessionId = firstNonEmptyString([session.id]) ?? "session"
+      return { ok: true, url, sessionDocPath: `stripe/checkout_sessions/${sessionId}` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new HttpsError("failed-precondition", message)
+    }
   }
 
   const ref = adminDb.collection("customers").doc(uid).collection("checkout_sessions").doc()
   await ref.set({
     mode: "subscription",
-    line_items: [{ price: input.priceId, quantity: 1 }],
+    line_items: [{ price: resolvedPriceId, quantity: 1 }],
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     allow_promotion_codes: true,
@@ -486,10 +980,10 @@ export const createStripeCheckoutSession = onCall(async (request) => {
       metadata: {
         orgId: input.orgId,
         billingOwnerUid: uid
-      }
+      },
+      trial_period_days: input.trialFromPlanDays ?? undefined
     },
     client_reference_id: input.orgId,
-    trial_period_days: input.trialFromPlanDays ?? null,
     createdAt: FieldValue.serverTimestamp()
   })
 
@@ -508,12 +1002,163 @@ export const createStripeCheckoutSession = onCall(async (request) => {
   return { ok: false, pending: true, sessionDocPath: ref.path }
 })
 
-export const createStripePortalSession = onCall(async (request) => {
+export const createStripeEmbeddedCheckoutSession = onCall(stripeSecretBinding, async (request) => {
+  const uid = requireAuth(request)
+  const input = createEmbeddedCheckoutSessionRequestSchema.parse(request.data ?? {})
+  await requireOrgMembership(input.orgId, uid)
+  await requirePermission(input.orgId, uid, "manageOrgSettings")
+
+  assertAllowedRedirectUrl(input.returnUrl, "cancelUrl")
+  const secretKey = stripeSecretKey()
+  const resolvedPriceId = await resolveActiveCheckoutPriceId(input.priceId, secretKey)
+  if (!resolvedPriceId) {
+    throw new HttpsError("invalid-argument", "Selected plan is unavailable.")
+  }
+
+  if (secretKey) {
+    type StripeEmbeddedCheckoutSessionCreateResponse = {
+      id?: string
+      url?: string | null
+      client_secret?: string | null
+    }
+
+    try {
+      const params = new URLSearchParams()
+      appendCheckoutBaseParams(params, {
+        orgId: input.orgId,
+        uid,
+        priceId: resolvedPriceId,
+        trialFromPlanDays: input.trialFromPlanDays
+      })
+      params.set("ui_mode", "embedded")
+      params.set("return_url", input.returnUrl)
+
+      const session = await stripeApiPost<StripeEmbeddedCheckoutSessionCreateResponse>(
+        secretKey,
+        "checkout/sessions",
+        params
+      )
+
+      const sessionId = firstNonEmptyString([session.id]) ?? "session"
+      const clientSecret = firstNonEmptyString([session.client_secret])
+      const url = firstNonEmptyString([session.url])
+
+      if (!clientSecret && !url) {
+        throw new Error("Stripe did not return an embedded client secret.")
+      }
+
+      return {
+        ok: true,
+        clientSecret,
+        url,
+        sessionId,
+        sessionDocPath: `stripe/checkout_sessions/${sessionId}`
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new HttpsError("failed-precondition", message)
+    }
+  }
+
+  const ref = adminDb.collection("customers").doc(uid).collection("checkout_sessions").doc()
+  await ref.set({
+    mode: "subscription",
+    ui_mode: "embedded",
+    line_items: [{ price: resolvedPriceId, quantity: 1 }],
+    return_url: input.returnUrl,
+    allow_promotion_codes: true,
+    metadata: {
+      orgId: input.orgId,
+      billingOwnerUid: uid
+    },
+    subscription_data: {
+      metadata: {
+        orgId: input.orgId,
+        billingOwnerUid: uid
+      },
+      trial_period_days: input.trialFromPlanDays ?? undefined
+    },
+    client_reference_id: input.orgId,
+    createdAt: FieldValue.serverTimestamp()
+  })
+
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    await sleep(500)
+    const snap = await ref.get()
+    const data = (snap.data() as Record<string, unknown> | undefined) ?? {}
+
+    const errorMessage = (() => {
+      const direct = data.error
+      if (typeof direct === "string" && direct.trim()) return direct.trim()
+      if (direct && typeof direct === "object") {
+        const nested = direct as Record<string, unknown>
+        if (typeof nested.message === "string" && nested.message.trim()) return nested.message.trim()
+      }
+      return null
+    })()
+    if (errorMessage) {
+      throw new HttpsError("internal", errorMessage)
+    }
+
+    const session = data.session && typeof data.session === "object" ? (data.session as Record<string, unknown>) : null
+    const clientSecret = firstNonEmptyString([
+      data.client_secret,
+      data.clientSecret,
+      session?.client_secret,
+      session?.clientSecret
+    ])
+    const url = firstNonEmptyString([data.url, session?.url])
+    const sessionId = firstNonEmptyString([data.session_id, data.sessionId, data.id, session?.id])
+
+    if (clientSecret || url) {
+      return {
+        ok: true,
+        clientSecret,
+        url,
+        sessionId,
+        sessionDocPath: ref.path
+      }
+    }
+  }
+
+  return { ok: false, pending: true, sessionDocPath: ref.path }
+})
+
+export const createStripePortalSession = onCall(stripeSecretBinding, async (request) => {
   const uid = requireAuth(request)
   const input = createPortalSessionRequestSchema.parse(request.data ?? {})
   await requireOrgMembership(input.orgId, uid)
   await requirePermission(input.orgId, uid, "manageOrgSettings")
   assertAllowedRedirectUrl(input.returnUrl, "cancelUrl")
+
+  const secretKey = stripeSecretKey()
+  if (secretKey) {
+    type StripePortalSessionResponse = { id?: string; url?: string | null }
+    try {
+      const customerId = await resolveStripeCustomerIdForBillingPortal({
+        secretKey,
+        uid,
+        orgId: input.orgId
+      })
+      const params = new URLSearchParams()
+      params.set("customer", customerId)
+      params.set("return_url", input.returnUrl)
+      const session = await stripeApiPost<StripePortalSessionResponse>(
+        secretKey,
+        "billing_portal/sessions",
+        params
+      )
+      const url = firstNonEmptyString([session.url])
+      if (!url) {
+        throw new Error("Stripe did not return a billing portal URL.")
+      }
+      const sessionId = firstNonEmptyString([session.id]) ?? "portal"
+      return { ok: true, url, sessionDocPath: `stripe/portal_sessions/${sessionId}` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new HttpsError("failed-precondition", message)
+    }
+  }
 
   const ref = adminDb.collection("customers").doc(uid).collection("portal_sessions").doc()
   await ref.set({
@@ -540,7 +1185,283 @@ export const createStripePortalSession = onCall(async (request) => {
   return { ok: false, pending: true, sessionDocPath: ref.path }
 })
 
-export const listPublicStripePlans = onCall(async (request) => {
+export const getStripeCheckoutSessionStatus = onCall(stripeSecretBinding, async (request) => {
+  const uid = requireAuth(request)
+  const input = getCheckoutSessionStatusRequestSchema.parse(request.data ?? {})
+  await requireOrgMembership(input.orgId, uid)
+
+  const secretKey = stripeSecretKey()
+  if (!secretKey) {
+    const billingSnap = await adminDb.doc(`organizations/${input.orgId}/billing/default`).get()
+    const billing = (billingSnap.data() as Record<string, unknown> | undefined) ?? {}
+    const subscriptionStatus = normalizeStatus(billing.subscriptionStatus)
+    const planName = firstNonEmptyString([billing.planName])
+    const priceId = firstNonEmptyString([billing.priceId])
+    const currentPeriodEnd = asDate(billing.currentPeriodEnd)?.toISOString() ?? null
+    const active = subscriptionStatus === "active" || subscriptionStatus === "trialing"
+    return {
+      ok: true,
+      sessionId: input.sessionId,
+      status: active ? "complete" : "open",
+      paymentStatus: active ? "paid" : "unpaid",
+      mode: "subscription",
+      customerEmail: null,
+      billingUpdated: active,
+      subscriptionStatus,
+      planName,
+      priceId,
+      currentPeriodEnd,
+      orgId: input.orgId
+    }
+  }
+
+  type StripeCheckoutSession = {
+    id?: string
+    status?: string
+    payment_status?: string
+    mode?: string
+    metadata?: Record<string, string>
+    customer_details?: { email?: string }
+    customer?: string | { id?: string } | null
+    subscription?: string | Record<string, unknown> | null
+  }
+
+  const session = await stripeApiGetByPath<StripeCheckoutSession>(
+    secretKey,
+    `checkout/sessions/${encodeURIComponent(input.sessionId)}`,
+    new URLSearchParams({
+      "expand[]": "subscription"
+    })
+  )
+
+  const sessionMetadata = session.metadata ?? {}
+  const metadataOrgId =
+    typeof sessionMetadata.orgId === "string" && sessionMetadata.orgId.trim()
+      ? sessionMetadata.orgId.trim()
+      : input.orgId
+  const billingOwnerUid =
+    typeof sessionMetadata.billingOwnerUid === "string" && sessionMetadata.billingOwnerUid.trim()
+      ? sessionMetadata.billingOwnerUid.trim()
+      : uid
+
+  const status = normalizeStatus(session.status)
+  const paymentStatus = normalizeStatus(session.payment_status)
+  const mode = typeof session.mode === "string" ? session.mode : "subscription"
+  const customerEmail =
+    typeof session.customer_details?.email === "string" ? session.customer_details.email : null
+  const stripeCustomerId = firstNonEmptyString([
+    session.customer,
+    typeof session.customer === "object" && session.customer ? session.customer.id : null
+  ])
+
+  let billingUpdated = false
+  let priceId: string | null = null
+  let planName: string | null = null
+  let currentPeriodEndISO: string | null = null
+  let subscriptionStatus = status
+
+  if (mode === "subscription" && status === "complete" && session.subscription) {
+    type StripeSubscription = {
+      id?: string
+      status?: string
+      current_period_end?: number
+      items?: {
+        data?: Array<{
+          price?: {
+            id?: string
+            nickname?: string
+            unit_amount?: number
+            product?: string | { id?: string; name?: string } | null
+          }
+        }>
+      }
+    }
+
+    const subscriptionObj =
+      typeof session.subscription === "object" && session.subscription
+        ? (session.subscription as StripeSubscription)
+        : null
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : firstNonEmptyString([subscriptionObj?.id])
+
+    if (subscriptionId) {
+      const subscription =
+        subscriptionObj && subscriptionObj.id
+          ? subscriptionObj
+          : await stripeApiGetByPath<StripeSubscription>(
+              secretKey,
+              `subscriptions/${encodeURIComponent(subscriptionId)}`,
+              new URLSearchParams({
+                "expand[]": "items.data.price.product"
+              })
+            )
+
+      subscriptionStatus = normalizeStatus(subscription.status ?? status)
+      const periodEnd = asDate(subscription.current_period_end ?? null)
+      currentPeriodEndISO = periodEnd?.toISOString() ?? null
+
+      const firstPrice = subscription.items?.data?.[0]?.price
+      priceId = firstNonEmptyString([firstPrice?.id])
+      const stripeProductId = firstNonEmptyString([
+        firstPrice?.product,
+        typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.id : null
+      ])
+      const stripeProductName = firstNonEmptyString([
+        typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.name : null
+      ])
+      const resolvedProductName =
+        stripeProductName ?? (await fetchStripeProductName(secretKey, stripeProductId))
+      const unitAmountCents = Number(firstPrice?.unit_amount ?? NaN)
+      planName =
+        firstNonEmptyString([firstPrice?.nickname, resolvedProductName]) ??
+        extractPlanName({ planName: null }, priceId)
+      const planTier = derivePlanTier({
+        planName,
+        priceId,
+        productId: stripeProductId,
+        unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : null
+      })
+
+      await applyBillingSnapshot({
+        orgId: metadataOrgId,
+        status: subscriptionStatus,
+        currentPeriodEnd: periodEnd,
+        priceId,
+        planName: planName ?? "Subscription",
+        planTier,
+        stripeProductId,
+        billingOwnerUid,
+        stripeCustomerUid: uid,
+        stripeCustomerId,
+        stripeSubscriptionId: subscriptionId,
+        fallbackUsed: false
+      })
+      billingUpdated = true
+    }
+  }
+
+  return {
+    ok: true,
+    sessionId: input.sessionId,
+    status,
+    paymentStatus,
+    mode,
+    customerEmail,
+    billingUpdated,
+    subscriptionStatus,
+    planName,
+    priceId,
+    currentPeriodEnd: currentPeriodEndISO,
+    orgId: metadataOrgId
+  }
+})
+
+export const reconcileOrganizationBilling = onCall(stripeSecretBinding, async (request) => {
+  const uid = requireAuth(request)
+  const input = reconcileBillingRequestSchema.parse(request.data ?? {})
+  await requireOrgMembership(input.orgId, uid)
+  await requirePermission(input.orgId, uid, "manageOrgSettings")
+
+  const secretKey = stripeSecretKey()
+  if (!secretKey) {
+    throw new HttpsError("failed-precondition", "Stripe secret key is not configured.")
+  }
+
+  const billingSnap = await adminDb.doc(`organizations/${input.orgId}/billing/default`).get()
+  const billingData = (billingSnap.data() as Record<string, unknown> | undefined) ?? {}
+  const subscriptionId = firstNonEmptyString([billingData.stripeSubscriptionId])
+  if (!subscriptionId) {
+    throw new HttpsError("failed-precondition", "No Stripe subscription is linked to this organization yet.")
+  }
+
+  type StripeSubscription = {
+    id?: string
+    status?: string
+    current_period_end?: number
+    customer?: string | { id?: string } | null
+    items?: {
+      data?: Array<{
+        price?: {
+          id?: string
+          nickname?: string
+          unit_amount?: number
+          product?: string | { id?: string; name?: string } | null
+        }
+      }>
+    }
+  }
+
+  const subscription = await stripeApiGetByPath<StripeSubscription>(
+    secretKey,
+    `subscriptions/${encodeURIComponent(subscriptionId)}`,
+    new URLSearchParams({
+      "expand[]": "items.data.price.product"
+    })
+  )
+
+  const status = normalizeStatus(subscription.status)
+  const currentPeriodEnd = asDate(subscription.current_period_end ?? null)
+  const firstPrice = subscription.items?.data?.[0]?.price
+  const priceId = firstNonEmptyString([firstPrice?.id])
+  const stripeProductId = firstNonEmptyString([
+    firstPrice?.product,
+    typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.id : null
+  ])
+  const resolvedProductName =
+    firstNonEmptyString([
+      typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.name : null
+    ]) ?? (await fetchStripeProductName(secretKey, stripeProductId))
+  const unitAmountCents = Number(firstPrice?.unit_amount ?? NaN)
+  const planName =
+    firstNonEmptyString([
+      firstPrice?.nickname,
+      resolvedProductName,
+      billingData.planName
+    ]) ?? "Subscription"
+  const planTier = derivePlanTier({
+    planName,
+    priceId,
+    productId: stripeProductId,
+    unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : null
+  })
+  const stripeCustomerId = firstNonEmptyString([
+    subscription.customer,
+    typeof subscription.customer === "object" && subscription.customer ? subscription.customer.id : null,
+    billingData.stripeCustomerId
+  ])
+  const billingOwnerUid = firstNonEmptyString([billingData.billingOwnerUid]) ?? uid
+  const stripeCustomerUid = firstNonEmptyString([billingData.stripeCustomerUid]) ?? uid
+
+  await applyBillingSnapshot({
+    orgId: input.orgId,
+    status,
+    currentPeriodEnd,
+    priceId,
+    planName,
+    planTier,
+    stripeProductId,
+    billingOwnerUid,
+    stripeCustomerUid,
+    stripeCustomerId,
+    stripeSubscriptionId: subscriptionId,
+    fallbackUsed: false
+  })
+
+  return {
+    ok: true,
+    orgId: input.orgId,
+    subscriptionStatus: status,
+    planName,
+    planTier,
+    priceId,
+    stripeProductId,
+    currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null
+  }
+})
+
+export const listPublicStripePlans = onCall(stripeSecretBinding, async (request) => {
   listPublicStripePlansRequestSchema.parse(request.data ?? {})
 
   const productsSnapshot = await adminDb
@@ -549,7 +1470,7 @@ export const listPublicStripePlans = onCall(async (request) => {
     .limit(100)
     .get()
 
-  const plans: StripePlanSummary[] = []
+  const firestorePlans: StripePlanSummary[] = []
 
   for (const productDoc of productsSnapshot.docs) {
     const productData = (productDoc.data() as Record<string, unknown>) ?? {}
@@ -563,11 +1484,15 @@ export const listPublicStripePlans = onCall(async (request) => {
         const intervalCount = Number(recurring.interval_count ?? recurring.intervalCount ?? 1)
         const unitAmount = Number(priceData.unit_amount ?? priceData.unitAmount ?? 0)
         const currency = String(priceData.currency ?? "usd").toUpperCase()
+        const stripePriceId =
+          typeof priceData.id === "string" && priceData.id.trim().length > 0
+            ? priceData.id.trim()
+            : priceDoc.id
         const trialRaw = recurring.trial_period_days ?? recurring.trialPeriodDays
         const trialPeriodDays = Number.isFinite(Number(trialRaw)) ? Number(trialRaw) : null
 
         return {
-          priceId: priceDoc.id,
+          priceId: stripePriceId,
           unitAmount: Number.isFinite(unitAmount) ? unitAmount : 0,
           currency,
           interval,
@@ -580,7 +1505,7 @@ export const listPublicStripePlans = onCall(async (request) => {
 
     if (!prices.length) continue
 
-    plans.push({
+    firestorePlans.push({
       productId: productDoc.id,
       name: String(productData.name ?? "Plan"),
       description: String(productData.description ?? ""),
@@ -589,23 +1514,25 @@ export const listPublicStripePlans = onCall(async (request) => {
     })
   }
 
-  plans.sort((a, b) => {
+  firestorePlans.sort((a, b) => {
     const minA = a.prices[0]?.unitAmount ?? Number.MAX_SAFE_INTEGER
     const minB = b.prices[0]?.unitAmount ?? Number.MAX_SAFE_INTEGER
     return minA - minB
   })
 
-  let effectivePlans = plans
-  if (!effectivePlans.length) {
-    const secretKey = stripeSecretKey()
-    if (secretKey) {
-      try {
-        effectivePlans = await fetchStripePlansFromApi(secretKey)
-      } catch (error) {
-        console.error("Failed to fetch plans from Stripe API fallback", {
-          reason: error instanceof Error ? error.message : String(error)
-        })
+  let effectivePlans = firestorePlans
+  const secretKey = stripeSecretKey()
+  if (secretKey) {
+    try {
+      // Prefer live Stripe API so website pricing tracks Stripe updates immediately.
+      const apiPlans = await fetchStripePlansFromApi(secretKey)
+      if (apiPlans.length) {
+        effectivePlans = apiPlans
       }
+    } catch (error) {
+      console.error("Failed to fetch plans from Stripe API; using Firestore extension data", {
+        reason: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
@@ -654,8 +1581,66 @@ export const syncOrgBillingFromStripeSubscription = onDocumentWritten(
         afterData?.cancelAt ??
         null
     )
-    const priceId = extractPriceId(afterData ?? {})
-    const planName = extractPlanName(afterData ?? {}, priceId)
+    const secretKey = stripeSecretKey()
+    let priceId = extractPriceId(afterData ?? {})
+    let stripeProductId = extractProductId(afterData ?? {})
+    let planName = extractPlanName(afterData ?? {}, priceId)
+    let unitAmountCents = Number.NaN
+    if (secretKey && subscriptionId) {
+      type StripeSubscription = {
+        items?: {
+          data?: Array<{
+            price?: {
+              id?: string
+              nickname?: string
+              unit_amount?: number
+              product?: string | { id?: string; name?: string } | null
+            }
+          }>
+        }
+      }
+      try {
+        const subscription = await stripeApiGetByPath<StripeSubscription>(
+          secretKey,
+          `subscriptions/${encodeURIComponent(subscriptionId)}`,
+          new URLSearchParams({
+            "expand[]": "items.data.price.product"
+          })
+        )
+        const firstPrice = subscription.items?.data?.[0]?.price
+        priceId = firstNonEmptyString([firstPrice?.id]) ?? priceId
+        stripeProductId =
+          firstNonEmptyString([
+            firstPrice?.product,
+            typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.id : null
+          ]) ?? stripeProductId
+        const resolvedProductName =
+          firstNonEmptyString([
+            typeof firstPrice?.product === "object" && firstPrice?.product ? firstPrice.product.name : null
+          ]) ?? (await fetchStripeProductName(secretKey, stripeProductId))
+        unitAmountCents = Number(firstPrice?.unit_amount ?? Number.NaN)
+        planName =
+          firstNonEmptyString([
+            firstPrice?.nickname,
+            resolvedProductName
+          ]) ?? planName
+      } catch {
+        // Keep snapshot-derived values when Stripe lookup fails.
+      }
+    }
+    const planTier = derivePlanTier({
+      planName,
+      priceId,
+      productId: stripeProductId,
+      unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : null
+    })
+    const customerDoc = await adminDb.doc(`customers/${customerUid}`).get().catch(() => null)
+    const customerData = (customerDoc?.data() as Record<string, unknown> | undefined) ?? {}
+    const stripeCustomerId = firstNonEmptyString([
+      customerData.stripeId,
+      customerData.customerId,
+      customerData.id
+    ])
 
     await applyBillingSnapshot({
       orgId,
@@ -663,8 +1648,11 @@ export const syncOrgBillingFromStripeSubscription = onDocumentWritten(
       currentPeriodEnd,
       priceId,
       planName,
+      planTier,
+      stripeProductId,
       billingOwnerUid,
       stripeCustomerUid: customerUid,
+      stripeCustomerId,
       stripeSubscriptionId: subscriptionId,
       fallbackUsed: usedFallback
     })

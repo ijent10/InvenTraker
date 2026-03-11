@@ -16,18 +16,10 @@ service cloud.firestore {
     function isPlatformAdmin() {
       return signedIn() && (
         request.auth.token.platform_admin == true
-        || request.auth.token.email == "ianjjent@icloud.com"
-        || request.auth.token.email == "ianjent@icloud.com"
         || (
           exists(/databases/$(database)/documents/users/$(userId()))
-          && (
-            (
-              userDoc().data.platformRoles is map
-              && userDoc().data.platformRoles.platformAdmin == true
-            )
-            || userDoc().data.email == "ianjjent@icloud.com"
-            || userDoc().data.email == "ianjent@icloud.com"
-          )
+          && userDoc().data.platformRoles is map
+          && userDoc().data.platformRoles.platformAdmin == true
         )
       );
     }
@@ -100,21 +92,8 @@ service cloud.firestore {
       return ["active", "trialing"].hasAny([statusValue]);
     }
 
-    function hasSubscriptionBypass() {
-      return signedIn()
-        && isPlatformAdmin()
-        && (
-          request.auth.token.email == "ianjjent@icloud.com"
-          || (
-            exists(/databases/$(database)/documents/users/$(userId()))
-            && userDoc().data.email == "ianjjent@icloud.com"
-          )
-        );
-    }
-
     function hasActiveSubscription(orgId) {
-      return hasSubscriptionBypass() || (
-        exists(/databases/$(database)/documents/organizations/$(orgId))
+      return exists(/databases/$(database)/documents/organizations/$(orgId))
         && (
           (
             get(/databases/$(database)/documents/organizations/$(orgId)).data.subscription is map
@@ -128,8 +107,7 @@ service cloud.firestore {
               get(/databases/$(database)/documents/organizations/$(orgId)/billing/default).data.subscriptionStatus
             )
           )
-        )
-      );
+        );
     }
 
     function canUseOrgData(orgId) {
@@ -142,6 +120,19 @@ service cloud.firestore {
         && memberDoc(orgId).data.storeIds is list
         && memberDoc(orgId).data.storeIds.hasAny([storeId])
       );
+    }
+
+    function canSubmitItemDraft(orgId) {
+      return hasPermissionFlag(orgId, "manageInventory")
+        || hasPermissionFlag(orgId, "editStoreInventory")
+        || hasPermissionFlag(orgId, "appSpotCheck")
+        || hasPermissionFlag(orgId, "appReceive");
+    }
+
+    function canReviewItemDraft(orgId) {
+      return hasPermissionFlag(orgId, "editOrgInventoryMeta")
+        || hasPermissionFlag(orgId, "manageInventory")
+        || hasPermissionFlag(orgId, "manageCentralCatalog");
     }
 
     function dataInAllowedStore(orgId, data) {
@@ -299,6 +290,19 @@ service cloud.firestore {
           && request.resource.data.organizationId == orgId
           && request.resource.data.status == "pending";
         allow update: if inOrg(orgId) && hasPermissionFlag(orgId, "approveStoreAccessRequests");
+        allow delete: if isOwner(orgId);
+      }
+
+      match /itemSubmissions/{submissionId} {
+        allow read: if canUseOrgData(orgId);
+        allow create: if canUseOrgData(orgId)
+          && request.resource.data.organizationId == orgId
+          && request.resource.data.submittedByUid == userId()
+          && request.resource.data.status == "pending"
+          && request.resource.data.storeId is string
+          && hasStore(orgId, request.resource.data.storeId)
+          && canSubmitItemDraft(orgId);
+        allow update: if canUseOrgData(orgId) && canReviewItemDraft(orgId);
         allow delete: if isOwner(orgId);
       }
 

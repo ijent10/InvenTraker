@@ -572,6 +572,182 @@ final class OrganizationService {
         return loadDepartmentsLocal(organizationId: organizationId)
     }
 
+    func departmentConfigs(
+        for organizationId: String,
+        storeId: String?
+    ) async -> [DepartmentConfig] {
+#if canImport(FirebaseFirestore)
+        if firestoreEnabled {
+            let db = Firestore.firestore()
+            let normalizedStoreId = sanitizeStoreIdentifier(storeId)
+
+            if !normalizedStoreId.isEmpty,
+               let scopedSnapshot = try? await db.collectionGroup("settings")
+                .whereField("organizationId", isEqualTo: organizationId)
+                .whereField("storeId", isEqualTo: normalizedStoreId)
+                .limit(to: 1)
+                .getDocuments(),
+               let scopedDoc = scopedSnapshot.documents.first {
+                let scopedConfigs = decodeDepartmentConfigsFromSettingsData(scopedDoc.data())
+                if !scopedConfigs.isEmpty {
+                    return scopedConfigs
+                }
+            }
+
+            if !normalizedStoreId.isEmpty {
+                if let regionSnapshot = try? await db.collection("organizations")
+                    .document(organizationId)
+                    .collection("regions")
+                    .getDocuments() {
+                    for regionDoc in regionSnapshot.documents {
+                        guard let districtSnapshot = try? await regionDoc.reference
+                            .collection("districts")
+                            .getDocuments() else {
+                            continue
+                        }
+                        for districtDoc in districtSnapshot.documents {
+                            guard let storeDoc = try? await districtDoc.reference
+                                .collection("stores")
+                                .document(normalizedStoreId)
+                                .getDocument(),
+                                  storeDoc.exists else {
+                                continue
+                            }
+                            if let nestedSettings = try? await storeDoc.reference
+                                .collection("settings")
+                                .document("default")
+                                .getDocument(),
+                               let data = nestedSettings.data() {
+                                let scopedConfigs = decodeDepartmentConfigsFromSettingsData(data)
+                                if !scopedConfigs.isEmpty {
+                                    return scopedConfigs
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Legacy fallback: organizations/{orgId}/stores/{storeId}/settings/default
+                if let legacySettings = try? await db.collection("organizations")
+                    .document(organizationId)
+                    .collection("stores")
+                    .document(normalizedStoreId)
+                    .collection("settings")
+                    .document("default")
+                    .getDocument(),
+                   let data = legacySettings.data() {
+                    let scopedConfigs = decodeDepartmentConfigsFromSettingsData(data)
+                    if !scopedConfigs.isEmpty {
+                        return scopedConfigs
+                    }
+                }
+            }
+
+            if let orgSettingsDoc = try? await db.collection("organizations")
+                .document(organizationId)
+                .collection("settings")
+                .document("default")
+                .getDocument(),
+               let data = orgSettingsDoc.data() {
+                let configs = decodeDepartmentConfigsFromSettingsData(data)
+                if !configs.isEmpty {
+                    return configs
+                }
+            }
+        }
+#endif
+        let fallbackDepartments = (try? await departments(for: organizationId)) ?? []
+        if fallbackDepartments.isEmpty { return [] }
+        var configs: [DepartmentConfig] = []
+        for department in fallbackDepartments {
+            let rows = (try? await locations(for: organizationId, departmentId: department.id)) ?? []
+            configs.append(
+                DepartmentConfig(
+                    name: department.name,
+                    locations: rows.map(\.name)
+                )
+            )
+        }
+        return configs
+    }
+
+    func brandingConfig(for organizationId: String) async -> OrganizationBrandingConfig {
+#if canImport(FirebaseFirestore)
+        if firestoreEnabled {
+            let db = Firestore.firestore()
+
+            let orgDoc = try? await db.collection("organizations").document(organizationId).getDocument()
+            let orgData = orgDoc?.data() ?? [:]
+            let orgSubscription = (orgData["subscription"] as? [String: Any]) ?? [:]
+
+            let billingDoc = try? await db.collection("organizations")
+                .document(organizationId)
+                .collection("billing")
+                .document("default")
+                .getDocument()
+            let billingData = billingDoc?.data() ?? [:]
+
+            let settingsDoc = try? await db.collection("organizations")
+                .document(organizationId)
+                .collection("settings")
+                .document("default")
+                .getDocument()
+            let settingsData = settingsDoc?.data() ?? [:]
+
+            func asString(_ value: Any?) -> String {
+                (value as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            }
+
+            let status = asString(billingData["subscriptionStatus"]).isEmpty
+                ? asString(orgSubscription["status"])
+                : asString(billingData["subscriptionStatus"])
+            let normalizedStatus = status.lowercased()
+            let activeSubscription = normalizedStatus == "active" || normalizedStatus == "trialing"
+
+            let planName = asString(billingData["planName"]).isEmpty
+                ? asString(orgData["planName"])
+                : asString(billingData["planName"])
+            let planTier = asString(billingData["planTier"]).isEmpty
+                ? asString(orgData["planTier"])
+                : asString(billingData["planTier"])
+            let priceId = asString(billingData["priceId"]).isEmpty
+                ? asString(orgData["planId"])
+                : asString(billingData["priceId"])
+
+            let normalizedPlan = "\(planName.lowercased()) \(planTier.lowercased()) \(priceId.lowercased())"
+            let isProTier = normalizedPlan.contains("pro") || normalizedPlan.contains("plus") || planTier.lowercased() == "custom"
+
+            let brandingEnabled = (settingsData["customBrandingEnabled"] as? Bool ?? false)
+                && activeSubscription
+                && isProTier
+
+            return OrganizationBrandingConfig(
+                enabled: brandingEnabled,
+                brandDisplayName: {
+                    let name = asString(settingsData["brandDisplayName"])
+                    return name.isEmpty ? nil : name
+                }(),
+                logoLightUrl: {
+                    let value = asString(settingsData["logoLightUrl"])
+                    return value.isEmpty ? nil : value
+                }(),
+                logoDarkUrl: {
+                    let value = asString(settingsData["logoDarkUrl"])
+                    return value.isEmpty ? nil : value
+                }(),
+                appHeaderStyle: asString(settingsData["appHeaderStyle"]) == "icon_only" ? .iconOnly : .iconName,
+                moduleIconStyle: asString(settingsData["moduleIconStyle"]) == "square" ? .square : .rounded,
+                welcomeMessage: {
+                    let value = asString(settingsData["welcomeMessage"])
+                    return value.isEmpty ? nil : value
+                }()
+            )
+        }
+#endif
+        return .default
+    }
+
     func saveDepartments(_ departments: [DepartmentRef], for organizationId: String) async throws {
 #if canImport(FirebaseFirestore)
         if firestoreEnabled {
@@ -627,6 +803,38 @@ final class OrganizationService {
         }
 #endif
         saveLocationsLocal(locations, organizationId: organizationId, departmentId: departmentId)
+    }
+
+    private func decodeDepartmentConfigsFromSettingsData(_ data: [String: Any]) -> [DepartmentConfig] {
+        if let rawConfigs = data["departmentConfigs"] as? [[String: Any]], !rawConfigs.isEmpty {
+            var seenDepartments = Set<String>()
+            var configs: [DepartmentConfig] = []
+            for raw in rawConfigs {
+                let name = (raw["name"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !name.isEmpty else { continue }
+                let key = name.lowercased()
+                guard !seenDepartments.contains(key) else { continue }
+                seenDepartments.insert(key)
+
+                let locations = ((raw["locations"] as? [String]) ?? [])
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                configs.append(DepartmentConfig(name: name, locations: Array(Set(locations)).sorted()))
+            }
+            if !configs.isEmpty {
+                return configs.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
+        }
+
+        let legacyDepartments = ((data["departments"] as? [String]) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let legacyLocations = ((data["locationTemplates"] as? [String]) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !legacyDepartments.isEmpty else { return [] }
+        return legacyDepartments.map { DepartmentConfig(name: $0, locations: legacyLocations) }
     }
 
     private func dateValue(from raw: Any?) -> Date? {
@@ -873,7 +1081,7 @@ final class OrganizationService {
     }
 
     private func decodeStore(from data: [String: Any], id: String) -> StoreLocationRef? {
-        let normalizedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedID = sanitizeStoreIdentifier(id)
         guard !normalizedID.isEmpty else { return nil }
         let rawName = (data["name"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -965,7 +1173,7 @@ final class OrganizationService {
         let employeeId = data["employeeId"] as? String
         let jobTitle = (data["jobTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let storeIds = (data["storeIds"] as? [String] ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { sanitizeStoreIdentifier($0) }
             .filter { !$0.isEmpty }
         let departmentId = data["departmentId"] as? String
         let rawDepartmentIDs = (data["departmentIds"] as? [String] ?? [])
@@ -1129,6 +1337,19 @@ final class OrganizationService {
         }
 
         return PermissionOverride(modules: Array(modules), actions: Array(actions))
+    }
+
+    private func sanitizeStoreIdentifier(_ raw: String?) -> String {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            return trimmed
+                .split(separator: "/")
+                .map(String.init)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .last(where: { !$0.isEmpty }) ?? ""
+        }
+        return trimmed
     }
 #endif
 }

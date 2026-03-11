@@ -12,6 +12,7 @@ enum AuthServiceError: LocalizedError {
     case invalidCredentials
     case unsupported
     case userUnavailable
+    case missingEmail
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ enum AuthServiceError: LocalizedError {
             return "This sign-in method is not available in the current build."
         case .userUnavailable:
             return "No authenticated user session is available."
+        case .missingEmail:
+            return "The signed-in account is missing an email address."
         }
     }
 }
@@ -163,6 +166,45 @@ final class AuthService: ObservableObject {
             guard let user = Auth.auth().currentUser else { throw AuthServiceError.userUnavailable }
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 user.updatePassword(to: newPassword) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
+            currentUser = SessionUser(id: user.uid, email: user.email, displayName: user.displayName)
+            return
+        }
+#endif
+        throw AuthServiceError.unsupported
+    }
+
+    func updatePassword(currentPassword: String, newPassword: String) async throws {
+        let current = currentPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !current.isEmpty, !next.isEmpty else {
+            throw AuthServiceError.invalidCredentials
+        }
+
+#if canImport(FirebaseAuth)
+        if firebaseEnabled {
+            guard let user = Auth.auth().currentUser else { throw AuthServiceError.userUnavailable }
+            guard let email = user.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+                throw AuthServiceError.missingEmail
+            }
+            let credential = EmailAuthProvider.credential(withEmail: email, password: current)
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                user.reauthenticate(with: credential) { _, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                user.updatePassword(to: next) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {

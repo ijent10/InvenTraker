@@ -2,19 +2,35 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { AppCard, DataTable, SearchInput, SegmentedControl, type TableColumn } from "@inventracker/ui"
-import { useQuery } from "@tanstack/react-query"
+import { AppButton, AppCard, DataTable, SearchInput, SegmentedControl, type TableColumn } from "@inventracker/ui"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { PageHead } from "@/components/page-head"
 import { useOrgContext } from "@/hooks/use-org-context"
-import { fetchItems, fetchStoreInventoryItems, type ItemRecord } from "@/lib/data/firestore"
+import {
+  fetchItems,
+  fetchItemSubmissions,
+  fetchStoreInventoryItems,
+  formatStoreLabel,
+  reviewItemSubmission,
+  type ItemRecord
+} from "@/lib/data/firestore"
 
 export default function InventoryPage() {
   const { activeOrgId, activeStoreId, activeOrg, activeStore, role, effectivePermissions } = useOrgContext()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [mode, setMode] = useState<"cards" | "table">("cards")
   const [scope, setScope] = useState<"store" | "organization">("store")
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState<string | null>(null)
+  const [reviewStatusMessage, setReviewStatusMessage] = useState<string | null>(null)
+  const [reviewErrorMessage, setReviewErrorMessage] = useState<string | null>(null)
   const canViewOrgInventory = effectivePermissions.viewOrganizationInventory === true
+  const canReviewSubmissions = Boolean(
+    effectivePermissions.editOrgInventoryMeta ||
+      effectivePermissions.manageInventory ||
+      effectivePermissions.manageCentralCatalog
+  )
 
   useEffect(() => {
     if (!canViewOrgInventory && scope !== "store") {
@@ -39,6 +55,17 @@ export default function InventoryPage() {
       return fetchStoreInventoryItems(activeOrgId, activeStoreId)
     },
     enabled: Boolean(activeOrgId && (scope === "organization" || activeStoreId))
+  })
+
+  const { data: pendingSubmissions = [], refetch: refetchSubmissions } = useQuery({
+    queryKey: ["item-submissions", activeOrgId, activeStoreId],
+    queryFn: () =>
+      fetchItemSubmissions(activeOrgId, {
+        status: "pending",
+        storeId: activeStoreId || undefined
+      }),
+    enabled: Boolean(activeOrgId && canReviewSubmissions),
+    staleTime: 15_000
   })
 
   const filtered = useMemo(
@@ -76,6 +103,38 @@ export default function InventoryPage() {
     { key: "min", header: "Min Qty", render: (item) => item.minimumQuantity.toFixed(3) },
     { key: "price", header: "Price", render: (item) => `$${item.price.toFixed(2)}` }
   ]
+
+  const runSubmissionReview = async (
+    submissionId: string,
+    decision: "approved" | "rejected" | "promoted"
+  ) => {
+    if (!activeOrgId) return
+    setReviewStatusMessage(null)
+    setReviewErrorMessage(null)
+    setReviewingSubmissionId(submissionId)
+    try {
+      await reviewItemSubmission({
+        orgId: activeOrgId,
+        submissionId,
+        decision
+      })
+      await refetchSubmissions()
+      await queryClient.invalidateQueries({ queryKey: ["items", activeOrgId] })
+      await queryClient.invalidateQueries({ queryKey: ["store-inventory-items", activeOrgId, activeStoreId] })
+      setReviewStatusMessage(
+        decision === "rejected"
+          ? "Submission rejected."
+          : decision === "promoted"
+            ? "Submission approved and promoted to central catalog."
+            : "Submission approved to organization inventory."
+      )
+    } catch (error) {
+      const message = String((error as { message?: string } | undefined)?.message ?? "").trim()
+      setReviewErrorMessage(message || "Could not review this submission.")
+    } finally {
+      setReviewingSubmissionId(null)
+    }
+  }
 
   return (
     <div>
@@ -138,6 +197,83 @@ export default function InventoryPage() {
           )}
         </div>
       </AppCard>
+
+      {canReviewSubmissions ? (
+        <AppCard className="mt-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="card-title">Item Verification Queue</h2>
+              <p className="secondary-text mt-1">
+                Unknown scans create store drafts immediately. Review and approve metadata here.
+              </p>
+            </div>
+            <span className="rounded-full border border-app-border bg-app-surface-soft px-3 py-1 text-xs font-semibold text-app-muted">
+              {pendingSubmissions.length} pending
+            </span>
+          </div>
+
+          {pendingSubmissions.length === 0 ? (
+            <div className="rounded-2xl border border-app-border bg-app-surface-soft px-4 py-3 text-sm text-app-muted">
+              No pending item submissions for this scope.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pendingSubmissions.map((submission) => (
+                <div key={submission.id} className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{submission.itemDraft.name}</p>
+                      <p className="secondary-text text-xs">
+                        Barcode: {submission.itemDraft.upc ?? submission.scannedUpc ?? "—"} · Unit {submission.itemDraft.unit} · Price $
+                        {submission.itemDraft.price.toFixed(2)}
+                      </p>
+                      <p className="secondary-text text-xs">
+                        Submitted by {submission.submittedByName ?? submission.submittedByUid}
+                        {submission.submittedByEmployeeId ? ` (${submission.submittedByEmployeeId})` : ""}
+                        {activeStore ? ` · ${formatStoreLabel(activeStore)}` : submission.storeId ? ` · Store ${submission.storeId}` : ""}
+                      </p>
+                      {submission.note ? <p className="secondary-text mt-1 text-xs">Note: {submission.note}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <AppButton
+                        variant="secondary"
+                        disabled={reviewingSubmissionId === submission.id}
+                        onClick={() => void runSubmissionReview(submission.id, "rejected")}
+                      >
+                        Reject
+                      </AppButton>
+                      <AppButton
+                        variant="secondary"
+                        disabled={reviewingSubmissionId === submission.id}
+                        onClick={() => void runSubmissionReview(submission.id, "approved")}
+                      >
+                        Approve
+                      </AppButton>
+                      <AppButton
+                        disabled={reviewingSubmissionId === submission.id}
+                        onClick={() => void runSubmissionReview(submission.id, "promoted")}
+                      >
+                        Approve + Promote
+                      </AppButton>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reviewStatusMessage ? (
+            <div className="mt-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              {reviewStatusMessage}
+            </div>
+          ) : null}
+          {reviewErrorMessage ? (
+            <div className="mt-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {reviewErrorMessage}
+            </div>
+          ) : null}
+        </AppCard>
+      ) : null}
     </div>
   )
 }

@@ -19,6 +19,24 @@ struct RemoteOrgNotification: Identifiable, Hashable {
     let storeId: String?
     let createdAt: Date
     let tintHex: String?
+    let dispatchMode: String
+    let status: String
+    let scheduledFor: Date?
+
+    var isScheduled: Bool {
+        dispatchMode == "scheduled" || scheduledFor != nil
+    }
+
+    var canRemove: Bool {
+        guard isScheduled else { return false }
+        if status == "queued" || status == "scheduled" {
+            return true
+        }
+        if let scheduledFor {
+            return scheduledFor > Date()
+        }
+        return false
+    }
 }
 
 @MainActor
@@ -145,6 +163,29 @@ final class RealtimeNotificationFeedService: ObservableObject {
         refreshUnreadCount()
     }
 
+    func remove(notificationID: String) async {
+        guard !notificationID.isEmpty else { return }
+        guard let orgId = listeningOrgId else {
+            dismiss(notificationID: notificationID)
+            return
+        }
+
+        let row = notifications.first { $0.id == notificationID }
+#if canImport(FirebaseFirestore) && canImport(FirebaseCore)
+        if let row, row.canRemove, FirebaseApp.app() != nil {
+            let ref = Firestore.firestore()
+                .collection("organizations")
+                .document(orgId)
+                .collection("notifications")
+                .document(notificationID)
+            _ = try? await ref.delete()
+        }
+#else
+        _ = row
+#endif
+        dismiss(notificationID: notificationID)
+    }
+
     func dismissAllVisible() {
         guard let userId = listeningUserId, let orgId = listeningOrgId else { return }
         for row in notifications {
@@ -199,10 +240,8 @@ final class RealtimeNotificationFeedService: ObservableObject {
             }
 
             let status = ((data["status"] as? String) ?? "sent").lowercased()
+            let dispatchMode = ((data["dispatchMode"] as? String) ?? "immediate").lowercased()
             let scheduledAt = timestamp(from: data["scheduledFor"])
-            if status == "queued", let scheduledAt, scheduledAt > now {
-                continue
-            }
 
             let title = (data["name"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -224,7 +263,10 @@ final class RealtimeNotificationFeedService: ObservableObject {
                     roleTargets: roleTargets,
                     storeId: rawStore,
                     createdAt: createdAt,
-                    tintHex: data["accentColor"] as? String
+                    tintHex: data["accentColor"] as? String,
+                    dispatchMode: dispatchMode,
+                    status: status,
+                    scheduledFor: scheduledAt
                 )
             )
         }
@@ -273,6 +315,12 @@ final class RealtimeNotificationFeedService: ObservableObject {
         guard let userId = listeningUserId else { return }
         var ids = deliveredIds
         for row in newRows.prefix(40) where !ids.contains(row.id) {
+            if row.isScheduled, let scheduledFor = row.scheduledFor, scheduledFor > Date() {
+                continue
+            }
+            if row.status == "queued" || row.status == "scheduled" {
+                continue
+            }
             postLocalAlert(for: row)
             ids.insert(row.id)
         }

@@ -5,6 +5,7 @@ import SwiftData
 /// Users can customize section order.
 struct HomeView: View {
     @EnvironmentObject private var session: AccountSessionStore
+    @Environment(\.colorScheme) private var colorScheme
     @Query private var items: [InventoryItem]
     @Query private var productionProducts: [ProductionProduct]
     @Query private var todos: [ToDoItem]
@@ -65,14 +66,20 @@ struct HomeView: View {
 
     private var homeNotifications: [HomeNotification] {
         let now = Date()
-        let remoteAnnouncements = notificationFeed.notifications.map { entry in
-            HomeNotification(
+        let remoteAnnouncements: [HomeNotification] = notificationFeed.notifications.compactMap { entry in
+            let scheduledLabel: String = {
+                guard entry.isScheduled, let scheduledFor = entry.scheduledFor else { return entry.body }
+                let prefix = entry.status == "queued" || entry.status == "scheduled" ? "Scheduled" : "Sent"
+                return "\(prefix) for \(scheduledFor.formatted(date: .abbreviated, time: .shortened))"
+            }()
+            return HomeNotification(
                 id: "remote-\(entry.id)",
                 title: entry.title,
-                subtitle: entry.body,
+                subtitle: entry.isScheduled ? scheduledLabel : entry.body,
                 icon: "bell.badge.fill",
                 tint: settings.accentColor,
-                createdAt: entry.createdAt
+                createdAt: entry.createdAt,
+                action: entry.canRemove ? .remove : .dismiss
             )
         }
 
@@ -95,7 +102,8 @@ struct HomeView: View {
                     subtitle: "Expires in \(days) day(s) • \(soonestBatch.quantity.formattedQuantity()) \(item.unit.rawValue)",
                     icon: "clock.badge.exclamationmark",
                     tint: .orange,
-                    createdAt: now
+                    createdAt: now,
+                    action: .dismiss
                 )
             }
 
@@ -108,11 +116,12 @@ struct HomeView: View {
                     subtitle: "\(item.totalQuantity.formattedQuantity()) / min \(item.minimumQuantity.formattedQuantity()) \(item.unit.rawValue)",
                     icon: "exclamationmark.triangle.fill",
                     tint: .red,
-                    createdAt: now
+                    createdAt: now,
+                    action: .dismiss
                 )
             }
 
-        let dueTodos = scopedTodos
+        let dueTodos: [HomeNotification] = Array(scopedTodos
             .filter { !$0.isCompleted }
             .sorted(by: { $0.date < $1.date })
             .prefix(8)
@@ -123,13 +132,18 @@ struct HomeView: View {
                     subtitle: task.date.formatted(date: .abbreviated, time: .shortened),
                     icon: "checklist",
                     tint: settings.accentColor,
-                    createdAt: task.date
+                    createdAt: task.date,
+                    action: .dismiss
                 )
-            }
+            })
 
-        return Array((remoteAnnouncements + dueTodos + expiringSoon + lowStock)
-            .sorted(by: { $0.createdAt > $1.createdAt })
-            .prefix(30))
+        var all = [HomeNotification]()
+        all.append(contentsOf: remoteAnnouncements)
+        all.append(contentsOf: dueTodos)
+        all.append(contentsOf: expiringSoon)
+        all.append(contentsOf: lowStock)
+        let sorted = all.sorted(by: { $0.createdAt > $1.createdAt })
+        return Array(sorted.prefix(30))
     }
 
     private var visibleNotifications: [HomeNotification] {
@@ -157,11 +171,48 @@ struct HomeView: View {
         }
         return store.name
     }
+
+    private var appHeaderStyle: AppHeaderStyle {
+        settings.organizationBranding.enabled ? settings.organizationBranding.appHeaderStyle : .iconName
+    }
+
+    private var moduleIconStyle: ModuleIconStyle {
+        settings.organizationBranding.enabled ? settings.organizationBranding.moduleIconStyle : .rounded
+    }
+
+    private var resolvedBrandLogoURL: URL? {
+        let value = settings.effectiveBrandLogoURL(for: colorScheme)
+        guard !value.isEmpty, let url = URL(string: value) else { return nil }
+        return url
+    }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if settings.organizationBranding.enabled,
+                       let welcomeMessage = settings.organizationBranding.welcomeMessage?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                       !welcomeMessage.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Welcome")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(welcomeMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                        )
+                    }
                     ContextTipCard(context: .home, accentColor: settings.accentColor)
                     ForEach(tileSectionOrder, id: \.self) { section in
                         HomeSectionCard(
@@ -169,7 +220,8 @@ struct HomeView: View {
                             items: scopedItems,
                             productionProducts: scopedProductionProducts,
                             todos: scopedTodos,
-                            accentColor: settings.accentColor
+                            accentColor: settings.accentColor,
+                            moduleIconStyle: moduleIconStyle
                         )
                     }
                 }
@@ -177,8 +229,8 @@ struct HomeView: View {
                 .padding(.bottom, 100)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("InvenTraker")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle(appHeaderStyle == .iconOnly ? "" : settings.brandedAppName)
+            .navigationBarTitleDisplayMode(appHeaderStyle == .iconOnly ? .inline : .large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !session.stores.isEmpty {
@@ -213,25 +265,10 @@ struct HomeView: View {
                     Button {
                         showingNotifications = true
                     } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell.fill")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(settings.accentColor)
-                            if notificationBadgeCount > 0 {
-                                Text(notificationBadgeCount > 99 ? "99+" : "\(notificationBadgeCount)")
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-                                    .padding(.horizontal, 6.5)
-                                    .padding(.vertical, 2.5)
-                                    .frame(minWidth: 22)
-                                    .background(Color.red, in: Capsule())
-                                    .offset(x: 9, y: -8)
-                                    .zIndex(1)
-                            }
-                        }
-                        .frame(width: 42, height: 32, alignment: .center)
+                        NotificationBellButton(
+                            count: notificationBadgeCount,
+                            tint: settings.accentColor
+                        )
                     }
                     .accessibilityLabel("Notifications")
                 }
@@ -243,6 +280,33 @@ struct HomeView: View {
                                 .foregroundStyle(settings.accentColor)
                         }
                         .accessibilityLabel("Rearrange Sections")
+                    }
+                }
+
+                if appHeaderStyle == .iconOnly {
+                    ToolbarItem(placement: .principal) {
+                        if let logoURL = resolvedBrandLogoURL {
+                            AsyncImage(url: logoURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(height: 26)
+                                case .failure:
+                                    Image(systemName: "shippingbox.fill")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(settings.accentColor)
+                                default:
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                            }
+                        } else {
+                            Image(systemName: "shippingbox.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(settings.accentColor)
+                        }
                     }
                 }
             }
@@ -267,7 +331,8 @@ struct HomeView: View {
                     HomeNotificationsView(
                         notifications: visibleNotifications,
                         accentColor: settings.accentColor,
-                        onRemove: dismissNotification,
+                        onDismiss: dismissNotification,
+                        onRemove: removeNotification,
                         onClearAll: clearAllNotifications
                     )
                 }
@@ -355,6 +420,15 @@ struct HomeView: View {
         }
     }
 
+    private func removeNotification(_ notification: HomeNotification) {
+        dismissedNotificationIDs.insert(notification.id)
+        persistDismissedNotifications()
+        guard let remoteID = notification.remoteNotificationID else { return }
+        Task {
+            await notificationFeed.remove(notificationID: remoteID)
+        }
+    }
+
     private func clearAllNotifications() {
         guard !visibleNotifications.isEmpty else { return }
         var remoteIDs: [String] = []
@@ -380,6 +454,7 @@ struct HomeSectionCard: View {
     let productionProducts: [ProductionProduct]
     let todos: [ToDoItem]
     let accentColor: Color
+    let moduleIconStyle: ModuleIconStyle
     
     var body: some View {
         NavigationLink(destination: destinationView) {
@@ -389,7 +464,13 @@ struct HomeSectionCard: View {
                         .font(.system(size: 28))
                         .foregroundStyle(accentColor.gradient)
                         .frame(width: 50, height: 50)
-                        .background(accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                        .background(
+                            accentColor.opacity(0.1),
+                            in: RoundedRectangle(
+                                cornerRadius: moduleIconStyle == .square ? 8 : 12,
+                                style: .continuous
+                            )
+                        )
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(section.rawValue)
@@ -424,10 +505,11 @@ struct HomeSectionCard: View {
     
     var insightText: String {
         let activeItems = items.filter { !$0.isArchived }
+        let stockedItems = activeItems.filter { !$0.batches.isEmpty && $0.totalQuantity > 0 }
         
         switch section {
         case .inventory:
-            return "\(activeItems.count) active items"
+            return "\(stockedItems.count) active items"
         case .production:
             let activeProducts = productionProducts.filter(\.isActive).count
             return activeProducts == 0 ? "Set up production items" : "\(activeProducts) products planned"
@@ -442,7 +524,7 @@ struct HomeSectionCard: View {
             return "Assigned quality + safety questionnaires"
             
         case .expiration:
-            let expiringSoon = activeItems.filter { item in
+            let expiringSoon = stockedItems.filter { item in
                 item.batches.contains { batch in
                     let days = Calendar.current.dateComponents([.day], from: Date(), to: batch.expirationDate).day ?? 999
                     return days <= 7 && days >= 0
@@ -454,7 +536,7 @@ struct HomeSectionCard: View {
             return "Track waste & spoilage"
             
         case .orders:
-            let needsOrdering = activeItems.filter { $0.totalQuantity < $0.minimumQuantity }
+            let needsOrdering = stockedItems.filter { $0.totalQuantity < $0.minimumQuantity }
             return needsOrdering.isEmpty ? "Stock levels good" : "\(needsOrdering.count) items need ordering"
             
         case .toDo:
@@ -571,12 +653,18 @@ struct SectionOrderEditorView: View {
 }
 
 private struct HomeNotification: Identifiable {
+    enum Action {
+        case dismiss
+        case remove
+    }
+
     let id: String
     let title: String
     let subtitle: String
     let icon: String
     let tint: Color
     let createdAt: Date
+    let action: Action
 
     var remoteNotificationID: String? {
         guard id.hasPrefix("remote-") else { return nil }
@@ -588,6 +676,7 @@ private struct HomeNotificationsView: View {
     @Environment(\.dismiss) private var dismiss
     let notifications: [HomeNotification]
     let accentColor: Color
+    let onDismiss: (HomeNotification) -> Void
     let onRemove: (HomeNotification) -> Void
     let onClearAll: () -> Void
 
@@ -602,20 +691,39 @@ private struct HomeNotificationsView: View {
                         Image(systemName: notification.icon)
                             .foregroundStyle(notification.tint)
                             .frame(width: 26)
+                            .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(notification.title)
                                 .font(.subheadline.weight(.semibold))
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                             Text(notification.subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .multilineTextAlignment(.leading)
                         }
+                        .layoutPriority(1)
+                        Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            onRemove(notification)
-                        } label: {
-                            Label("Remove", systemImage: "trash")
+                        if notification.action == .remove {
+                            Button(role: .destructive) {
+                                onRemove(notification)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
+                        } else {
+                            Button {
+                                onDismiss(notification)
+                            } label: {
+                                Label("Dismiss", systemImage: "checkmark")
+                            }
+                            .tint(accentColor)
                         }
                     }
                 }
@@ -637,5 +745,39 @@ private struct HomeNotificationsView: View {
                     .foregroundStyle(accentColor)
             }
         }
+    }
+}
+
+private struct NotificationBellButton: View {
+    let count: Int
+    let tint: Color
+
+    private var badgeText: String {
+        count > 99 ? "99+" : "\(count)"
+    }
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "bell.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 34, alignment: .center)
+        }
+        .overlay(alignment: .topTrailing) {
+            if count > 0 {
+                Text(badgeText)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .frame(minWidth: badgeText.count > 2 ? 28 : 22)
+                    .background(Color.red, in: Capsule())
+                    .offset(x: 8, y: -8)
+                    .accessibilityLabel("\(count) unread notifications")
+            }
+        }
+        .frame(width: 48, height: 36, alignment: .center)
     }
 }

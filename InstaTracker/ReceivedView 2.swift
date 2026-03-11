@@ -393,9 +393,29 @@ struct ReceivedView: View {
                         showingCatalogImportPrompt = true
                     }
                 } else {
+                    let draftItem = await MainActor.run {
+                        CatalogInventoryImporter.createStoreDraftForUnknownUPC(
+                            scannedUPC: normalized,
+                            organizationId: activeOrganizationId,
+                            storeId: settings.normalizedActiveStoreID,
+                            modelContext: modelContext,
+                            existingItems: scopedItems
+                        )
+                    }
+                    let submissionId = await catalogService.submitItemDraftForVerification(
+                        organizationId: activeOrganizationId,
+                        storeId: settings.normalizedActiveStoreID,
+                        submittedByUid: session.firebaseUser?.id ?? "",
+                        scannedUPC: normalized,
+                        draftItem: draftItem,
+                        note: "Created from Receiving unknown scan."
+                    )
                     await MainActor.run {
-                        catalogLookupMessage = "This UPC is not in your inventory or the central catalog yet."
+                        catalogLookupMessage = submissionId == nil
+                            ? "Created a store draft item. Review submission could not be sent right now."
+                            : "Created a store draft and sent it for organization review."
                         showingCatalogLookupMessage = true
+                        scannedItem = draftItem
                     }
                 }
             } catch {

@@ -1,8 +1,8 @@
 const isProd = process.env.NODE_ENV === "production"
 
 const scriptSrc = isProd
-  ? "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com"
-  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.gstatic.com"
+  ? "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com"
 
 const cspDirectives = [
   "default-src 'self'",
@@ -12,8 +12,8 @@ const cspDirectives = [
   "media-src 'self' blob: https:",
   scriptSrc,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.firestore.googleapis.com https://*.cloudfunctions.net wss://*.firebaseio.com",
-  "frame-src https://checkout.stripe.com https://billing.stripe.com",
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.firestore.googleapis.com https://*.cloudfunctions.net wss://*.firebaseio.com https://api.stripe.com https://r.stripe.com https://m.stripe.network https://js.stripe.com",
+  "frame-src https://checkout.stripe.com https://billing.stripe.com https://js.stripe.com https://hooks.stripe.com",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https://checkout.stripe.com https://billing.stripe.com"

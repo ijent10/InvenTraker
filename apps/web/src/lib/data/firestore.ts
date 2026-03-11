@@ -20,6 +20,7 @@ import { db, storage } from "@/lib/firebase/client"
 import {
   requestStoreAccess as requestStoreAccessCallable,
   reviewStoreAccessRequest as reviewStoreAccessCallable,
+  reviewItemSubmission as reviewItemSubmissionCallable,
   savePublicSiteContentByCallable
 } from "@/lib/firebase/functions"
 import type { MemberRole, AppModule } from "@/lib/rbac/modules"
@@ -60,6 +61,7 @@ export type ItemRecord = {
   storeId?: string
   name: string
   upc?: string
+  reworkItemCode?: string
   unit: "each" | "lbs"
   // Canonical + legacy aliases (iOS currently writes legacy names)
   minQuantity: number
@@ -153,6 +155,21 @@ export type ExpirationEntryRecord = {
   isExpired: boolean
 }
 
+export type SpotCheckRecord = {
+  id: string
+  organizationId: string
+  storeId: string
+  itemId: string
+  itemName: string
+  upc?: string
+  packageBarcode?: string
+  quantity: number
+  unit: "each" | "lbs"
+  expiresAt?: Date
+  checkedAt: Date
+  stockAreaRaw?: string
+}
+
 export type TodoRecord = {
   id: string
   organizationId: string
@@ -163,9 +180,14 @@ export type TodoRecord = {
   status: string
   createdAt?: unknown
   createdBy?: string
+  createdByName?: string
   taskType?: string
   relatedItemId?: string
   relatedVendorId?: string
+  assigneeUserIds?: string[]
+  assigneeRoleTitles?: string[]
+  assigneeDepartmentIds?: string[]
+  assigneeDepartmentNames?: string[]
 }
 
 export type NotificationRecord = {
@@ -204,21 +226,78 @@ export type StoreAccessRequestRecord = {
   updatedAt?: unknown
 }
 
+export type ItemSubmissionDraftRecord = {
+  backendItemId?: string
+  name: string
+  upc?: string
+  unit: "each" | "lbs"
+  price: number
+  defaultExpirationDays: number
+  defaultPackedExpiration: number
+  minQuantity: number
+  qtyPerCase: number
+  caseSize: number
+  vendorId?: string
+  vendorName?: string
+  departmentId?: string
+  department?: string
+  locationId?: string
+  departmentLocation?: string
+  tags: string[]
+  photoUrl?: string
+  photoAssetId?: string
+  reworkItemCode?: string
+  canBeReworked: boolean
+  reworkShelfLifeDays: number
+  maxReworkCount: number
+}
+
+export type ItemSubmissionRecord = {
+  id: string
+  organizationId: string
+  storeId: string
+  submittedByUid: string
+  submittedByName?: string
+  submittedByEmployeeId?: string
+  scannedUpc?: string
+  note?: string
+  status: "pending" | "approved" | "rejected" | "promoted"
+  reviewNote?: string
+  reviewedByUid?: string
+  reviewedByName?: string
+  reviewedAt?: unknown
+  createdAt?: unknown
+  updatedAt?: unknown
+  itemDraft: ItemSubmissionDraftRecord
+}
+
 export type OrganizationBillingStatusRecord = {
   organizationId: string
   subscriptionStatus: string
   planName?: string
+  planTier?: "starter" | "growth" | "pro" | "custom"
   priceId?: string
   currentPeriodEnd?: Date | null
+  isActive?: boolean
+  entitlements?: Record<string, boolean>
+  paymentVerification?: {
+    provider?: string
+    verified?: boolean
+    verifiedAt?: Date | null
+    sourceSubscriptionId?: string
+    sourceCustomerUid?: string
+  }
 }
 
 export function isProTierBilling(status: OrganizationBillingStatusRecord | null | undefined): boolean {
   if (!status) return false
   const normalizedStatus = (status.subscriptionStatus ?? "").trim().toLowerCase()
   if (normalizedStatus !== "active" && normalizedStatus !== "trialing") return false
+  if (status.planTier === "pro") return true
+  if (status.entitlements?.customBranding === true) return true
   const planName = (status.planName ?? "").trim().toLowerCase()
   const priceId = (status.priceId ?? "").trim().toLowerCase()
-  return planName.includes("pro") || priceId.includes("pro")
+  return planName.includes("pro") || planName.includes("plus") || priceId.includes("pro")
 }
 
 export type OrderSuggestionLine = {
@@ -375,8 +454,29 @@ export type RoleTemplateRecord = {
   singlePerStore?: boolean
 }
 
+export type DepartmentConfigRecord = {
+  id: string
+  name: string
+  locations: string[]
+}
+
+export type ReworkedBarcodeSectionType = "price" | "weight" | "other"
+export type ReworkedBarcodeWeightUnit = "lbs" | "oz" | "kg" | "g" | "each"
+
+export type ReworkedBarcodeSectionRecord = {
+  id: string
+  name: string
+  digits: number
+  type: ReworkedBarcodeSectionType
+  useAsItemCode?: boolean
+  decimalPlaces?: number
+  weightUnit?: ReworkedBarcodeWeightUnit
+}
+
 export type ReworkedBarcodeRuleRecord = {
   enabled: boolean
+  ruleName: string
+  sections: ReworkedBarcodeSectionRecord[]
   productCodeLength: number
   encodedPriceLength: number
   trailingDigitsLength: number
@@ -390,8 +490,16 @@ export type OrgSettingsRecord = {
   companyCode?: string
   customBrandingEnabled: boolean
   replaceAppNameWithLogo: boolean
+  brandDisplayName?: string
   brandLogoUrl?: string
   brandLogoAssetId?: string
+  logoLightUrl?: string
+  logoLightAssetId?: string
+  logoDarkUrl?: string
+  logoDarkAssetId?: string
+  appHeaderStyle: "icon_only" | "icon_name"
+  moduleIconStyle: "rounded" | "square"
+  welcomeMessage?: string
   canStoreRemoveItems: boolean
   maxSalePercent: number
   allowStoreRoleCreation: boolean
@@ -399,6 +507,7 @@ export type OrgSettingsRecord = {
   featureFlags: Record<string, boolean>
   jobTitles: RoleTemplateRecord[]
   roleDefaults: Array<{ role: MemberRole; enabled: boolean; permissionFlags: Record<string, boolean> }>
+  departmentConfigs: DepartmentConfigRecord[]
   departments: string[]
   locationTemplates: string[]
   storeOverrideKeys: string[]
@@ -411,6 +520,7 @@ export type StoreSettingsRecord = {
   id: string
   organizationId: string
   storeId: string
+  departmentConfigs: DepartmentConfigRecord[]
   departments: string[]
   locationTemplates: string[]
   jobTitles: RoleTemplateRecord[]
@@ -805,37 +915,202 @@ function normalizeRoleDefaults(raw: unknown) {
 
 const defaultReworkedBarcodeRule: ReworkedBarcodeRuleRecord = {
   enabled: false,
+  ruleName: "Default Rule",
+  sections: [
+    {
+      id: "item_code",
+      name: "Item Code",
+      digits: 6,
+      type: "other",
+      useAsItemCode: true
+    },
+    {
+      id: "price",
+      name: "Price",
+      digits: 5,
+      type: "price",
+      decimalPlaces: 2
+    },
+    {
+      id: "trailing",
+      name: "Trailing Digit",
+      digits: 1,
+      type: "other"
+    }
+  ],
   productCodeLength: 6,
   encodedPriceLength: 5,
   trailingDigitsLength: 1,
   priceDivisor: 100
 }
 
+function normalizeDepartmentConfigs(raw: unknown): DepartmentConfigRecord[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const rows: DepartmentConfigRecord[] = []
+  for (const [index, entry] of raw.entries()) {
+    if (!entry || typeof entry !== "object") continue
+    const record = entry as Record<string, unknown>
+    const name = asString(record.name)?.trim() ?? ""
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    const locations = Array.isArray(record.locations)
+      ? Array.from(
+          new Set(
+            record.locations
+              .map((value) => (typeof value === "string" ? value.trim() : ""))
+              .filter(Boolean)
+              .map((value) => value.toLowerCase())
+          )
+        )
+          .map((lower) =>
+            (record.locations as unknown[])
+              .map((value) => (typeof value === "string" ? value.trim() : ""))
+              .find((value) => value.toLowerCase() === lower) ?? lower
+          )
+      : []
+    rows.push({
+      id: asString(record.id)?.trim() || `department_${index + 1}`,
+      name,
+      locations
+    })
+  }
+  return rows.sort((lhs, rhs) => lhs.name.localeCompare(rhs.name))
+}
+
+function deriveDepartmentConfigsFromLegacy(
+  departments: string[] | undefined,
+  locationTemplates: string[] | undefined
+): DepartmentConfigRecord[] {
+  const cleanedDepartments = (departments ?? []).map((entry) => entry.trim()).filter(Boolean)
+  const cleanedLocations = (locationTemplates ?? []).map((entry) => entry.trim()).filter(Boolean)
+  return cleanedDepartments.map((name, index) => ({
+    id: `department_${index + 1}`,
+    name,
+    locations: cleanedLocations
+  }))
+}
+
+function normalizeReworkedBarcodeSections(raw: unknown): ReworkedBarcodeSectionRecord[] {
+  if (!Array.isArray(raw)) return []
+  const rows: ReworkedBarcodeSectionRecord[] = []
+  for (const [index, entry] of raw.entries()) {
+    if (!entry || typeof entry !== "object") continue
+    const record = entry as Record<string, unknown>
+    const digits = Math.max(1, Math.floor(asNumber(record.digits, 1)))
+    const typeRaw = asString(record.type)?.trim().toLowerCase()
+    const type: ReworkedBarcodeSectionType =
+      typeRaw === "price" || typeRaw === "weight" || typeRaw === "other" ? typeRaw : "other"
+    const decimals = Math.max(0, Math.floor(asNumber(record.decimalPlaces, type === "price" ? 2 : 3)))
+    const weightUnitRaw = asString(record.weightUnit)?.trim().toLowerCase()
+    const weightUnit: ReworkedBarcodeWeightUnit =
+      weightUnitRaw === "lbs" ||
+      weightUnitRaw === "oz" ||
+      weightUnitRaw === "kg" ||
+      weightUnitRaw === "g" ||
+      weightUnitRaw === "each"
+        ? weightUnitRaw
+        : "lbs"
+
+    rows.push({
+      id: asString(record.id)?.trim() || `section_${index + 1}`,
+      name: asString(record.name)?.trim() || `Section ${index + 1}`,
+      digits,
+      type,
+      useAsItemCode: Boolean(record.useAsItemCode),
+      decimalPlaces: type === "price" || type === "weight" ? decimals : undefined,
+      weightUnit: type === "weight" ? weightUnit : undefined
+    })
+  }
+  if (rows.length === 0) return []
+  const hasItemCode = rows.some((row) => row.useAsItemCode)
+  if (!hasItemCode) {
+    const firstOther = rows.findIndex((row) => row.type === "other")
+    const index = firstOther >= 0 ? firstOther : 0
+    const selected = rows[index]
+    if (selected) {
+      rows[index] = { ...selected, useAsItemCode: true }
+    }
+  } else {
+    let seen = false
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i]
+      if (!row?.useAsItemCode) continue
+      if (!seen) {
+        seen = true
+      } else {
+        rows[i] = { ...row, useAsItemCode: false }
+      }
+    }
+  }
+  return rows
+}
+
 function normalizeReworkedBarcodeRule(raw: unknown): ReworkedBarcodeRuleRecord {
   const rule = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
-  const productCodeLength = Number(rule.productCodeLength)
-  const encodedPriceLength = Number(rule.encodedPriceLength)
-  const trailingDigitsLength = Number(rule.trailingDigitsLength)
-  const priceDivisor = Number(rule.priceDivisor)
+  const productCodeLength = Math.max(1, Math.floor(Number(rule.productCodeLength) || 6))
+  const encodedPriceLength = Math.max(1, Math.floor(Number(rule.encodedPriceLength) || 5))
+  const trailingDigitsLength = Math.max(0, Math.floor(Number(rule.trailingDigitsLength) || 1))
+  const priceDivisorRaw = Number(rule.priceDivisor)
+  const legacyPriceDivisor =
+    Number.isFinite(priceDivisorRaw) && priceDivisorRaw > 0
+      ? Math.floor(priceDivisorRaw)
+      : defaultReworkedBarcodeRule.priceDivisor
+
+  const normalizedSections = normalizeReworkedBarcodeSections(rule.sections)
+  const fallbackSections: ReworkedBarcodeSectionRecord[] = []
+  if (productCodeLength > 0) {
+    fallbackSections.push({
+      id: "item_code",
+      name: "Item Code",
+      digits: productCodeLength,
+      type: "other",
+      useAsItemCode: true
+    })
+  }
+  if (encodedPriceLength > 0) {
+    fallbackSections.push({
+      id: "price",
+      name: "Price",
+      digits: encodedPriceLength,
+      type: "price",
+      decimalPlaces: Math.max(0, String(legacyPriceDivisor).length - 1)
+    })
+  }
+  if (trailingDigitsLength > 0) {
+    fallbackSections.push({
+      id: "trailing",
+      name: "Trailing Digit",
+      digits: trailingDigitsLength,
+      type: "other"
+    })
+  }
+
+  const sections = normalizedSections.length > 0 ? normalizedSections : fallbackSections
+
+  const itemCodeSection = sections.find((section) => section.useAsItemCode) ?? sections[0]
+  const priceSection = sections.find((section) => section.type === "price")
+  const derivedProductCodeLength = itemCodeSection ? Math.max(1, itemCodeSection.digits) : productCodeLength
+  const derivedEncodedPriceLength = priceSection ? Math.max(1, priceSection.digits) : encodedPriceLength
+  const derivedTrailingDigitsLength = Math.max(
+    0,
+    sections
+      .filter((section) => section.id !== itemCodeSection?.id && section.id !== priceSection?.id)
+      .reduce((sum, section) => sum + Math.max(0, section.digits), 0)
+  )
+  const priceDecimals = Math.max(0, priceSection?.decimalPlaces ?? 2)
+  const derivedPriceDivisor = Math.pow(10, priceDecimals)
 
   return {
     enabled: rule.enabled === undefined ? defaultReworkedBarcodeRule.enabled : Boolean(rule.enabled),
-    productCodeLength:
-      Number.isFinite(productCodeLength) && productCodeLength >= 1
-        ? Math.floor(productCodeLength)
-        : defaultReworkedBarcodeRule.productCodeLength,
-    encodedPriceLength:
-      Number.isFinite(encodedPriceLength) && encodedPriceLength >= 1
-        ? Math.floor(encodedPriceLength)
-        : defaultReworkedBarcodeRule.encodedPriceLength,
-    trailingDigitsLength:
-      Number.isFinite(trailingDigitsLength) && trailingDigitsLength >= 0
-        ? Math.floor(trailingDigitsLength)
-        : defaultReworkedBarcodeRule.trailingDigitsLength,
-    priceDivisor:
-      Number.isFinite(priceDivisor) && priceDivisor > 0
-        ? Math.floor(priceDivisor)
-        : defaultReworkedBarcodeRule.priceDivisor
+    ruleName: asString(rule.ruleName)?.trim() || defaultReworkedBarcodeRule.ruleName,
+    sections,
+    productCodeLength: derivedProductCodeLength,
+    encodedPriceLength: derivedEncodedPriceLength,
+    trailingDigitsLength: derivedTrailingDigitsLength,
+    priceDivisor: Math.max(1, Math.floor(derivedPriceDivisor))
   }
 }
 
@@ -978,6 +1253,24 @@ function asStringArray(value: unknown): string[] {
     .filter(Boolean)
 }
 
+function stripUndefinedDeep(value: unknown): unknown {
+  if (value === undefined) return undefined
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => stripUndefinedDeep(entry))
+      .filter((entry) => entry !== undefined)
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    return Object.fromEntries(
+      Object.entries(record)
+        .map(([key, entry]) => [key, stripUndefinedDeep(entry)] as const)
+        .filter(([, entry]) => entry !== undefined)
+    )
+  }
+  return value
+}
+
 function asImageSources(data: Record<string, unknown>): string[] {
   const fromPictures = asStringArray(data.pictures)
   if (fromPictures.length > 0) {
@@ -1095,6 +1388,7 @@ function normalizeItemRecord(
     storeId: asString(data.storeId),
     name: String(data.name ?? "Unnamed Item"),
     upc: asString(data.upc),
+    reworkItemCode: asString(data.reworkItemCode),
     unit: data.unit === "lbs" ? "lbs" : "each",
     minQuantity: minimumQuantity,
     minimumQuantity,
@@ -1230,6 +1524,7 @@ function organizationItemPatch(patch: Partial<ItemRecord>): Record<string, unkno
 
   if (patch.name !== undefined) record.name = patch.name
   if (patch.upc !== undefined) record.upc = patch.upc?.trim() || null
+  if (patch.reworkItemCode !== undefined) record.reworkItemCode = patch.reworkItemCode?.trim() || null
   if (patch.price !== undefined) record.price = Math.max(0, asNumber(patch.price, 0))
   if (patch.qtyPerCase !== undefined || patch.quantityPerBox !== undefined) {
     const caseQty = Math.max(1, asNumber(patch.qtyPerCase ?? patch.quantityPerBox, 1))
@@ -2418,9 +2713,14 @@ export async function fetchOrgTodo(orgId: string, storeId?: string): Promise<Tod
           status: asString(data.status) ?? "open",
           createdAt: data.createdAt,
           createdBy: asString(data.createdBy),
+          createdByName: asString(data.createdByName),
           taskType: asString(data.taskType),
           relatedItemId: asString(data.relatedItemId),
-          relatedVendorId: asString(data.relatedVendorId)
+          relatedVendorId: asString(data.relatedVendorId),
+          assigneeUserIds: asStringArray(data.assigneeUserIds),
+          assigneeRoleTitles: asStringArray(data.assigneeRoleTitles),
+          assigneeDepartmentIds: asStringArray(data.assigneeDepartmentIds),
+          assigneeDepartmentNames: asStringArray(data.assigneeDepartmentNames)
         })
       }
     })
@@ -2443,9 +2743,14 @@ export async function fetchOrgTodo(orgId: string, storeId?: string): Promise<Tod
         status: asString(data.status) ?? "open",
         createdAt: data.createdAt,
         createdBy: asString(data.createdBy),
+        createdByName: asString(data.createdByName),
         taskType: asString(data.taskType),
         relatedItemId: asString(data.relatedItemId),
-        relatedVendorId: asString(data.relatedVendorId)
+        relatedVendorId: asString(data.relatedVendorId),
+        assigneeUserIds: asStringArray(data.assigneeUserIds),
+        assigneeRoleTitles: asStringArray(data.assigneeRoleTitles),
+        assigneeDepartmentIds: asStringArray(data.assigneeDepartmentIds),
+        assigneeDepartmentNames: asStringArray(data.assigneeDepartmentNames)
       })
     }
   }
@@ -2457,6 +2762,42 @@ export async function fetchOrgTodo(orgId: string, storeId?: string): Promise<Tod
       const right = asTimestampDate(b.dueAt)?.getTime() ?? 0
       return left - right
     })
+}
+
+export async function createOrgTodo(
+  orgId: string,
+  input: {
+    title: string
+    dueAt?: Date
+    type?: "manual" | "auto"
+    storeId?: string
+    createdBy?: string
+    createdByName?: string
+    assigneeUserIds?: string[]
+    assigneeRoleTitles?: string[]
+    assigneeDepartmentIds?: string[]
+    assigneeDepartmentNames?: string[]
+  }
+): Promise<string> {
+  if (!db || !orgId || !input.title.trim()) return ""
+  const ref = doc(collection(db, "organizations", orgId, "toDo"))
+  await setDoc(ref, {
+    organizationId: orgId,
+    storeId: input.storeId?.trim() || null,
+    type: input.type ?? "manual",
+    title: input.title.trim(),
+    dueAt: input.dueAt ?? null,
+    status: "open",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdBy: input.createdBy?.trim() || null,
+    createdByName: input.createdByName?.trim() || null,
+    assigneeUserIds: asStringArray(input.assigneeUserIds),
+    assigneeRoleTitles: asStringArray(input.assigneeRoleTitles),
+    assigneeDepartmentIds: asStringArray(input.assigneeDepartmentIds),
+    assigneeDepartmentNames: asStringArray(input.assigneeDepartmentNames)
+  })
+  return ref.id
 }
 
 export async function fetchOrgNotifications(orgId: string, storeId?: string): Promise<NotificationRecord[]> {
@@ -2580,6 +2921,103 @@ export async function fetchStoreAccessRequests(orgId: string): Promise<StoreAcce
   })
 }
 
+function normalizeItemSubmissionDraft(raw: unknown): ItemSubmissionDraftRecord {
+  const data = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  return {
+    backendItemId: asString(data.backendItemId),
+    name: asString(data.name) ?? "Untitled Item",
+    upc: asString(data.upc),
+    unit: data.unit === "lbs" ? "lbs" : "each",
+    price: Math.max(0, asNumber(data.price, 0)),
+    defaultExpirationDays: Math.max(1, asNumber(data.defaultExpirationDays, 7)),
+    defaultPackedExpiration: Math.max(1, asNumber(data.defaultPackedExpiration, asNumber(data.defaultExpirationDays, 7))),
+    minQuantity: Math.max(0, asNumber(data.minQuantity, 0)),
+    qtyPerCase: Math.max(1, asNumber(data.qtyPerCase, 1)),
+    caseSize: Math.max(1, asNumber(data.caseSize, asNumber(data.qtyPerCase, 1))),
+    vendorId: asString(data.vendorId),
+    vendorName: asString(data.vendorName),
+    departmentId: asString(data.departmentId),
+    department: asString(data.department),
+    locationId: asString(data.locationId),
+    departmentLocation: asString(data.departmentLocation),
+    tags: asStringArray(data.tags),
+    photoUrl: asString(data.photoUrl),
+    photoAssetId: asString(data.photoAssetId),
+    reworkItemCode: asString(data.reworkItemCode),
+    canBeReworked: data.canBeReworked === true,
+    reworkShelfLifeDays: Math.max(1, asNumber(data.reworkShelfLifeDays, 1)),
+    maxReworkCount: Math.max(1, asNumber(data.maxReworkCount, 1))
+  }
+}
+
+export async function fetchItemSubmissions(
+  orgId: string,
+  options?: { status?: ItemSubmissionRecord["status"] | "all"; storeId?: string }
+): Promise<ItemSubmissionRecord[]> {
+  if (!db || !orgId) return []
+
+  const membersPromise = fetchMembers(orgId).catch(() => [] as MemberRecord[])
+
+  let base = query(collection(db, "organizations", orgId, "itemSubmissions"), orderBy("createdAt", "desc"), limit(1000))
+  if (options?.status && options.status !== "all") {
+    base = query(
+      collection(db, "organizations", orgId, "itemSubmissions"),
+      where("status", "==", options.status),
+      orderBy("createdAt", "desc"),
+      limit(1000)
+    )
+  }
+  const submissionsSnap = await getDocs(base).catch(() => null)
+  const members = await membersPromise
+  const memberByUid = new Map(members.map((member) => [member.id, member]))
+
+  const rows: ItemSubmissionRecord[] = []
+  for (const docSnap of submissionsSnap?.docs ?? []) {
+    const data = docSnap.data() as Record<string, unknown>
+    const storeId = asString(data.storeId) ?? ""
+    if (options?.storeId && options.storeId.trim() && storeId !== options.storeId.trim()) continue
+
+    const submittedByUid = asString(data.submittedByUid) ?? ""
+    const reviewedByUid = asString(data.reviewedByUid)
+    const submittedBy = submittedByUid ? memberByUid.get(submittedByUid) : undefined
+    const reviewedBy = reviewedByUid ? memberByUid.get(reviewedByUid) : undefined
+    const submissionStatusRaw = asString(data.status)?.toLowerCase()
+    const status: ItemSubmissionRecord["status"] =
+      submissionStatusRaw === "approved" ||
+      submissionStatusRaw === "rejected" ||
+      submissionStatusRaw === "promoted" ||
+      submissionStatusRaw === "pending"
+        ? (submissionStatusRaw as ItemSubmissionRecord["status"])
+        : "pending"
+    rows.push({
+      id: docSnap.id,
+      organizationId: orgId,
+      storeId,
+      submittedByUid,
+      submittedByName:
+        [submittedBy?.firstName, submittedBy?.lastName].filter(Boolean).join(" ").trim() || submittedBy?.email || undefined,
+      submittedByEmployeeId: submittedBy?.employeeId,
+      scannedUpc: asString(data.scannedUpc),
+      note: asString(data.note),
+      status,
+      reviewNote: asString(data.reviewNote),
+      reviewedByUid,
+      reviewedByName:
+        reviewedBy ? [reviewedBy.firstName, reviewedBy.lastName].filter(Boolean).join(" ").trim() || reviewedBy.email : undefined,
+      reviewedAt: data.reviewedAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      itemDraft: normalizeItemSubmissionDraft(data.itemDraft)
+    })
+  }
+
+  return rows.sort((lhs, rhs) => {
+    const left = asTimestampDate(lhs.createdAt)?.getTime() ?? 0
+    const right = asTimestampDate(rhs.createdAt)?.getTime() ?? 0
+    return right - left
+  })
+}
+
 function normalizeSubscriptionStatus(raw: unknown): string {
   if (typeof raw !== "string") return "inactive"
   const normalized = raw.trim().toLowerCase()
@@ -2607,17 +3045,50 @@ export async function fetchOrganizationBillingStatus(orgId: string): Promise<Org
     billingData.subscriptionStatus ?? orgSubscription.status
   )
   const planName = asString(billingData.planName) ?? asString(orgData.planName)
+  const planTierRaw = asString(billingData.planTier) ?? asString(orgData.planTier)
+  const planTier =
+    planTierRaw === "starter" || planTierRaw === "growth" || planTierRaw === "pro" || planTierRaw === "custom"
+      ? planTierRaw
+      : undefined
   const priceId = asString(billingData.priceId) ?? asString(orgData.planId)
   const currentPeriodEnd = toDateOrNull(
     billingData.currentPeriodEnd ?? orgSubscription.renewsAt
   )
+  const billingIsActiveRaw = billingData.isActive
+  const billingIsActive =
+    typeof billingIsActiveRaw === "boolean"
+      ? billingIsActiveRaw
+      : subscriptionStatus === "active" || subscriptionStatus === "trialing"
+
+  const entitlementsRaw = billingData.entitlements
+  const entitlements =
+    entitlementsRaw && typeof entitlementsRaw === "object"
+      ? Object.fromEntries(
+          Object.entries(entitlementsRaw as Record<string, unknown>).map(([key, value]) => [key, value === true])
+        )
+      : undefined
+
+  const paymentVerificationRaw = billingData.paymentVerification as Record<string, unknown> | undefined
+  const paymentVerification = paymentVerificationRaw
+    ? {
+        provider: asString(paymentVerificationRaw.provider) ?? undefined,
+        verified: paymentVerificationRaw.verified === true,
+        verifiedAt: toDateOrNull(paymentVerificationRaw.verifiedAt),
+        sourceSubscriptionId: asString(paymentVerificationRaw.sourceSubscriptionId) ?? undefined,
+        sourceCustomerUid: asString(paymentVerificationRaw.sourceCustomerUid) ?? undefined
+      }
+    : undefined
 
   return {
     organizationId: orgId,
     subscriptionStatus,
     planName: planName ?? undefined,
+    planTier,
     priceId: priceId ?? undefined,
-    currentPeriodEnd
+    currentPeriodEnd,
+    isActive: billingIsActive,
+    entitlements,
+    paymentVerification
   }
 }
 
@@ -2636,6 +3107,22 @@ export async function reviewStoreAccessRequest(input: {
   note?: string
 }): Promise<{ ok: boolean; status: "approved" | "denied" } | null> {
   return reviewStoreAccessCallable(input)
+}
+
+export async function reviewItemSubmission(input: {
+  orgId: string
+  submissionId: string
+  decision: "approved" | "rejected" | "promoted"
+  reviewNote?: string
+  centralOverride?: {
+    name?: string
+    upc?: string
+    defaultExpirationDays?: number
+    photoUrl?: string
+    photoAssetId?: string
+  }
+}): Promise<{ ok: boolean; submissionId: string; status: "approved" | "rejected" | "promoted" } | null> {
+  return reviewItemSubmissionCallable(input)
 }
 
 export async function fetchExpirationEntries(
@@ -2695,6 +3182,57 @@ export async function fetchExpirationEntries(
     }
   }
   return entries.sort((a, b) => a.expirationDate.getTime() - b.expirationDate.getTime())
+}
+
+export async function fetchSpotCheckRecords(orgId: string, storeId: string): Promise<SpotCheckRecord[]> {
+  if (!db || !orgId || !storeId) return []
+
+  const normalizedStoreId = storeId.trim()
+  if (!normalizedStoreId) return []
+
+  const [items, batchDocs] = await Promise.all([
+    fetchItems(orgId, { storeId: normalizedStoreId }).catch(() => [] as ItemRecord[]),
+    fetchStoreInventoryBatchDocs(orgId, normalizedStoreId).catch(() => [] as Array<{ id: string; data: Record<string, unknown> }>)
+  ])
+
+  const itemMetaById = new Map(items.map((item) => [item.id, item]))
+  const rows: SpotCheckRecord[] = []
+
+  for (const entry of batchDocs) {
+    const data = entry.data
+    const source = asString(data.source)?.toLowerCase()
+    if (source !== "spotcheck") continue
+
+    const itemId = asString(data.itemId) ?? ""
+    if (!itemId) continue
+
+    const quantity = Math.max(0, asNumber(data.quantity, 0))
+    if (quantity <= 0) continue
+
+    const metadata = itemMetaById.get(itemId)
+    const checkedAt =
+      asTimestampDate(data.updatedAt ?? data.lastSyncedAt ?? data.createdAt ?? data.receivedDate) ?? new Date(0)
+
+    rows.push({
+      id: entry.id,
+      organizationId: asString(data.organizationId) ?? orgId,
+      storeId: asString(data.storeId) ?? normalizedStoreId,
+      itemId,
+      itemName: asString(data.itemName) ?? metadata?.name ?? "Inventory Item",
+      upc: asString(data.upc) ?? metadata?.upc,
+      packageBarcode: asString(data.packageBarcode),
+      quantity: Number(quantity.toFixed(3)),
+      unit:
+        data.unit === "lbs" || metadata?.unit === "lbs"
+          ? "lbs"
+          : "each",
+      expiresAt: asTimestampDate(data.expiresAt ?? data.expirationDate) ?? undefined,
+      checkedAt,
+      stockAreaRaw: asString(data.stockAreaRaw)
+    })
+  }
+
+  return rows.sort((left, right) => right.checkedAt.getTime() - left.checkedAt.getTime())
 }
 
 export async function computeFinancialHealthFromOrgData(orgId: string, storeId?: string, expiringDays = 7) {
@@ -3012,15 +3550,17 @@ export async function createOrganizationWithInitialStore(
 
   await setDoc(
     doc(db, "organizations", orgRef.id, "settings", "default"),
-    {
-      ...defaultOrgSettings,
-      organizationId: orgRef.id,
-      organizationName: orgName,
-      companyCode: normalizedCompanyCode,
-      updatedBy: userId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    },
+    Object.fromEntries(
+      Object.entries({
+        ...defaultOrgSettings,
+        organizationId: orgRef.id,
+        organizationName: orgName,
+        companyCode: normalizedCompanyCode,
+        updatedBy: userId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }).filter(([, value]) => value !== undefined)
+    ),
     { merge: true }
   )
 
@@ -3716,8 +4256,8 @@ const defaultOrgSettings: Omit<OrgSettingsRecord, "id" | "organizationId"> = {
   organizationName: "",
   customBrandingEnabled: false,
   replaceAppNameWithLogo: false,
-  brandLogoUrl: undefined,
-  brandLogoAssetId: undefined,
+  appHeaderStyle: "icon_name",
+  moduleIconStyle: "rounded",
   canStoreRemoveItems: false,
   maxSalePercent: 30,
   allowStoreRoleCreation: false,
@@ -3734,6 +4274,7 @@ const defaultOrgSettings: Omit<OrgSettingsRecord, "id" | "organizationId"> = {
   },
   jobTitles: baseJobTitles,
   roleDefaults: baseRoleDefaults,
+  departmentConfigs: [],
   departments: [],
   locationTemplates: [],
   storeOverrideKeys: [],
@@ -3741,6 +4282,7 @@ const defaultOrgSettings: Omit<OrgSettingsRecord, "id" | "organizationId"> = {
 }
 
 const defaultStoreSettings: Omit<StoreSettingsRecord, "id" | "organizationId" | "storeId"> = {
+  departmentConfigs: [],
   departments: [],
   locationTemplates: [],
   // Store settings inherit org roles; store-local roles should start empty.
@@ -3777,6 +4319,14 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord
     }
   }
   const data = snap.data() as Record<string, unknown>
+  const rawDepartments = (data.departments as string[] | undefined) ?? []
+  const rawLocations = (data.locationTemplates as string[] | undefined) ?? []
+  const departmentConfigs = (() => {
+    const normalized = normalizeDepartmentConfigs(data.departmentConfigs)
+    return normalized.length > 0 ? normalized : deriveDepartmentConfigsFromLegacy(rawDepartments, rawLocations)
+  })()
+  const derivedDepartments = departmentConfigs.map((config) => config.name)
+  const derivedLocations = Array.from(new Set(departmentConfigs.flatMap((config) => config.locations)))
   return {
     id: snap.id,
     organizationId: orgId,
@@ -3784,8 +4334,16 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord
     companyCode: asString(data.companyCode) ?? asString(orgSnap.data()?.companyCode),
     customBrandingEnabled: Boolean(data.customBrandingEnabled),
     replaceAppNameWithLogo: Boolean(data.replaceAppNameWithLogo),
+    brandDisplayName: asString(data.brandDisplayName),
     brandLogoUrl: asString(data.brandLogoUrl),
     brandLogoAssetId: asString(data.brandLogoAssetId),
+    logoLightUrl: asString(data.logoLightUrl),
+    logoLightAssetId: asString(data.logoLightAssetId),
+    logoDarkUrl: asString(data.logoDarkUrl),
+    logoDarkAssetId: asString(data.logoDarkAssetId),
+    appHeaderStyle: data.appHeaderStyle === "icon_only" ? "icon_only" : "icon_name",
+    moduleIconStyle: data.moduleIconStyle === "square" ? "square" : "rounded",
+    welcomeMessage: asString(data.welcomeMessage),
     canStoreRemoveItems: Boolean(data.canStoreRemoveItems),
     maxSalePercent: Number(data.maxSalePercent ?? 30),
     allowStoreRoleCreation: Boolean(data.allowStoreRoleCreation),
@@ -3798,8 +4356,9 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord
     // Defaults are only used when the settings doc does not exist.
     jobTitles: normalizeJobTitles(data.jobTitles),
     roleDefaults: normalizeRoleDefaults(data.roleDefaults),
-    departments: (data.departments as string[] | undefined) ?? [],
-    locationTemplates: (data.locationTemplates as string[] | undefined) ?? [],
+    departmentConfigs,
+    departments: derivedDepartments.length > 0 ? derivedDepartments : rawDepartments,
+    locationTemplates: derivedLocations.length > 0 ? derivedLocations : rawLocations,
     storeOverrideKeys: (data.storeOverrideKeys as string[] | undefined) ?? [],
     reworkedBarcodeRule: normalizeReworkedBarcodeRule(data.reworkedBarcodeRule),
     updatedAt: data.updatedAt,
@@ -3827,9 +4386,18 @@ export async function saveOrgSettings(
   if (Object.keys(orgDocPatch).length > 0) {
     await updateDoc(doc(db, "organizations", orgId), orgDocPatch)
   }
-  const sanitizedPatch = Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => value !== undefined)
+  const sanitizedPatch = stripUndefinedDeep(
+    Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
   ) as Partial<OrgSettingsRecord>
+  if (sanitizedPatch.departmentConfigs !== undefined) {
+    const normalizedConfigs = normalizeDepartmentConfigs(sanitizedPatch.departmentConfigs)
+    sanitizedPatch.departmentConfigs = normalizedConfigs
+    sanitizedPatch.departments = normalizedConfigs.map((config) => config.name)
+    sanitizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
+  }
+  if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
+    sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
+  }
   await setDoc(
     doc(db, "organizations", orgId, "settings", "default"),
     {
@@ -3870,12 +4438,21 @@ export async function fetchStoreSettings(orgId: string, store: StoreWithPath): P
     }
   }
   const data = snap.data() as Record<string, unknown>
+  const rawDepartments = (data.departments as string[] | undefined) ?? []
+  const rawLocations = (data.locationTemplates as string[] | undefined) ?? []
+  const departmentConfigs = (() => {
+    const normalized = normalizeDepartmentConfigs(data.departmentConfigs)
+    return normalized.length > 0 ? normalized : deriveDepartmentConfigsFromLegacy(rawDepartments, rawLocations)
+  })()
+  const derivedDepartments = departmentConfigs.map((config) => config.name)
+  const derivedLocations = Array.from(new Set(departmentConfigs.flatMap((config) => config.locations)))
   return {
     id: snap.id,
     organizationId: orgId,
     storeId: store.id,
-    departments: (data.departments as string[] | undefined) ?? [],
-    locationTemplates: (data.locationTemplates as string[] | undefined) ?? [],
+    departmentConfigs,
+    departments: derivedDepartments.length > 0 ? derivedDepartments : rawDepartments,
+    locationTemplates: derivedLocations.length > 0 ? derivedLocations : rawLocations,
     // Do not auto-insert Manager/Staff here. Empty means no store-specific roles.
     jobTitles: normalizeJobTitles(data.jobTitles),
     roleDefaults: normalizeRoleDefaults(data.roleDefaults),
@@ -3895,6 +4472,18 @@ export async function saveStoreSettings(
   actorUserId: string
 ): Promise<void> {
   if (!db || !orgId) return
+  const sanitizedPatch = stripUndefinedDeep(
+    Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+  ) as Partial<StoreSettingsRecord>
+  if (sanitizedPatch.departmentConfigs !== undefined) {
+    const normalizedConfigs = normalizeDepartmentConfigs(sanitizedPatch.departmentConfigs)
+    sanitizedPatch.departmentConfigs = normalizedConfigs
+    sanitizedPatch.departments = normalizedConfigs.map((config) => config.name)
+    sanitizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
+  }
+  if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
+    sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
+  }
   await setDoc(
     doc(
       db,
@@ -3912,7 +4501,7 @@ export async function saveStoreSettings(
     {
       organizationId: orgId,
       storeId: store.id,
-      ...patch,
+      ...sanitizedPatch,
       updatedAt: serverTimestamp(),
       updatedBy: actorUserId
     },
@@ -4261,6 +4850,7 @@ export type PublicSiteContentRecord = {
   contactEmail: string
   contactPhone: string
   faq: SiteFaqEntry[]
+  featureRequestCategories: string[]
   updatedAt?: unknown
   updatedBy?: string
 }
@@ -4296,6 +4886,16 @@ export type FeatureRequestRecord = {
   content: string
   email?: string
   uid?: string
+  category?: string
+  source?: string
+  organizationId?: string
+  organizationName?: string
+  storeId?: string
+  createdByName?: string
+  createdByRole?: string
+  createdByJobTitle?: string
+  createdByEmployeeId?: string
+  createdByIsOwner?: boolean
   status: "new" | "planned" | "shipped" | "closed"
   createdAt?: unknown
 }
@@ -4317,6 +4917,19 @@ function normalizeFaq(raw: unknown): SiteFaqEntry[] {
     .filter((entry): entry is SiteFaqEntry => Boolean(entry))
 }
 
+function normalizeFeatureRequestCategories(raw: unknown): string[] {
+  const defaults = ["workflow", "inventory", "analytics", "account", "other"]
+  if (!Array.isArray(raw)) return defaults
+  const cleaned = Array.from(
+    new Set(
+      raw
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter(Boolean)
+    )
+  ).slice(0, 50)
+  return cleaned.length > 0 ? cleaned : defaults
+}
+
 export async function fetchPublicSiteContent(): Promise<PublicSiteContentRecord> {
   if (!db) {
     return {
@@ -4325,7 +4938,8 @@ export async function fetchPublicSiteContent(): Promise<PublicSiteContentRecord>
       termsContent: "",
       contactEmail: "",
       contactPhone: "",
-      faq: []
+      faq: [],
+      featureRequestCategories: ["workflow", "inventory", "analytics", "account", "other"]
     }
   }
   const snap = await getDoc(doc(db, "siteContent", "public")).catch(() => null)
@@ -4341,6 +4955,7 @@ export async function fetchPublicSiteContent(): Promise<PublicSiteContentRecord>
     contactEmail: asString(data.contactEmail) ?? "support@inventraker.com",
     contactPhone: asString(data.contactPhone) ?? "(000) 000-0000",
     faq: normalizeFaq(data.faq),
+    featureRequestCategories: normalizeFeatureRequestCategories(data.featureRequestCategories),
     updatedAt: data.updatedAt,
     updatedBy: asString(data.updatedBy)
   }
@@ -4351,12 +4966,21 @@ export async function savePublicSiteContent(
   patch: Partial<Omit<PublicSiteContentRecord, "id">>
 ): Promise<void> {
   if (!db) return
-  const callablePayload = {
-    privacyContent: patch.privacyContent ?? "",
-    termsContent: patch.termsContent ?? "",
-    contactEmail: patch.contactEmail ?? "",
-    contactPhone: patch.contactPhone ?? "",
-    faq: patch.faq ?? []
+  const callablePayload: {
+    privacyContent?: string
+    termsContent?: string
+    contactEmail?: string
+    contactPhone?: string
+    faq?: SiteFaqEntry[]
+    featureRequestCategories?: string[]
+  } = {}
+  if ("privacyContent" in patch) callablePayload.privacyContent = patch.privacyContent ?? ""
+  if ("termsContent" in patch) callablePayload.termsContent = patch.termsContent ?? ""
+  if ("contactEmail" in patch) callablePayload.contactEmail = patch.contactEmail ?? ""
+  if ("contactPhone" in patch) callablePayload.contactPhone = patch.contactPhone ?? ""
+  if ("faq" in patch) callablePayload.faq = patch.faq ?? []
+  if ("featureRequestCategories" in patch) {
+    callablePayload.featureRequestCategories = normalizeFeatureRequestCategories(patch.featureRequestCategories)
   }
 
   let callableError: unknown = null
@@ -4370,15 +4994,20 @@ export async function savePublicSiteContent(
   try {
     await setDoc(
       doc(db, "siteContent", "public"),
-      {
-        privacyContent: patch.privacyContent ?? null,
-        termsContent: patch.termsContent ?? null,
-        contactEmail: patch.contactEmail ?? null,
-        contactPhone: patch.contactPhone ?? null,
-        faq: patch.faq ?? [],
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp()
-      },
+      Object.assign(
+        {
+          updatedBy: actorUid,
+          updatedAt: serverTimestamp()
+        },
+        "privacyContent" in patch ? { privacyContent: patch.privacyContent ?? null } : {},
+        "termsContent" in patch ? { termsContent: patch.termsContent ?? null } : {},
+        "contactEmail" in patch ? { contactEmail: patch.contactEmail ?? null } : {},
+        "contactPhone" in patch ? { contactPhone: patch.contactPhone ?? null } : {},
+        "faq" in patch ? { faq: patch.faq ?? [] } : {},
+        "featureRequestCategories" in patch
+          ? { featureRequestCategories: normalizeFeatureRequestCategories(patch.featureRequestCategories) }
+          : {}
+      ),
       { merge: true }
     )
   } catch (directWriteError) {
@@ -4432,18 +5061,34 @@ export async function createFeatureRequest(input: {
   content: string
   email?: string
   uid?: string
+  category?: string
+  source?: string
   organizationId?: string
+  organizationName?: string
   storeId?: string
+  createdByName?: string
+  createdByRole?: string
+  createdByJobTitle?: string
+  createdByEmployeeId?: string
+  createdByIsOwner?: boolean
 }): Promise<string> {
   if (!db) return ""
   const ref = doc(collection(db, "featureRequests"))
   await setDoc(ref, {
     title: input.title.trim(),
     content: input.content.trim(),
+    category: (input.category ?? "other").trim().toLowerCase(),
+    source: (input.source ?? "web").trim().toLowerCase(),
     email: input.email ?? null,
     uid: input.uid ?? null,
     organizationId: input.organizationId ?? null,
+    organizationName: input.organizationName ?? null,
     storeId: input.storeId ?? null,
+    createdByName: input.createdByName ?? null,
+    createdByRole: input.createdByRole ?? null,
+    createdByJobTitle: input.createdByJobTitle ?? null,
+    createdByEmployeeId: input.createdByEmployeeId ?? null,
+    createdByIsOwner: input.createdByIsOwner === true,
     status: "new",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
@@ -4459,18 +5104,43 @@ export async function fetchFeatureRequests(): Promise<FeatureRequestRecord[]> {
     const content = asString(data.content) ?? asString(data.details) ?? ""
     const email = asString(data.email) ?? asString(data.createdByEmail) ?? undefined
     const uid = asString(data.uid) ?? asString(data.createdByUid) ?? undefined
+    const createdByRole = asString(data.createdByRole) ?? undefined
     return {
       id: entry.id,
       title: asString(data.title) ?? "",
       content,
       email,
       uid,
+      category: asString(data.category) ?? "other",
+      source: asString(data.source) ?? undefined,
+      organizationId: asString(data.organizationId) ?? undefined,
+      organizationName: asString(data.organizationName) ?? undefined,
+      storeId: asString(data.storeId) ?? undefined,
+      createdByName: asString(data.createdByName) ?? asString(data.displayName) ?? undefined,
+      createdByRole,
+      createdByJobTitle: asString(data.createdByJobTitle) ?? undefined,
+      createdByEmployeeId: asString(data.createdByEmployeeId) ?? undefined,
+      createdByIsOwner:
+        typeof data.createdByIsOwner === "boolean"
+          ? data.createdByIsOwner
+          : createdByRole?.toLowerCase() === "owner",
       status:
         data.status === "planned" || data.status === "shipped" || data.status === "closed" || data.status === "new"
           ? data.status
           : "new",
       createdAt: data.createdAt
     } satisfies FeatureRequestRecord
+  })
+}
+
+export async function updateFeatureRequestStatus(
+  requestId: string,
+  status: FeatureRequestRecord["status"]
+): Promise<void> {
+  if (!db || !requestId.trim()) return
+  await updateDoc(doc(db, "featureRequests", requestId.trim()), {
+    status,
+    updatedAt: serverTimestamp()
   })
 }
 

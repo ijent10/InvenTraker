@@ -4,7 +4,17 @@ import SwiftData
 struct AccountRootView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var session: AccountSessionStore
+    @StateObject private var settings = AppSettings.shared
     @State private var hasStarted = false
+
+    private var accountHeaderTitle: String {
+        let brandName = settings.organizationBranding.brandDisplayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard settings.organizationBranding.enabled, !brandName.isEmpty else {
+            return "Account"
+        }
+        return "\(brandName) Account"
+    }
 
     var body: some View {
         Group {
@@ -18,7 +28,7 @@ struct AccountRootView: View {
                 AccountDashboardView()
             }
         }
-        .navigationTitle("Account")
+        .navigationTitle(accountHeaderTitle)
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .top) {
             if let error = session.errorMessage, !error.isEmpty {
@@ -237,8 +247,12 @@ private struct AccountDashboardView: View {
     @EnvironmentObject private var session: AccountSessionStore
     @StateObject private var settings = AppSettings.shared
     @State private var pendingEmail = ""
-    @State private var newPassword = ""
-    @State private var confirmPassword = ""
+    @State private var currentPasswordInput = ""
+    @State private var newPasswordInput = ""
+    @State private var confirmPasswordInput = ""
+    @State private var showingCurrentPasswordPrompt = false
+    @State private var showingNewPasswordPrompt = false
+    @State private var showingConfirmPasswordPrompt = false
     @State private var statusMessage: String?
     @State private var localErrorMessage: String?
 
@@ -326,14 +340,10 @@ private struct AccountDashboardView: View {
                 }
                 .disabled(session.isLoading || pendingEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                SecureField("New Password", text: $newPassword)
-                SecureField("Confirm Password", text: $confirmPassword)
                 Button("Change Password") {
-                    Task {
-                        await savePassword()
-                    }
+                    beginPasswordFlow()
                 }
-                .disabled(session.isLoading || newPassword.isEmpty || confirmPassword.isEmpty)
+                .disabled(session.isLoading)
             }
 
             Section {
@@ -368,6 +378,42 @@ private struct AccountDashboardView: View {
         .onChange(of: settings.preferredColorScheme) { _, _ in
             syncAppearancePreference()
         }
+        .sheet(isPresented: $showingCurrentPasswordPrompt) {
+            PasswordPromptSheet(
+                title: "Current Password",
+                subtitle: "Enter your current password to continue.",
+                placeholder: "Current password",
+                accentColor: settings.accentColor,
+                value: $currentPasswordInput,
+                confirmTitle: "Continue",
+                onConfirm: proceedFromCurrentPassword
+            )
+        }
+        .sheet(isPresented: $showingNewPasswordPrompt) {
+            PasswordPromptSheet(
+                title: "New Password",
+                subtitle: "Use at least 8 characters.",
+                placeholder: "New password",
+                accentColor: settings.accentColor,
+                value: $newPasswordInput,
+                confirmTitle: "Continue",
+                onConfirm: proceedFromNewPassword
+            )
+        }
+        .sheet(isPresented: $showingConfirmPasswordPrompt) {
+            PasswordPromptSheet(
+                title: "Confirm Password",
+                subtitle: "Re-enter the new password.",
+                placeholder: "Confirm password",
+                accentColor: settings.accentColor,
+                value: $confirmPasswordInput,
+                confirmTitle: "Update Password"
+            ) {
+                Task {
+                    await completePasswordChange()
+                }
+            }
+        }
     }
 
     private func saveEmail() async {
@@ -383,28 +429,131 @@ private struct AccountDashboardView: View {
         }
     }
 
-    private func savePassword() async {
+    private func beginPasswordFlow() {
         statusMessage = nil
         localErrorMessage = nil
-        guard newPassword == confirmPassword else {
+        currentPasswordInput = ""
+        newPasswordInput = ""
+        confirmPasswordInput = ""
+        showingCurrentPasswordPrompt = true
+    }
+
+    private func proceedFromCurrentPassword() {
+        let cleaned = currentPasswordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            localErrorMessage = "Enter your current password."
+            return
+        }
+        currentPasswordInput = cleaned
+        showingCurrentPasswordPrompt = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            showingNewPasswordPrompt = true
+        }
+    }
+
+    private func proceedFromNewPassword() {
+        let cleaned = newPasswordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count >= 8 else {
+            localErrorMessage = "New password must be at least 8 characters."
+            return
+        }
+        newPasswordInput = cleaned
+        showingNewPasswordPrompt = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            showingConfirmPasswordPrompt = true
+        }
+    }
+
+    private func completePasswordChange() async {
+        statusMessage = nil
+        localErrorMessage = nil
+        guard !currentPasswordInput.isEmpty else {
+            localErrorMessage = "Current password is required."
+            return
+        }
+        guard newPasswordInput == confirmPasswordInput else {
             localErrorMessage = "Passwords do not match."
             return
         }
-        guard newPassword.count >= 8 else {
+        guard newPasswordInput.count >= 8 else {
             localErrorMessage = "Password must be at least 8 characters."
             return
         }
-        await session.updatePassword(newPassword)
+        showingConfirmPasswordPrompt = false
+        await session.updatePassword(currentPassword: currentPasswordInput, newPassword: newPasswordInput)
         if let error = session.errorMessage, !error.isEmpty {
-            localErrorMessage = error
+            localErrorMessage = normalizedPasswordError(error)
             return
         }
-        newPassword = ""
-        confirmPassword = ""
+        currentPasswordInput = ""
+        newPasswordInput = ""
+        confirmPasswordInput = ""
         statusMessage = "Password updated."
+    }
+
+    private func normalizedPasswordError(_ raw: String) -> String {
+        let lowered = raw.lowercased()
+        if lowered.contains("wrong-password") || lowered.contains("invalid credential") {
+            return "Current password is incorrect."
+        }
+        if lowered.contains("weak-password") {
+            return "New password is too weak."
+        }
+        return raw
     }
 
     private func syncAppearancePreference() {
         UserPreferenceSyncService.shared.syncAppearancePreference(settings: settings, user: session.firebaseUser)
+    }
+}
+
+private struct PasswordPromptSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    let subtitle: String
+    let placeholder: String
+    let accentColor: Color
+    @Binding var value: String
+    let confirmTitle: String
+    let onConfirm: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SecureField(placeholder, text: $value)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                    )
+                Spacer(minLength: 0)
+            }
+            .padding()
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(confirmTitle) {
+                        onConfirm()
+                    }
+                    .foregroundStyle(accentColor)
+                    .disabled(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.fraction(0.3)])
+        .presentationDragIndicator(.visible)
+        .tint(accentColor)
     }
 }

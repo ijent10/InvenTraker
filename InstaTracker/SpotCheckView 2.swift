@@ -37,6 +37,7 @@ struct SpotCheckView: View {
     @State private var showingExportError = false
     @State private var showingReworkReminder = false
     @State private var reworkReminderMessage = ""
+    @State private var wrappedDuplicateExpirationPrompt: WrappedDuplicateExpirationPrompt?
 
     private var canSpotCheck: Bool {
         session.canPerform(.spotCheck)
@@ -274,6 +275,35 @@ struct SpotCheckView: View {
         } message: {
             Text(reworkReminderMessage)
         }
+        .confirmationDialog(
+            "Which expiration is this package?",
+            isPresented: Binding(
+                get: { wrappedDuplicateExpirationPrompt != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        wrappedDuplicateExpirationPrompt = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let prompt = wrappedDuplicateExpirationPrompt {
+                ForEach(prompt.options) { option in
+                    Button(option.buttonTitle) {
+                        applyWrappedDuplicateExpirationSelection(option)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                cancelWrappedDuplicateExpirationSelection()
+            }
+        } message: {
+            if let prompt = wrappedDuplicateExpirationPrompt {
+                Text("Same barcode scanned again for \(prompt.itemName). Select the matching expiration.")
+            } else {
+                Text("Select the matching expiration.")
+            }
+        }
     }
 
     private func handleScannedCode(_ rawCode: String) {
@@ -324,9 +354,31 @@ struct SpotCheckView: View {
                         showingCatalogImportPrompt = true
                     }
                 } else {
+                    let draftItem = await MainActor.run {
+                        CatalogInventoryImporter.createStoreDraftForUnknownUPC(
+                            scannedUPC: normalized,
+                            organizationId: activeOrganizationId,
+                            storeId: settings.normalizedActiveStoreID,
+                            modelContext: modelContext,
+                            existingItems: scopedItems
+                        )
+                    }
+                    let submissionId = await catalogService.submitItemDraftForVerification(
+                        organizationId: activeOrganizationId,
+                        storeId: settings.normalizedActiveStoreID,
+                        submittedByUid: session.firebaseUser?.id ?? "",
+                        scannedUPC: normalized,
+                        draftItem: draftItem,
+                        note: "Created from Spot Check unknown scan."
+                    )
                     await MainActor.run {
-                        catalogLookupMessage = "This UPC is not in your inventory or the central catalog yet."
+                        scannerService.stopScanning()
+                        showingScanner = false
+                        catalogLookupMessage = submissionId == nil
+                            ? "Created a store draft item. Review submission could not be sent right now."
+                            : "Created a store draft and sent it for organization review."
                         showingCatalogLookupMessage = true
+                        presentSpotCheck(item: draftItem, prefilledBatches: [])
                     }
                 }
             } catch {
@@ -395,15 +447,7 @@ struct SpotCheckView: View {
         scannedCode: String
     ) {
         let normalizedCode = normalizeScanCode(scannedCode)
-        let batchDraft = CountedBatchDraft(
-            quantity: match.batch.quantity,
-            expirationDate: match.batch.expirationDate,
-            packageBarcode: match.batch.packageBarcode,
-            packageWeight: match.batch.packageWeight,
-            packagePrice: match.batch.packagePrice,
-            reworkCount: match.batch.reworkCount,
-            stockArea: match.batch.stockArea
-        )
+        let batchDraft = makeCountedBatchDraft(from: match.batch)
         let entry = WrappedScannedEntry(code: normalizedCode, draft: batchDraft)
         wrappedScanSession = WrappedScanSession(
             item: match.item,
@@ -429,8 +473,11 @@ struct SpotCheckView: View {
         }
 
         if session.scannedCodes.contains(normalizedCode) {
-            showWrappedToast(for: matched.item, batch: matched.batch, duplicate: true)
-            scannerService.allowNextScan(after: 1.0)
+            presentWrappedDuplicateExpirationPrompt(
+                scannedCode: normalizedCode,
+                item: session.item,
+                fallbackBatch: matched.batch
+            )
             return
         }
 
@@ -438,15 +485,7 @@ struct SpotCheckView: View {
         session.entries.append(
             WrappedScannedEntry(
                 code: normalizedCode,
-                draft: CountedBatchDraft(
-                    quantity: matched.batch.quantity,
-                    expirationDate: matched.batch.expirationDate,
-                    packageBarcode: matched.batch.packageBarcode,
-                    packageWeight: matched.batch.packageWeight,
-                    packagePrice: matched.batch.packagePrice,
-                    reworkCount: matched.batch.reworkCount,
-                    stockArea: matched.batch.stockArea
-                )
+                draft: makeCountedBatchDraft(from: matched.batch)
             )
         )
         wrappedScanSession = session
@@ -473,6 +512,86 @@ struct SpotCheckView: View {
             ? "Already counted • \(priceText) • \(expirationText)"
             : "\(priceText) • Expires \(expirationText)"
         showWrappedToast(message: text)
+    }
+
+    private func makeCountedBatchDraft(from batch: Batch) -> CountedBatchDraft {
+        CountedBatchDraft(
+            quantity: batch.quantity,
+            expirationDate: batch.expirationDate,
+            packageBarcode: batch.packageBarcode,
+            packageWeight: batch.packageWeight,
+            packagePrice: batch.packagePrice,
+            reworkCount: batch.reworkCount,
+            stockArea: batch.stockArea
+        )
+    }
+
+    private func presentWrappedDuplicateExpirationPrompt(
+        scannedCode: String,
+        item: InventoryItem,
+        fallbackBatch: Batch
+    ) {
+        let normalizedCode = normalizeScanCode(scannedCode)
+        let candidateBatches = item.batches.filter { batch in
+            normalizeScanCode(batch.packageBarcode ?? "").caseInsensitiveCompare(normalizedCode) == .orderedSame
+        }
+
+        let uniqueByDay = Dictionary(grouping: candidateBatches, by: { batch in
+            Calendar.current.startOfDay(for: batch.expirationDate)
+        })
+
+        var options = uniqueByDay
+            .map { (_, batchesOnDay) -> WrappedDuplicateExpirationOption? in
+                guard let batch = batchesOnDay.first else { return nil }
+                return WrappedDuplicateExpirationOption(
+                    scannedCode: normalizedCode,
+                    draft: makeCountedBatchDraft(from: batch)
+                )
+            }
+            .compactMap { $0 }
+            .sorted { $0.draft.expirationDate < $1.draft.expirationDate }
+
+        if options.isEmpty {
+            options = [
+                WrappedDuplicateExpirationOption(
+                    scannedCode: normalizedCode,
+                    draft: makeCountedBatchDraft(from: fallbackBatch)
+                )
+            ]
+        }
+
+        scannerService.stopScanning()
+        showingScanner = false
+        wrappedDuplicateExpirationPrompt = WrappedDuplicateExpirationPrompt(
+            itemName: item.name,
+            options: options
+        )
+    }
+
+    private func applyWrappedDuplicateExpirationSelection(_ option: WrappedDuplicateExpirationOption) {
+        guard var session = wrappedScanSession else {
+            wrappedDuplicateExpirationPrompt = nil
+            return
+        }
+        session.entries.append(
+            WrappedScannedEntry(
+                code: option.scannedCode,
+                draft: option.draft
+            )
+        )
+        wrappedScanSession = session
+        wrappedDuplicateExpirationPrompt = nil
+        let expirationText = option.draft.expirationDate.formatted(date: .abbreviated, time: .omitted)
+        showWrappedToast(message: "Added duplicate • Expires \(expirationText)")
+        showingScanner = true
+        scannerService.allowNextScan(after: 0.8)
+    }
+
+    private func cancelWrappedDuplicateExpirationSelection() {
+        wrappedDuplicateExpirationPrompt = nil
+        guard wrappedScanSession != nil else { return }
+        showingScanner = true
+        scannerService.allowNextScan(after: 0.8)
     }
 
     private func maybeShowReworkReminder(for item: InventoryItem, batch: Batch) {
@@ -1137,6 +1256,23 @@ private struct WrappedScanSession {
 private struct WrappedScanToast: Identifiable {
     let id = UUID()
     let message: String
+}
+
+private struct WrappedDuplicateExpirationPrompt {
+    let id = UUID()
+    let itemName: String
+    let options: [WrappedDuplicateExpirationOption]
+}
+
+private struct WrappedDuplicateExpirationOption: Identifiable {
+    let id = UUID()
+    let scannedCode: String
+    let draft: CountedBatchDraft
+
+    var buttonTitle: String {
+        let expiration = draft.expirationDate.formatted(date: .abbreviated, time: .omitted)
+        return "\(expiration)"
+    }
 }
 
 private struct SpotCheckExportRow: Identifiable {

@@ -178,11 +178,11 @@ final class AccountSessionStore: ObservableObject {
         isLoading = false
     }
 
-    func updatePassword(_ newPassword: String) async {
+    func updatePassword(currentPassword: String, newPassword: String) async {
         do {
             isLoading = true
             errorMessage = nil
-            try await authService.updatePassword(to: newPassword)
+            try await authService.updatePassword(currentPassword: currentPassword, newPassword: newPassword)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -334,15 +334,15 @@ final class AccountSessionStore: ObservableObject {
     }
 
     func switchStore(_ storeId: String) {
-        let normalized = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = normalizeStoreIdentifier(storeId)
         guard !normalized.isEmpty else { return }
         let allowedStores = Set(
             stores
-                .map { $0.id.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .map { normalizeStoreIdentifier($0.id) }
                 .filter { !$0.isEmpty }
         )
         guard allowedStores.contains(normalized) else { return }
-        guard normalized != AppSettings.shared.activeStoreID.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        guard normalized != normalizeStoreIdentifier(AppSettings.shared.activeStoreID) else { return }
         AppSettings.shared.activeStoreID = normalized
     }
 
@@ -514,26 +514,32 @@ final class AccountSessionStore: ObservableObject {
             } else if let assignedStoreIds = activeMembership?.storeIds, !assignedStoreIds.isEmpty {
                 let allowedStoreIDs = Set(
                     assignedStoreIds
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .map { normalizeStoreIdentifier($0) }
                         .filter { !$0.isEmpty }
                 )
                 scopedStores = fetchedStores.filter {
-                    let normalizedID = $0.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedID = normalizeStoreIdentifier($0.id)
                     return allowedStoreIDs.contains(normalizedID)
                 }
             } else {
-                scopedStores = []
+                // Membership can temporarily load without storeIds; keep the org default store accessible.
+                if let defaultStoreID = organizations.first(where: { $0.id == organizationId })?.defaultStoreId,
+                   !normalizeStoreIdentifier(defaultStoreID).isEmpty {
+                    let normalizedDefaultStoreID = normalizeStoreIdentifier(defaultStoreID)
+                    scopedStores = fetchedStores.filter { normalizeStoreIdentifier($0.id) == normalizedDefaultStoreID }
+                } else {
+                    scopedStores = []
+                }
             }
             stores = scopedStores.map { store in
                 var normalizedStore = store
-                normalizedStore.id = store.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                normalizedStore.id = normalizeStoreIdentifier(store.id)
                 normalizedStore.name = store.name.trimmingCharacters(in: .whitespacesAndNewlines)
                 normalizedStore.storeNumber = store.storeNumber?.trimmingCharacters(in: .whitespacesAndNewlines)
                 return normalizedStore
             }
 
-            let currentStoreID = AppSettings.shared.activeStoreID
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let currentStoreID = normalizeStoreIdentifier(AppSettings.shared.activeStoreID)
             if stores.isEmpty {
                 AppSettings.shared.activeStoreID = ""
                 return
@@ -545,7 +551,7 @@ final class AccountSessionStore: ObservableObject {
 
             if let defaultStoreID = organizations.first(where: { $0.id == organizationId })?.defaultStoreId,
                !defaultStoreID.isEmpty {
-                let normalizedDefaultStoreID = defaultStoreID.trimmingCharacters(in: .whitespacesAndNewlines)
+                let normalizedDefaultStoreID = normalizeStoreIdentifier(defaultStoreID)
                 if stores.contains(where: { $0.id == normalizedDefaultStoreID }) {
                     AppSettings.shared.activeStoreID = normalizedDefaultStoreID
                     return
@@ -562,6 +568,19 @@ final class AccountSessionStore: ObservableObject {
                 AppSettings.shared.activeStoreID = stores.first?.id ?? ""
             }
         }
+    }
+
+    private func normalizeStoreIdentifier(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            return trimmed
+                .split(separator: "/")
+                .map(String.init)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .last(where: { !$0.isEmpty }) ?? ""
+        }
+        return trimmed
     }
 
     func recoverLegacyLocalDataIfNeeded(modelContext: ModelContext) async {

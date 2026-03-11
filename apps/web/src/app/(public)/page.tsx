@@ -273,18 +273,18 @@ export default function LandingPage() {
           </AppCard>
         </section>
 
-        <section className="mt-10 grid gap-4 md:grid-cols-3">
+        <section className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {plans.map((plan) => {
             const primaryPrice = plan.prices[0]
             if (!primaryPrice) return null
             return (
-              <AppCard key={plan.productId} className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
+              <AppCard key={plan.productId} className="flex min-h-[236px] flex-col bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
                 <h3 className="card-title text-slate-900">{plan.name}</h3>
-                <p className="secondary-text mt-2 text-slate-600">{plan.description || "Subscription plan"}</p>
-                <p className="mt-5 text-2xl font-semibold text-blue-700">
+                <p className="secondary-text mt-2 line-clamp-3 text-slate-600">{plan.description || "Subscription plan"}</p>
+                <p className="mt-6 text-3xl font-semibold text-blue-700">
                   {formatPlanPrice(primaryPrice.unitAmount, primaryPrice.currency, primaryPrice.interval)}
                 </p>
-                <Link href="/signup" className={appButtonClass("primary", "mt-5")} style={{ background: "#2563EB" }}>
+                <Link href="/signup" className={appButtonClass("primary", "mt-auto")} style={{ background: "#2563EB" }}>
                   Start with {plan.name}
                 </Link>
               </AppCard>

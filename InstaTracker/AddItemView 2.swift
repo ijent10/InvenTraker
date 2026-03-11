@@ -35,6 +35,7 @@ struct AddItemView: View {
     @State private var selectedDepartmentLocation = ""
     @State private var isPrepackaged = false
     @State private var rewrapsWithUniqueBarcode = false
+    @State private var reworkItemCode = ""
     @State private var canBeReworked = false
     @State private var reworkShelfLifeDays = 1
     @State private var maxReworkCount = 1
@@ -529,6 +530,22 @@ struct AddItemView: View {
             }
 
             if canConfigureRework {
+                if selectedPackagingMode == .rewrapped {
+                    HStack {
+                        Text("Item Code")
+                        Spacer()
+                        TextField("Required for scanner match", text: $reworkItemCode)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 180)
+                            .roundedInputField(tint: settings.accentColor)
+                    }
+                    Text("This code maps rewrapped barcodes to the source item.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
                 Toggle("Can Be Reworked", isOn: $canBeReworked)
 
                 if canBeReworked {
@@ -660,6 +677,14 @@ struct AddItemView: View {
         isSaving = true
         let packagingMode = selectedPackagingMode
         let normalizedUPC = catalogService.normalizeUPC(upc)
+        let normalizedReworkCode = reworkItemCode
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .filter { $0.isNumber }
+        let resolvedReworkItemCode: String? = {
+            guard packagingMode == .rewrapped else { return nil }
+            if !normalizedReworkCode.isEmpty { return normalizedReworkCode }
+            return normalizedUPC.isEmpty ? nil : normalizedUPC
+        }()
 
         let existingCatalogProduct: CatalogProductRecord?
         do {
@@ -692,6 +717,7 @@ struct AddItemView: View {
             departmentLocation: selectedDepartmentLocation.isEmpty ? nil : selectedDepartmentLocation,
             isPrepackaged: packagingMode != .standard,
             rewrapsWithUniqueBarcode: packagingMode == .rewrapped,
+            reworkItemCode: resolvedReworkItemCode,
             canBeReworked: packagingMode == .standard ? false : canBeReworked,
             reworkShelfLifeDays: max(1, reworkShelfLifeDays),
             maxReworkCount: max(1, maxReworkCount),
@@ -865,6 +891,9 @@ struct AddItemView: View {
         canBeReworked = product.canBeReworked
         reworkShelfLifeDays = max(1, product.reworkShelfLifeDays)
         maxReworkCount = max(1, product.maxReworkCount)
+        if reworkItemCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            reworkItemCode = product.upc ?? ""
+        }
 
         if loadedImages.isEmpty, let thumbnail = product.thumbnailData {
             loadedImages = [thumbnail]
@@ -877,12 +906,17 @@ struct AddItemView: View {
             isPrepackaged = false
             rewrapsWithUniqueBarcode = false
             canBeReworked = false
+            reworkItemCode = ""
         case .prepackaged:
             isPrepackaged = true
             rewrapsWithUniqueBarcode = false
+            reworkItemCode = ""
         case .rewrapped:
             isPrepackaged = true
             rewrapsWithUniqueBarcode = true
+            if reworkItemCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                reworkItemCode = upc.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
         }
     }
 

@@ -23,6 +23,11 @@ enum FeatureRequestServiceError: LocalizedError {
     }
 }
 
+enum FeatureRequestSubmitResult: Equatable {
+    case sent
+    case queued
+}
+
 private struct PendingFeatureRequest: Codable, Identifiable {
     var id: String
     var title: String
@@ -31,7 +36,14 @@ private struct PendingFeatureRequest: Codable, Identifiable {
     var createdAt: Date
     var createdByUid: String
     var createdByEmail: String?
+    var createdByName: String?
+    var createdByRole: String?
+    var createdByJobTitle: String?
+    var createdByEmployeeId: String?
+    var createdByIsOwner: Bool
     var organizationId: String?
+    var organizationName: String?
+    var storeId: String?
     var source: String
 }
 
@@ -65,8 +77,11 @@ final class FeatureRequestService {
         details rawDetails: String,
         category rawCategory: String,
         user: SessionUser?,
-        organizationId: String?
-    ) async throws {
+        membership: OrgMembership?,
+        organizationId: String?,
+        organizationName: String?,
+        storeId: String?
+    ) async throws -> FeatureRequestSubmitResult {
         guard let user, !user.id.isEmpty else { throw FeatureRequestServiceError.missingUser }
 
         let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -79,6 +94,12 @@ final class FeatureRequestService {
         let id = UUID().uuidString
         let now = Date()
 
+        let normalizedRole = membership?.role.displayName
+        let normalizedJobTitle = membership?.jobTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmployeeId = membership?.employeeId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreId = storeId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOrgName = organizationName?.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let request = PendingFeatureRequest(
             id: id,
             title: title,
@@ -87,7 +108,14 @@ final class FeatureRequestService {
             createdAt: now,
             createdByUid: user.id,
             createdByEmail: user.email,
+            createdByName: user.displayName,
+            createdByRole: normalizedRole,
+            createdByJobTitle: (normalizedJobTitle?.isEmpty == false) ? normalizedJobTitle : nil,
+            createdByEmployeeId: (normalizedEmployeeId?.isEmpty == false) ? normalizedEmployeeId : nil,
+            createdByIsOwner: membership?.role == .owner,
             organizationId: organizationId,
+            organizationName: (normalizedOrgName?.isEmpty == false) ? normalizedOrgName : nil,
+            storeId: (normalizedStoreId?.isEmpty == false) ? normalizedStoreId : nil,
             source: "ios"
         )
 
@@ -100,6 +128,11 @@ final class FeatureRequestService {
                 "content": request.details,
                 "uid": request.createdByUid,
                 "email": request.createdByEmail as Any,
+                "createdByName": request.createdByName as Any,
+                "createdByRole": request.createdByRole as Any,
+                "createdByJobTitle": request.createdByJobTitle as Any,
+                "createdByEmployeeId": request.createdByEmployeeId as Any,
+                "createdByIsOwner": request.createdByIsOwner,
                 // Backward-compatible iOS fields
                 "details": request.details,
                 "category": request.category,
@@ -107,6 +140,8 @@ final class FeatureRequestService {
                 "createdByUid": request.createdByUid,
                 "createdByEmail": request.createdByEmail as Any,
                 "organizationId": request.organizationId as Any,
+                "organizationName": request.organizationName as Any,
+                "storeId": request.storeId as Any,
                 "source": request.source,
                 "createdAt": Timestamp(date: request.createdAt),
                 "updatedAt": Timestamp(date: request.createdAt)
@@ -118,13 +153,14 @@ final class FeatureRequestService {
                     .collection("featureRequests")
                     .document(request.id)
                     .setData(payload)
-                return
+                return .sent
             } catch {
                 // Fall through to pending queue so users don't lose requests while offline/rules update.
             }
         }
 #endif
         enqueueFallback(request)
+        return .queued
     }
 
 #if canImport(FirebaseFirestore)
@@ -142,12 +178,19 @@ final class FeatureRequestService {
                 "content": pending.details,
                 "uid": pending.createdByUid,
                 "email": pending.createdByEmail as Any,
+                "createdByName": pending.createdByName as Any,
+                "createdByRole": pending.createdByRole as Any,
+                "createdByJobTitle": pending.createdByJobTitle as Any,
+                "createdByEmployeeId": pending.createdByEmployeeId as Any,
+                "createdByIsOwner": pending.createdByIsOwner,
                 "details": pending.details,
                 "category": pending.category,
                 "status": "new",
                 "createdByUid": pending.createdByUid,
                 "createdByEmail": pending.createdByEmail as Any,
                 "organizationId": pending.organizationId as Any,
+                "organizationName": pending.organizationName as Any,
+                "storeId": pending.storeId as Any,
                 "source": pending.source,
                 "createdAt": Timestamp(date: pending.createdAt),
                 "updatedAt": Timestamp(date: pending.createdAt)

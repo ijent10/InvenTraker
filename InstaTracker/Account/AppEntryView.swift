@@ -27,6 +27,11 @@ struct AppEntryView: View {
                 }
             } else if session.needsTutorial {
                 QuickStartTutorialView()
+            } else if settings.normalizedActiveStoreID.isEmpty || session.stores.isEmpty {
+                NavigationStack {
+                    NoStoreAccessView()
+                        .environmentObject(session)
+                }
             } else {
                 ContentView()
             }
@@ -34,6 +39,9 @@ struct AppEntryView: View {
         .task {
             session.start()
             await hydrateUserPreferencesIfNeeded()
+            await FeatureRequestService.shared.flushPendingRequestsIfPossible()
+            await syncDepartmentConfigs()
+            await syncBrandingSettings()
             ActionSyncService.shared.configureAutoSync(
                 organizationId: session.activeOrganizationId,
                 modelContext: modelContext
@@ -45,12 +53,19 @@ struct AppEntryView: View {
         }
         .task(id: "\(session.firebaseUser?.id ?? "signed-out")|\(session.activeOrganizationId ?? "no-org")") {
             await session.recoverLegacyLocalDataIfNeeded(modelContext: modelContext)
+            await FeatureRequestService.shared.flushPendingRequestsIfPossible()
+            await syncDepartmentConfigs()
+            await syncBrandingSettings()
             configureRealtimeInventorySync()
             configureRealtimeNotifications()
             syncPushContext()
             requestRemoteScopeRefresh(force: true)
         }
         .onChange(of: session.activeOrganizationId) { _, organizationId in
+            Task {
+                await syncDepartmentConfigs()
+                await syncBrandingSettings()
+            }
             ActionSyncService.shared.configureAutoSync(
                 organizationId: organizationId,
                 modelContext: modelContext
@@ -60,12 +75,14 @@ struct AppEntryView: View {
             syncPushContext()
         }
         .onChange(of: settings.activeStoreID) { _, _ in
+            Task { await syncDepartmentConfigs() }
             configureRealtimeInventorySync()
             configureRealtimeNotifications()
             syncPushContext()
             requestRemoteScopeRefresh(force: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: .activeStoreDidChange)) { _ in
+            Task { await syncDepartmentConfigs() }
             configureRealtimeInventorySync()
             configureRealtimeNotifications()
             syncPushContext()
@@ -81,6 +98,8 @@ struct AppEntryView: View {
             Task {
                 await hydrateUserPreferencesIfNeeded()
                 syncUserAppearancePreference()
+                await syncDepartmentConfigs()
+                await syncBrandingSettings()
                 configureRealtimeInventorySync()
                 configureRealtimeNotifications()
                 syncPushContext()
@@ -114,6 +133,9 @@ struct AppEntryView: View {
             configureRealtimeNotifications()
             syncPushContext()
             syncUserAppearancePreference()
+            Task {
+                await FeatureRequestService.shared.flushPendingRequestsIfPossible()
+            }
             requestRemoteScopeRefresh(force: false)
         }
         .onReceive(periodicSyncTimer) { _ in
@@ -221,6 +243,36 @@ struct AppEntryView: View {
         }
     }
 
+    private func syncDepartmentConfigs() async {
+        guard let organizationId = session.activeOrganizationId,
+              !organizationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        let scopedStoreID = settings.normalizedActiveStoreID
+        let configs = await OrganizationService.shared.departmentConfigs(
+            for: organizationId,
+            storeId: scopedStoreID.isEmpty ? nil : scopedStoreID
+        )
+        await MainActor.run {
+            settings.departmentConfigs = configs
+        }
+    }
+
+    private func syncBrandingSettings() async {
+        guard let organizationId = session.activeOrganizationId,
+              !organizationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            await MainActor.run {
+                settings.applyOrganizationBranding(nil)
+            }
+            return
+        }
+
+        let branding = await OrganizationService.shared.brandingConfig(for: organizationId)
+        await MainActor.run {
+            settings.applyOrganizationBranding(branding)
+        }
+    }
+
     private var loadingView: some View {
         ZStack {
             LinearGradient(
@@ -240,6 +292,39 @@ struct AppEntryView: View {
                     .progressViewStyle(.circular)
             }
         }
+    }
+}
+
+private struct NoStoreAccessView: View {
+    @EnvironmentObject private var session: AccountSessionStore
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "building.2.crop.circle")
+                .font(.system(size: 52, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("No Store Access")
+                .font(.title3.weight(.semibold))
+            Text("You are signed in, but this profile is not assigned to a store yet. Ask a manager or owner to grant store access.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            NavigationLink {
+                AccountRootView()
+            } label: {
+                Text("Open Account")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.horizontal, 24)
+            Spacer()
+        }
+        .navigationTitle("Store Access")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

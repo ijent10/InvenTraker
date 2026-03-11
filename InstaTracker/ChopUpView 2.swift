@@ -438,7 +438,61 @@ private struct ChopReworkView: View {
     }
 
     private struct ReworkedBarcodeRule {
+        enum SectionType: String {
+            case price
+            case weight
+            case other
+        }
+
+        enum WeightUnit: String {
+            case lbs
+            case oz
+            case kg
+            case g
+            case each
+        }
+
+        struct Section {
+            var id: String
+            var name: String
+            var digits: Int
+            var type: SectionType
+            var useAsItemCode: Bool
+            var decimalPlaces: Int
+            var weightUnit: WeightUnit
+        }
+
         var enabled: Bool = false
+        var ruleName: String = "Default Rule"
+        var sections: [Section] = [
+            Section(
+                id: "item_code",
+                name: "Item Code",
+                digits: 6,
+                type: .other,
+                useAsItemCode: true,
+                decimalPlaces: 0,
+                weightUnit: .lbs
+            ),
+            Section(
+                id: "price",
+                name: "Price",
+                digits: 5,
+                type: .price,
+                useAsItemCode: false,
+                decimalPlaces: 2,
+                weightUnit: .lbs
+            ),
+            Section(
+                id: "trailing",
+                name: "Trailing Digit",
+                digits: 1,
+                type: .other,
+                useAsItemCode: false,
+                decimalPlaces: 0,
+                weightUnit: .lbs
+            )
+        ]
         var productCodeLength: Int = 6
         var encodedPriceLength: Int = 5
         var trailingDigitsLength: Int = 1
@@ -450,22 +504,103 @@ private struct ChopReworkView: View {
 
         init(dictionary: [String: Any]) {
             enabled = dictionary["enabled"] as? Bool ?? false
+            ruleName = (dictionary["ruleName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? (dictionary["ruleName"] as? String ?? "Default Rule")
+                : "Default Rule"
             productCodeLength = max(1, dictionary["productCodeLength"] as? Int ?? 6)
             encodedPriceLength = max(1, dictionary["encodedPriceLength"] as? Int ?? 5)
             trailingDigitsLength = max(0, dictionary["trailingDigitsLength"] as? Int ?? 1)
             priceDivisor = max(1, dictionary["priceDivisor"] as? Int ?? 100)
+            if let rawSections = dictionary["sections"] as? [[String: Any]], !rawSections.isEmpty {
+                sections = rawSections.enumerated().compactMap { index, raw in
+                    let digits = max(1, raw["digits"] as? Int ?? 1)
+                    let type = SectionType(rawValue: ((raw["type"] as? String) ?? "other").lowercased()) ?? .other
+                    let decimals = max(0, raw["decimalPlaces"] as? Int ?? (type == .price ? 2 : 3))
+                    let weightUnit = WeightUnit(rawValue: ((raw["weightUnit"] as? String) ?? "lbs").lowercased()) ?? .lbs
+                    return Section(
+                        id: (raw["id"] as? String) ?? "section_\(index + 1)",
+                        name: ((raw["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                            ? (raw["name"] as? String ?? "Section \(index + 1)")
+                            : "Section \(index + 1)",
+                        digits: digits,
+                        type: type,
+                        useAsItemCode: raw["useAsItemCode"] as? Bool ?? false,
+                        decimalPlaces: decimals,
+                        weightUnit: weightUnit
+                    )
+                }
+                if sections.isEmpty {
+                    sections = ReworkedBarcodeRule.default.sections
+                }
+            } else {
+                // Backward compatibility for older fixed-length rule shape.
+                let decimals = max(0, String(priceDivisor).count - 1)
+                sections = [
+                    Section(
+                        id: "item_code",
+                        name: "Item Code",
+                        digits: productCodeLength,
+                        type: .other,
+                        useAsItemCode: true,
+                        decimalPlaces: 0,
+                        weightUnit: .lbs
+                    ),
+                    Section(
+                        id: "price",
+                        name: "Price",
+                        digits: encodedPriceLength,
+                        type: .price,
+                        useAsItemCode: false,
+                        decimalPlaces: decimals,
+                        weightUnit: .lbs
+                    )
+                ]
+                if trailingDigitsLength > 0 {
+                    sections.append(
+                        Section(
+                            id: "trailing",
+                            name: "Trailing Digit",
+                            digits: trailingDigitsLength,
+                            type: .other,
+                            useAsItemCode: false,
+                            decimalPlaces: 0,
+                            weightUnit: .lbs
+                        )
+                    )
+                }
+            }
+            if !sections.contains(where: { $0.useAsItemCode }) {
+                if let firstOtherIndex = sections.firstIndex(where: { $0.type == .other }) {
+                    sections[firstOtherIndex].useAsItemCode = true
+                } else if !sections.isEmpty {
+                    sections[0].useAsItemCode = true
+                }
+            }
+            // Keep only one item-code section.
+            var seenItemCode = false
+            for index in sections.indices {
+                if sections[index].useAsItemCode {
+                    if seenItemCode {
+                        sections[index].useAsItemCode = false
+                    } else {
+                        seenItemCode = true
+                    }
+                }
+            }
         }
 
         var minimumBarcodeLength: Int {
-            productCodeLength + encodedPriceLength + trailingDigitsLength
+            sections.reduce(0) { $0 + max(1, $1.digits) }
         }
     }
 
     private struct ParsedReworkedBarcode {
         let barcode: String
-        let productCode: String
-        let encodedPrice: String
+        let itemCode: String
+        let encodedPrice: String?
         let packagePrice: Double
+        let packageWeight: Double?
+        let packageWeightUnit: ReworkedBarcodeRule.WeightUnit?
         let trailingDigits: String?
     }
 
@@ -698,16 +833,21 @@ private struct ChopReworkView: View {
             return
         }
 
-        guard let matchedItem = findItem(forProductCode: parsed.productCode) else {
-            errorMessage = "No rework-eligible item found for product code \(parsed.productCode)."
+        guard let matchedItem = findItem(forItemCode: parsed.itemCode) else {
+            errorMessage = "No rework-eligible item found for item code \(parsed.itemCode)."
             showingError = true
             return
         }
 
-        let derivedWeight = derivePackageWeight(for: matchedItem, packagePrice: parsed.packagePrice)
+        let derivedWeight = derivePackageWeight(
+            for: matchedItem,
+            packagePrice: parsed.packagePrice,
+            parsedWeight: parsed.packageWeight,
+            parsedWeightUnit: parsed.packageWeightUnit
+        )
         selectedItemID = matchedItem.id
         scannedBarcode = parsed.barcode
-        parsedProductCode = parsed.productCode
+        parsedProductCode = parsed.itemCode
         parsedTrailingDigits = parsed.trailingDigits
         packagePriceText = String(format: "%.2f", parsed.packagePrice)
         packageWeightText = derivedWeight.formattedQuantity(maximumFractionDigits: 3)
@@ -723,36 +863,102 @@ private struct ChopReworkView: View {
     }
 
     private func parseReworkedBarcode(_ barcode: String, with rule: ReworkedBarcodeRule) -> ParsedReworkedBarcode? {
-        let productEnd = barcode.index(barcode.startIndex, offsetBy: rule.productCodeLength)
-        let priceEnd = barcode.index(productEnd, offsetBy: rule.encodedPriceLength)
-        let productCode = String(barcode[barcode.startIndex..<productEnd])
-        let encodedPrice = String(barcode[productEnd..<priceEnd])
-        let trailingDigits = rule.trailingDigitsLength > 0 && priceEnd < barcode.endIndex
-            ? String(barcode[priceEnd...])
-            : nil
-        guard let rawPrice = Int(encodedPrice) else { return nil }
-        let packagePrice = Double(rawPrice) / Double(rule.priceDivisor)
+        var cursor = barcode.startIndex
+        var segmentsByID: [String: String] = [:]
+        for section in rule.sections {
+            let length = max(1, section.digits)
+            guard barcode.distance(from: cursor, to: barcode.endIndex) >= length else {
+                return nil
+            }
+            let nextIndex = barcode.index(cursor, offsetBy: length)
+            segmentsByID[section.id] = String(barcode[cursor..<nextIndex])
+            cursor = nextIndex
+        }
+
+        guard let itemCodeSection = rule.sections.first(where: { $0.useAsItemCode }) ?? rule.sections.first,
+              let itemCode = segmentsByID[itemCodeSection.id],
+              !itemCode.isEmpty else {
+            return nil
+        }
+
+        let priceSection = rule.sections.first(where: { $0.type == .price })
+        let weightSection = rule.sections.first(where: { $0.type == .weight })
+        let encodedPrice = priceSection.flatMap { segmentsByID[$0.id] }
+        let packagePrice: Double
+        if let encodedPrice,
+           let rawPrice = Int(encodedPrice),
+           let priceSection {
+            let divisor = pow(10.0, Double(max(0, priceSection.decimalPlaces)))
+            packagePrice = Double(rawPrice) / max(1, divisor)
+        } else {
+            packagePrice = 0
+        }
+
+        var parsedWeight: Double?
+        var parsedWeightUnit: ReworkedBarcodeRule.WeightUnit?
+        if let weightSection,
+           let encodedWeight = segmentsByID[weightSection.id],
+           let rawWeight = Int(encodedWeight) {
+            let divisor = pow(10.0, Double(max(0, weightSection.decimalPlaces)))
+            parsedWeight = Double(rawWeight) / max(1, divisor)
+            parsedWeightUnit = weightSection.weightUnit
+        }
+
+        let trailingDigits = rule.sections
+            .filter { !$0.useAsItemCode && $0.type == .other }
+            .compactMap { segmentsByID[$0.id] }
+            .joined()
+
         return ParsedReworkedBarcode(
             barcode: barcode,
-            productCode: productCode,
+            itemCode: itemCode,
             encodedPrice: encodedPrice,
             packagePrice: packagePrice,
-            trailingDigits: trailingDigits
+            packageWeight: parsedWeight,
+            packageWeightUnit: parsedWeightUnit,
+            trailingDigits: trailingDigits.isEmpty ? nil : trailingDigits
         )
     }
 
-    private func findItem(forProductCode productCode: String) -> InventoryItem? {
-        let normalizedProductCode = productCode.numericCharactersOnly
-        guard !normalizedProductCode.isEmpty else { return nil }
+    private func findItem(forItemCode itemCode: String) -> InventoryItem? {
+        let normalizedItemCode = itemCode.numericCharactersOnly
+        guard !normalizedItemCode.isEmpty else { return nil }
         return items.first(where: { item in
             guard item.canBeReworked else { return false }
-            let upc = (item.upc ?? "").numericCharactersOnly
-            guard !upc.isEmpty else { return false }
-            return upc.hasPrefix(normalizedProductCode) || normalizedProductCode.hasPrefix(upc)
+            let candidateCodes = [
+                (item.reworkItemCode ?? "").numericCharactersOnly,
+                (item.upc ?? "").numericCharactersOnly
+            ].filter { !$0.isEmpty }
+            guard !candidateCodes.isEmpty else { return false }
+            return candidateCodes.contains(where: { code in
+                code.hasPrefix(normalizedItemCode) || normalizedItemCode.hasPrefix(code)
+            })
         })
     }
 
-    private func derivePackageWeight(for item: InventoryItem, packagePrice: Double) -> Double {
+    private func derivePackageWeight(
+        for item: InventoryItem,
+        packagePrice: Double,
+        parsedWeight: Double?,
+        parsedWeightUnit: ReworkedBarcodeRule.WeightUnit?
+    ) -> Double {
+        if let parsedWeight, parsedWeight > 0 {
+            if item.unit == .pounds {
+                switch parsedWeightUnit ?? .lbs {
+                case .lbs:
+                    return parsedWeight
+                case .oz:
+                    return max(0.001, parsedWeight / 16.0)
+                case .kg:
+                    return max(0.001, parsedWeight * 2.204_622_621_8)
+                case .g:
+                    return max(0.001, parsedWeight / 453.592_37)
+                case .each:
+                    return max(0.001, parsedWeight)
+                }
+            }
+            return max(0.001, parsedWeight)
+        }
         if item.unit == .pounds {
             let pricePerPound = max(0, item.price)
             if pricePerPound > 0 {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AppButton, AppCard, AppCheckbox, AppInput, AppTextarea, appButtonClass } from "@inventracker/ui"
+import { AppButton, AppCard, AppCheckbox, AppInput, AppSelect, AppTextarea, appButtonClass } from "@inventracker/ui"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { PageHead } from "@/components/page-head"
@@ -135,7 +135,7 @@ export default function OrganizationSettingsPage() {
     setSelectedRoleId("")
   }
 
-  const uploadBrandLogo = async (file: File) => {
+  const uploadBrandLogo = async (file: File, target: "primary" | "light" | "dark") => {
     if (!activeOrgId || !user?.uid) return
     if (!canUseProBranding) {
       setErrorMessage("Custom branding is available on the Pro tier.")
@@ -153,16 +153,36 @@ export default function OrganizationSettingsPage() {
       if (!uploaded?.downloadUrl) {
         throw new Error("No logo URL")
       }
-      setForm((prev) => ({
-        ...prev,
-        customBrandingEnabled: true,
-        replaceAppNameWithLogo: true,
-        brandLogoUrl: uploaded.downloadUrl,
-        brandLogoAssetId: uploaded.id
-      }))
-      setStatusMessage("Organization logo uploaded.")
+      setForm((prev) => {
+        if (target === "light") {
+          return {
+            ...prev,
+            customBrandingEnabled: true,
+            replaceAppNameWithLogo: true,
+            logoLightUrl: uploaded.downloadUrl,
+            logoLightAssetId: uploaded.id
+          }
+        }
+        if (target === "dark") {
+          return {
+            ...prev,
+            customBrandingEnabled: true,
+            replaceAppNameWithLogo: true,
+            logoDarkUrl: uploaded.downloadUrl,
+            logoDarkAssetId: uploaded.id
+          }
+        }
+        return {
+          ...prev,
+          customBrandingEnabled: true,
+          replaceAppNameWithLogo: true,
+          brandLogoUrl: uploaded.downloadUrl,
+          brandLogoAssetId: uploaded.id
+        }
+      })
+      setStatusMessage("Brand logo uploaded.")
     } catch {
-      setErrorMessage("Could not upload organization logo.")
+      setErrorMessage("Could not upload brand logo.")
     }
   }
 
@@ -286,8 +306,51 @@ export default function OrganizationSettingsPage() {
                 }
                 label="Replace app-name references with logo in the signed-in shell"
               />
+              <AppInput
+                placeholder="Brand display name (optional)"
+                value={String(form.brandDisplayName ?? "")}
+                onChange={(event) => setForm((prev) => ({ ...prev, brandDisplayName: event.target.value }))}
+              />
+              <AppTextarea
+                className="min-h-[84px]"
+                placeholder="Welcome message (optional)"
+                value={String(form.welcomeMessage ?? "")}
+                onChange={(event) => setForm((prev) => ({ ...prev, welcomeMessage: event.target.value }))}
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-xs uppercase tracking-wide text-app-muted">Header style</p>
+                  <AppSelect
+                    value={String(form.appHeaderStyle ?? "icon_name")}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        appHeaderStyle: event.target.value === "icon_only" ? "icon_only" : "icon_name"
+                      }))
+                    }
+                  >
+                    <option value="icon_name">Icon + Name</option>
+                    <option value="icon_only">Icon Only</option>
+                  </AppSelect>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs uppercase tracking-wide text-app-muted">Module icon style</p>
+                  <AppSelect
+                    value={String(form.moduleIconStyle ?? "rounded")}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        moduleIconStyle: event.target.value === "square" ? "square" : "rounded"
+                      }))
+                    }
+                  >
+                    <option value="rounded">Rounded</option>
+                    <option value="square">Square</option>
+                  </AppSelect>
+                </div>
+              </div>
               <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
-                <p className="mb-2 text-xs uppercase tracking-wide text-app-muted">Organization logo</p>
+                <p className="mb-2 text-xs uppercase tracking-wide text-app-muted">Primary logo</p>
                 {form.brandLogoUrl ? (
                   <img
                     src={form.brandLogoUrl}
@@ -307,7 +370,7 @@ export default function OrganizationSettingsPage() {
                       onChange={(event) => {
                         const file = event.target.files?.[0]
                         if (!file) return
-                        void uploadBrandLogo(file)
+                        void uploadBrandLogo(file, "primary")
                       }}
                     />
                   </label>
@@ -317,16 +380,98 @@ export default function OrganizationSettingsPage() {
                       onClick={() =>
                         setForm((prev) => ({
                           ...prev,
-                          brandLogoUrl: undefined,
-                          brandLogoAssetId: undefined,
-                          customBrandingEnabled: false,
-                          replaceAppNameWithLogo: false
+                          brandLogoUrl: "",
+                          brandLogoAssetId: ""
                         }))
                       }
                     >
                       Remove Logo
                     </AppButton>
                   ) : null}
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-app-muted">Light theme logo</p>
+                  {form.logoLightUrl ? (
+                    <img
+                      src={form.logoLightUrl}
+                      alt="Light logo preview"
+                      className="h-16 w-auto max-w-full rounded-xl border border-app-border bg-white object-contain p-2"
+                    />
+                  ) : (
+                    <p className="secondary-text text-sm">Optional override for light mode.</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className={appButtonClass("secondary", "cursor-pointer !h-9 !px-3 !py-2")}>
+                      Upload
+                      <AppInput
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) return
+                          void uploadBrandLogo(file, "light")
+                        }}
+                      />
+                    </label>
+                    {form.logoLightUrl ? (
+                      <AppButton
+                        variant="secondary"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            logoLightUrl: "",
+                            logoLightAssetId: ""
+                          }))
+                        }
+                      >
+                        Clear
+                      </AppButton>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-app-muted">Dark theme logo</p>
+                  {form.logoDarkUrl ? (
+                    <img
+                      src={form.logoDarkUrl}
+                      alt="Dark logo preview"
+                      className="h-16 w-auto max-w-full rounded-xl border border-app-border bg-white object-contain p-2"
+                    />
+                  ) : (
+                    <p className="secondary-text text-sm">Optional override for dark mode.</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className={appButtonClass("secondary", "cursor-pointer !h-9 !px-3 !py-2")}>
+                      Upload
+                      <AppInput
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) return
+                          void uploadBrandLogo(file, "dark")
+                        }}
+                      />
+                    </label>
+                    {form.logoDarkUrl ? (
+                      <AppButton
+                        variant="secondary"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            logoDarkUrl: "",
+                            logoDarkAssetId: ""
+                          }))
+                        }
+                      >
+                        Clear
+                      </AppButton>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>

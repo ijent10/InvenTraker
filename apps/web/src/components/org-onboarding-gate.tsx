@@ -8,7 +8,6 @@ import { AppButton, AppCard, AppInput } from "@inventracker/ui"
 import { createOrganizationWithInitialStore } from "@/lib/data/firestore"
 import {
   claimOrganizationByCompanyCode,
-  createCheckoutSession,
   listPublicStripePlans
 } from "@/lib/firebase/functions"
 
@@ -26,30 +25,6 @@ type PublicPlan = {
     trialPeriodDays: number | null
   }>
 }
-
-const FALLBACK_PLANS: PublicPlan[] = [
-  {
-    productId: "starter",
-    name: "Starter",
-    description: "Core inventory + expiration workflows",
-    active: true,
-    prices: [{ priceId: "starter-monthly", unitAmount: 4900, currency: "USD", interval: "month", intervalCount: 1, trialPeriodDays: 14 }]
-  },
-  {
-    productId: "growth",
-    name: "Growth",
-    description: "Multi-store controls + richer automations",
-    active: true,
-    prices: [{ priceId: "growth-monthly", unitAmount: 9900, currency: "USD", interval: "month", intervalCount: 1, trialPeriodDays: 14 }]
-  },
-  {
-    productId: "pro",
-    name: "Pro",
-    description: "Enterprise-grade controls and support",
-    active: true,
-    prices: [{ priceId: "pro-monthly", unitAmount: 19900, currency: "USD", interval: "month", intervalCount: 1, trialPeriodDays: 14 }]
-  }
-]
 
 function formatPrice(unitAmount: number, currency: string, interval: string) {
   const amount = Number.isFinite(unitAmount) ? unitAmount / 100 : 0
@@ -89,8 +64,16 @@ export function OrgOnboardingGate({ userId }: { userId: string }) {
 
   const plans = useMemo(() => {
     const incoming = Array.isArray(planData) ? (planData as PublicPlan[]) : []
-    const valid = incoming.filter((entry) => entry.active && entry.prices.length > 0)
-    return valid.length ? valid : FALLBACK_PLANS
+    return incoming
+      .filter((entry) => entry.active && entry.prices.length > 0)
+      .map((entry) => ({
+        ...entry,
+        prices: entry.prices.filter((price) => {
+          const id = String(price.priceId ?? "").trim()
+          return id.startsWith("price_") || id.startsWith("prod_")
+        })
+      }))
+      .filter((entry) => entry.prices.length > 0)
   }, [planData])
 
   useEffect(() => {
@@ -160,21 +143,9 @@ export function OrgOnboardingGate({ userId }: { userId: string }) {
         throw new Error("Could not create organization.")
       }
 
-      const origin = window.location.origin
-      const checkout = await createCheckoutSession({
-        orgId: created.orgId,
-        priceId: selectedPriceId,
-        successUrl: `${origin}/billing/success?orgId=${encodeURIComponent(created.orgId)}`,
-        cancelUrl: `${origin}/billing/cancel?orgId=${encodeURIComponent(created.orgId)}`
-      })
-
-      if (checkout?.url) {
-        window.location.assign(checkout.url)
-        return
-      }
-
-      setStatusMessage("Organization created. Finish billing in Settings > Billing.")
-      window.location.assign("/app")
+      window.location.assign(
+        `/billing/checkout?orgId=${encodeURIComponent(created.orgId)}&priceId=${encodeURIComponent(selectedPriceId)}`
+      )
     } catch (error) {
       const message = String((error as { message?: string } | undefined)?.message ?? "")
       setErrorMessage(message || "Could not create organization.")
@@ -196,23 +167,31 @@ export function OrgOnboardingGate({ userId }: { userId: string }) {
         <AppCard>
           <h2 className="card-title">1) Choose a plan</h2>
           <p className="secondary-text mt-2">Pricing is synced from Stripe, so updates appear here automatically.</p>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {plans.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              Stripe plans are not available yet. Verify active recurring prices in Stripe, then refresh this page.
+            </div>
+          ) : null}
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
             {plans.map((plan) => {
               const primaryPrice = [...plan.prices].sort((a, b) => a.unitAmount - b.unitAmount)[0]
               if (!primaryPrice) return null
               const active = selectedPriceId === primaryPrice.priceId
-            return (
+              return (
                 <AppButton
                   key={plan.productId}
+                  type="button"
                   variant="secondary"
-                  className={`h-auto w-full justify-start rounded-2xl p-4 text-left transition ${
-                    active ? "!border-[color:var(--accent)] !bg-app-surface-soft !text-[color:var(--app-text)]" : "!bg-app-surface-soft"
+                  className={`!h-auto flex min-h-[152px] w-full flex-col items-start justify-between rounded-2xl border p-4 text-left transition ${
+                    active
+                      ? "border-[color:var(--accent)] bg-app-surface-soft text-[color:var(--app-text)]"
+                      : "border-app-border bg-app-surface-soft text-[color:var(--app-text)]"
                   }`}
                   onClick={() => setSelectedPriceId(primaryPrice.priceId)}
                 >
-                  <p className="text-sm font-semibold">{plan.name}</p>
-                  <p className="secondary-text mt-1">{plan.description || "Subscription plan"}</p>
-                  <p className="mt-3 text-lg font-semibold text-blue-400">
+                  <p className="text-base font-semibold">{plan.name}</p>
+                  <p className="secondary-text mt-2 line-clamp-2">{plan.description || "Subscription plan"}</p>
+                  <p className="mt-4 text-xl font-semibold text-blue-400">
                     {formatPrice(primaryPrice.unitAmount, primaryPrice.currency, primaryPrice.interval)}
                   </p>
                 </AppButton>
@@ -296,7 +275,7 @@ export function OrgOnboardingGate({ userId }: { userId: string }) {
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}
               />
-              <AppButton disabled={isBusy || createDisabled} onClick={() => void createOrganization()}>
+              <AppButton disabled={isBusy || createDisabled || plans.length === 0} onClick={() => void createOrganization()}>
                 {isBusy ? "Working..." : "Create Organization + Continue to Billing"}
               </AppButton>
             </div>

@@ -273,7 +273,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         guard remoteSyncAvailable else { return false }
         let normalizedOrganizationID = organizationId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedOrganizationID.isEmpty else { return false }
-        let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreID = sanitizeStoreIdentifier(storeId)
         guard !normalizedStoreID.isEmpty else { return false }
         guard includeInventory || includeOperational else { return false }
 
@@ -612,7 +612,9 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         guard remoteSyncAvailable else { return false }
         let db = Firestore.firestore()
         let orgRef = db.collection("organizations").document(organizationId)
-        let allowLegacyInventoryReads = AppSettings.shared.enableLegacyInventoryReads
+        // Store-scoped canonical model is now the default runtime path.
+        // Legacy inventory reads remain migration-time only and are disabled in app runtime.
+        let allowLegacyInventoryReads = false
 
         var didMerge = false
         var consumedLegacyUnscopedQuantities = false
@@ -717,23 +719,21 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                !raw.isEmpty {
                 organizationDefaultStoreID = raw
             }
-            let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedStoreID = sanitizeStoreIdentifier(storeId)
             let legacyPrimaryStoreKey = "legacy_primary_store_\(organizationId)"
             let storedLegacyPrimaryStoreID = UserDefaults.standard
                 .string(forKey: legacyPrimaryStoreKey)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let hasStoredLegacyPrimaryStore = !storedLegacyPrimaryStoreID.isEmpty
             var canUseLegacyUnscopedItemsForStore = false
-            if !organizationDefaultStoreID.isEmpty,
-               organizationDefaultStoreID == normalizedStoreID {
-                canUseLegacyUnscopedItemsForStore = true
-            } else if hasStoredLegacyPrimaryStore,
-                      storedLegacyPrimaryStoreID == normalizedStoreID {
-                canUseLegacyUnscopedItemsForStore = true
-            } else if !hasStoredLegacyPrimaryStore {
-                // One-time recovery fallback for legacy org-level quantities when
-                // defaultStoreId is stale or missing. Once used, it is pinned.
-                canUseLegacyUnscopedItemsForStore = true
+            if allowLegacyInventoryReads {
+                if !organizationDefaultStoreID.isEmpty,
+                   organizationDefaultStoreID == normalizedStoreID {
+                    canUseLegacyUnscopedItemsForStore = true
+                } else if hasStoredLegacyPrimaryStore,
+                          storedLegacyPrimaryStoreID == normalizedStoreID {
+                    canUseLegacyUnscopedItemsForStore = true
+                }
             }
             var itemAliasToBackendID: [String: String] = [:]
             for doc in itemSnapshot.documents {
@@ -771,7 +771,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                         batchData["expirationDate"] = batchData["expiresAt"]
                     }
                     if batchData["storeId"] == nil {
-                        batchData["storeId"] = storeId
+                        batchData["storeId"] = normalizedStoreID
                     }
                     if batchData["organizationId"] == nil {
                         batchData["organizationId"] = organizationId
@@ -999,6 +999,11 @@ final class InventoryStateSyncService: InventoryStateSyncing {
 
                 let remoteUPC = data["upc"] as? String
                 if item.upc != remoteUPC { item.upc = remoteUPC; itemChanged = true }
+                let remoteReworkItemCode = data["reworkItemCode"] as? String
+                if item.reworkItemCode != remoteReworkItemCode {
+                    item.reworkItemCode = remoteReworkItemCode
+                    itemChanged = true
+                }
 
                 let remoteTags = data["tags"] as? [String] ?? item.tags
                 if item.tags != remoteTags { item.tags = remoteTags; itemChanged = true }
@@ -1197,6 +1202,44 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 itemByUUID[item.id] = item
                 itemByBackendID["\(backendId)|\(resolvedRemoteStore)"] = item
             }
+
+            if !allowLegacyInventoryReads {
+                let remoteBackendIDs = Set(itemSnapshot.documents.map(\.documentID))
+                let storeBackendsWithQuantity = Set(
+                    canonicalBatchesByBackendID.compactMap { backendId, rows in
+                        let hasPositiveQuantity = rows.values.contains { row in
+                            doubleValue(row.data["quantity"]) > 0
+                        }
+                        return hasPositiveQuantity ? backendId : nil
+                    }
+                )
+                let scopedExistingItems = existingItems.filter { item in
+                    item.organizationId == organizationId &&
+                    item.storeId.trimmingCharacters(in: .whitespacesAndNewlines) == storeId
+                }
+                for item in scopedExistingItems {
+                    let backendId = (item.backendId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let hasQuantity = item.batches.contains { $0.quantity > 0 }
+                    if !backendId.isEmpty {
+                        if !remoteBackendIDs.contains(backendId) {
+                            modelContext.delete(item)
+                            didMerge = true
+                            continue
+                        }
+                        // If metadata exists but no quantity rows for this store, remove stale local materialization.
+                        if !storeBackendsWithQuantity.contains(backendId), item.lastSyncedAt != nil {
+                            modelContext.delete(item)
+                            didMerge = true
+                            continue
+                        }
+                        continue
+                    }
+                    if !hasQuantity && item.totalQuantity <= 0 {
+                        modelContext.delete(item)
+                        didMerge = true
+                    }
+                }
+            }
         }
 
         if !normalizedRequestedStoreID.isEmpty,
@@ -1230,15 +1273,16 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         storeId: String,
         modelContext: ModelContext
     ) async -> Bool {
-        let normalizedStoreId = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedStoreId.isEmpty else { return false }
-        let allowLegacyInventoryReads = AppSettings.shared.enableLegacyInventoryReads
+        let normalizedStoreId = sanitizeStoreIdentifier(storeId)
+        let normalizedScopedStoreId = normalizedStoreId
+        guard !normalizedScopedStoreId.isEmpty else { return false }
+        let allowLegacyInventoryReads = false
 
         var mergedBatchDocs: [QueryDocumentSnapshot] = []
 
         if let scopedBatches = try? await db.collectionGroup("inventoryBatches")
             .whereField("organizationId", isEqualTo: organizationId)
-            .whereField("storeId", isEqualTo: normalizedStoreId)
+            .whereField("storeId", isEqualTo: normalizedScopedStoreId)
             .getDocuments() {
             mergedBatchDocs.append(contentsOf: scopedBatches.documents)
         }
@@ -1246,7 +1290,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         if mergedBatchDocs.isEmpty,
            let canonicalStoreRef = await resolveCanonicalStoreDocumentReference(
             organizationId: organizationId,
-            storeId: normalizedStoreId,
+            storeId: normalizedScopedStoreId,
             db: db
            ),
            let nestedStoreBatches = try? await canonicalStoreRef
@@ -1260,7 +1304,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
            let legacyStoreBatches = try? await db.collection("organizations")
             .document(organizationId)
             .collection("stores")
-            .document(normalizedStoreId)
+            .document(normalizedScopedStoreId)
             .collection("inventoryBatches")
             .getDocuments() {
             mergedBatchDocs.append(contentsOf: legacyStoreBatches.documents)
@@ -1271,7 +1315,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
            let legacyOrgBatches = try? await db.collection("organizations")
             .document(organizationId)
             .collection("inventoryBatches")
-            .whereField("storeId", isEqualTo: normalizedStoreId)
+            .whereField("storeId", isEqualTo: normalizedScopedStoreId)
             .getDocuments() {
             mergedBatchDocs.append(contentsOf: legacyOrgBatches.documents)
         }
@@ -1283,7 +1327,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         var itemsByUUID: [UUID: InventoryItem] = [:]
         for item in existingItems where item.organizationId == organizationId {
             let itemStore = item.storeId.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard itemStore == normalizedStoreId else { continue }
+            guard sanitizeStoreIdentifier(itemStore) == normalizedScopedStoreId else { continue }
             if let backendId = item.backendId?.trimmingCharacters(in: .whitespacesAndNewlines),
                !backendId.isEmpty {
                 itemsByBackendId[backendId] = item
@@ -1303,7 +1347,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             data["storeId"] = ((data["storeId"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
                 ? data["storeId"]
-                : normalizedStoreId
+                : normalizedScopedStoreId
             if data["expirationDate"] == nil {
                 data["expirationDate"] = data["expiresAt"]
             }
@@ -1326,7 +1370,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                         : "Inventory Item",
                     organizationId: organizationId,
                     backendId: itemId,
-                    storeId: normalizedStoreId
+                    storeId: normalizedScopedStoreId
                 )
                 if let resolvedId {
                     created.id = resolvedId
@@ -1340,8 +1384,8 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 item.organizationId = organizationId
                 didMerge = true
             }
-            if item.storeId.trimmingCharacters(in: .whitespacesAndNewlines) != normalizedStoreId {
-                item.storeId = normalizedStoreId
+            if sanitizeStoreIdentifier(item.storeId) != normalizedScopedStoreId {
+                item.storeId = normalizedScopedStoreId
                 didMerge = true
             }
             if item.backendId != itemId {
@@ -1371,9 +1415,9 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     guard quantity > 0 else { continue }
                     let expiration = dateValue(batchData["expirationDate"] ?? batchData["expiresAt"])
                     let received = dateValue(batchData["receivedDate"] ?? batchData["createdAt"])
-                    let batchStore = ((batchData["storeId"] as? String) ?? normalizedStoreId)
+                    let batchStore = ((batchData["storeId"] as? String) ?? normalizedScopedStoreId)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    let resolvedBatchStore = batchStore.isEmpty ? normalizedStoreId : batchStore
+                    let resolvedBatchStore = sanitizeStoreIdentifier(batchStore.isEmpty ? normalizedScopedStoreId : batchStore)
                     let batch = Batch(
                         quantity: quantity,
                         expirationDate: expiration,
@@ -1413,7 +1457,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         modelContext: ModelContext
     ) async -> Bool {
         guard remoteSyncAvailable else { return false }
-        let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreID = sanitizeStoreIdentifier(storeId)
         guard !normalizedStoreID.isEmpty else { return false }
 
         let db = Firestore.firestore()
@@ -1476,7 +1520,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         storeId: String,
         db: Firestore
     ) async -> [QueryDocumentSnapshot] {
-        let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreID = sanitizeStoreIdentifier(storeId)
         guard !normalizedStoreID.isEmpty else { return [] }
 
         var documentsByID: [String: (priority: Int, document: QueryDocumentSnapshot)] = [:]
@@ -1891,6 +1935,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         }
 
         data["upc"] = item.upc
+        data["reworkItemCode"] = item.reworkItemCode
         data["department"] = item.department
         data["departmentLocation"] = item.departmentLocation
         data["updatedByUid"] = item.updatedByUid
@@ -1915,7 +1960,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         storeId: String,
         db: Firestore
     ) async -> DocumentReference? {
-        let normalizedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreID = sanitizeStoreIdentifier(storeId)
         guard !normalizedStoreID.isEmpty else { return nil }
 
         // Fallback: explicitly walk regions -> districts to find canonical store placement.
@@ -1958,6 +2003,19 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             return nestedStoreRef.collection("inventoryBatches")
         }
         return nil
+    }
+
+    private func sanitizeStoreIdentifier(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            return trimmed
+                .split(separator: "/")
+                .map(String.init)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .last(where: { !$0.isEmpty }) ?? ""
+        }
+        return trimmed
     }
 
     private func upsertStoreBatches(

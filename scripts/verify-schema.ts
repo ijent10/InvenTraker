@@ -204,6 +204,15 @@ async function main() {
       "status",
       "createdAt"
     ]),
+    checkOptionalCollection(`organizations/${orgId}/itemSubmissions`, [
+      "organizationId",
+      "storeId",
+      "submittedByUid",
+      "status",
+      "itemDraft",
+      "createdAt",
+      "updatedAt"
+    ]),
     checkOptionalCollection(`organizations/${orgId}/settings`, ["legacyInventoryFallbackDisabled"])
   ])
   results.push(...orgLevelChecks)

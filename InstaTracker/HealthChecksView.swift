@@ -304,8 +304,6 @@ struct HealthChecksView: View {
             VStack(spacing: 16) {
                 ContextTipCard(context: .healthChecks, accentColor: settings.accentColor)
 
-                AppMetricStrip(metrics: metricValues)
-
                 if viewModel.isLoading {
                     ProgressView("Loading health checks…")
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -413,40 +411,6 @@ struct HealthChecksView: View {
             storeId: activeStoreId,
             membership: session.activeMembership
         )
-    }
-}
-
-private struct AppMetricStrip: View {
-    let metrics: [String: String]
-
-    private var rows: [(label: String, value: String)] {
-        [
-            ("Expired not wasted", metrics["expired_not_marked_waste_count"] ?? "0"),
-            ("Waste (7d)", metrics["waste_total_value_7d"] ?? "$0.00"),
-            ("Inventory value", metrics["inventory_value"] ?? "$0.00"),
-            ("Mold check picks", metrics["mold_check_random_4"] ?? "None")
-        ]
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Quick Health Snapshot")
-                .font(.headline)
-            ForEach(rows, id: \.label) { row in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(row.value)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 2)
-            }
-        }
-        .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

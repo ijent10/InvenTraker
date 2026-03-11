@@ -36,6 +36,7 @@ struct ItemDetailView: View {
     @State private var draftDepartmentLocation = ""
     @State private var draftIsPrepackaged = false
     @State private var draftRewrapsWithUniqueBarcode = false
+    @State private var draftReworkItemCode = ""
     @State private var draftCanBeReworked = false
     @State private var draftReworkShelfLifeDays = ""
     @State private var draftMaxReworkCount = ""
@@ -503,6 +504,22 @@ struct ItemDetailView: View {
                 }
 
                 if canConfigureRework {
+                    if selectedPackagingMode == .rewrapped {
+                        HStack {
+                            Text("Item Code")
+                            Spacer()
+                            TextField("Required for scanner match", text: $draftReworkItemCode)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 180)
+                                .roundedInputField(tint: settings.accentColor)
+                        }
+                        Text("Used to match parsed reworked barcodes to this item.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Toggle("Can Be Reworked", isOn: $draftCanBeReworked)
 
                     if draftCanBeReworked {
@@ -534,6 +551,12 @@ struct ItemDetailView: View {
             } else {
                 InfoRow(label: "Packaging", value: packagingDisplayText(for: item))
                 if item.isPrepackaged || item.rewrapsWithUniqueBarcode {
+                    if item.rewrapsWithUniqueBarcode {
+                        let code = item.reworkItemCode?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        if !code.isEmpty {
+                            InfoRow(label: "Item Code", value: code)
+                        }
+                    }
                     InfoRow(label: "Can Be Reworked", value: item.canBeReworked ? "Yes" : "No")
                     if item.canBeReworked {
                         InfoRow(label: "Reworked Shelf Life", value: "\(item.effectiveReworkShelfLifeDays) days")
@@ -800,6 +823,7 @@ struct ItemDetailView: View {
         draftDepartmentLocation = item.departmentLocation ?? ""
         draftIsPrepackaged = item.isPrepackaged
         draftRewrapsWithUniqueBarcode = item.rewrapsWithUniqueBarcode
+        draftReworkItemCode = item.reworkItemCode ?? item.upc ?? ""
         draftCanBeReworked = item.canBeReworked
         draftReworkShelfLifeDays = "\(item.effectiveReworkShelfLifeDays)"
         draftMaxReworkCount = "\(item.effectiveMaxReworkCount)"
@@ -855,14 +879,25 @@ struct ItemDetailView: View {
         case .standard:
             item.isPrepackaged = false
             item.rewrapsWithUniqueBarcode = false
+            item.reworkItemCode = nil
             item.canBeReworked = false
         case .prepackaged:
             item.isPrepackaged = true
             item.rewrapsWithUniqueBarcode = false
+            item.reworkItemCode = nil
             item.canBeReworked = draftCanBeReworked
         case .rewrapped:
             item.isPrepackaged = true
             item.rewrapsWithUniqueBarcode = true
+            let normalizedReworkCode = draftReworkItemCode
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .filter { $0.isNumber }
+            if !normalizedReworkCode.isEmpty {
+                item.reworkItemCode = normalizedReworkCode
+            } else {
+                let normalizedUPC = catalogService.normalizeUPC(item.upc ?? "")
+                item.reworkItemCode = normalizedUPC.isEmpty ? nil : normalizedUPC
+            }
             item.canBeReworked = draftCanBeReworked
         }
 
@@ -979,13 +1014,18 @@ struct ItemDetailView: View {
         case .standard:
             draftIsPrepackaged = false
             draftRewrapsWithUniqueBarcode = false
+            draftReworkItemCode = ""
             draftCanBeReworked = false
         case .prepackaged:
             draftIsPrepackaged = true
             draftRewrapsWithUniqueBarcode = false
+            draftReworkItemCode = ""
         case .rewrapped:
             draftIsPrepackaged = true
             draftRewrapsWithUniqueBarcode = true
+            if draftReworkItemCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                draftReworkItemCode = draftUPC.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             if Int(draftDefaultPackedExpiration) == nil {
                 draftDefaultPackedExpiration = draftDefaultExpiration
             }

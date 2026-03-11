@@ -107,6 +107,36 @@ struct StoreLocationRef: Identifiable, Codable, Hashable {
     var updatedAt: Date
 }
 
+enum AppHeaderStyle: String, Codable {
+    case iconOnly = "icon_only"
+    case iconName = "icon_name"
+}
+
+enum ModuleIconStyle: String, Codable {
+    case rounded
+    case square
+}
+
+struct OrganizationBrandingConfig: Codable, Hashable {
+    var enabled: Bool
+    var brandDisplayName: String?
+    var logoLightUrl: String?
+    var logoDarkUrl: String?
+    var appHeaderStyle: AppHeaderStyle
+    var moduleIconStyle: ModuleIconStyle
+    var welcomeMessage: String?
+
+    static let `default` = OrganizationBrandingConfig(
+        enabled: false,
+        brandDisplayName: nil,
+        logoLightUrl: nil,
+        logoDarkUrl: nil,
+        appHeaderStyle: .iconName,
+        moduleIconStyle: .rounded,
+        welcomeMessage: nil
+    )
+}
+
 struct OrgInvite: Identifiable, Codable, Hashable {
     var id: String
     var organizationId: String

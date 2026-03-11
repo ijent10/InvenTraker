@@ -67,6 +67,19 @@ class AppSettings: ObservableObject {
     static let shared = AppSettings()
     private static let activeStoreIDKey = "active_store_id"
     
+    private static func normalizeStoreIdentifier(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            return trimmed
+                .split(separator: "/")
+                .map(String.init)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .last(where: { !$0.isEmpty }) ?? ""
+        }
+        return trimmed
+    }
+    
     // MARK: - Waste Settings (which types affect orders)
     
     @AppStorage("waste_expired_affects_orders") var expiredAffectsOrders: Bool = true
@@ -93,12 +106,12 @@ class AppSettings: ObservableObject {
     @AppStorage("preferred_color_scheme") var preferredColorScheme: String = "system" // "light", "dark", "system"
     @Published var activeStoreID: String {
         didSet {
-            let normalized = activeStoreID.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = Self.normalizeStoreIdentifier(activeStoreID)
             if activeStoreID != normalized {
                 activeStoreID = normalized
                 return
             }
-            if normalized == oldValue.trimmingCharacters(in: .whitespacesAndNewlines) { return }
+            if normalized == Self.normalizeStoreIdentifier(oldValue) { return }
             UserDefaults.standard.set(normalized, forKey: Self.activeStoreIDKey)
             NotificationCenter.default.post(
                 name: .activeStoreDidChange,
@@ -109,8 +122,10 @@ class AppSettings: ObservableObject {
     }
 
     var normalizedActiveStoreID: String {
-        activeStoreID.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.normalizeStoreIdentifier(activeStoreID)
     }
+
+    @Published var organizationBranding: OrganizationBrandingConfig = .default
     
     @AppStorage("home_section_order") private var homeSectionOrderData: Data = {
         let defaults = HomeSection.allCases.map(\.rawValue)
@@ -225,7 +240,12 @@ class AppSettings: ObservableObject {
     @AppStorage("enable_legacy_inventory_reads") var enableLegacyInventoryReads: Bool = false
 
     private init() {
-        activeStoreID = UserDefaults.standard.string(forKey: Self.activeStoreIDKey) ?? ""
+        activeStoreID = Self.normalizeStoreIdentifier(
+            UserDefaults.standard.string(forKey: Self.activeStoreIDKey) ?? ""
+        )
+        if UserDefaults.standard.string(forKey: Self.activeStoreIDKey) != activeStoreID {
+            UserDefaults.standard.set(activeStoreID, forKey: Self.activeStoreIDKey)
+        }
     }
     
     var wasteReasonRules: [WasteReasonRule] {
@@ -446,6 +466,41 @@ class AppSettings: ObservableObject {
         case .pink: return .pink
         case .teal: return .teal
         case .indigo: return .indigo
+        }
+    }
+
+    var brandedAppName: String {
+        let trimmed = organizationBranding.brandDisplayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if organizationBranding.enabled, !trimmed.isEmpty {
+            return trimmed
+        }
+        return "InvenTraker"
+    }
+
+    var hasBrandLogo: Bool {
+        !effectiveBrandLogoURL(for: .dark).isEmpty || !effectiveBrandLogoURL(for: .light).isEmpty
+    }
+
+    func effectiveBrandLogoURL(for colorScheme: ColorScheme) -> String {
+        let light = organizationBranding.logoLightUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let dark = organizationBranding.logoDarkUrl?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if colorScheme == .dark {
+            if !dark.isEmpty { return dark }
+            return light
+        }
+        if !light.isEmpty { return light }
+        return dark
+    }
+
+    func applyOrganizationBranding(_ branding: OrganizationBrandingConfig?) {
+        if let branding {
+            organizationBranding = branding
+        } else {
+            organizationBranding = .default
         }
     }
     

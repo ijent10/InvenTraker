@@ -72,7 +72,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     setSubmitError(null)
     setStatusMessage(null)
     if (!firebaseReady || !auth) {
-      setSubmitError("Firebase is not configured. Check apps/web/.env.local and restart the dev server.")
+      setSubmitError("Authentication is temporarily unavailable. Please refresh and try again.")
       return
     }
 
@@ -109,7 +109,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     setSubmitError(null)
     setStatusMessage(null)
     if (!firebaseReady || !auth) {
-      setSubmitError("Firebase is not configured. Check apps/web/.env.local and restart the dev server.")
+      setSubmitError("Password reset is temporarily unavailable. Please refresh and try again.")
       return
     }
 

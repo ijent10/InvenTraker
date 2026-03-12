@@ -14,12 +14,13 @@ import { run as run012 } from "./migrations/012_store_inventory_unscoped_cleanup
 import { run as run013 } from "./migrations/013_item_submissions_bootstrap"
 import { run as run014 } from "./migrations/014_recommendation_engine_bootstrap"
 import { run as run015 } from "./migrations/015_recommendation_backend_source_enforcement"
+import { run as run016 } from "./migrations/016_department_configs_backfill"
 
 const registryPath = path.resolve("/Users/ianjent/Desktop/InvenTracker/meta/migrations/registry.json")
 
 type Registry = { applied: string[] }
 
-const ordered = [run001, run002, run003, run004, run005, run006, run007, run010, run011, run012, run013, run014, run015]
+const ordered = [run001, run002, run003, run004, run005, run006, run007, run010, run011, run012, run013, run014, run015, run016]
 
 async function readRegistry(): Promise<Registry> {
   try {

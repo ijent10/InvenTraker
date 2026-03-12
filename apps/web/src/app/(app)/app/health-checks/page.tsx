@@ -572,7 +572,7 @@ export default function HealthChecksPage() {
               <h2 className="card-title">Saved Forms</h2>
               <div className="mt-3 space-y-2">
                 {forms.length === 0 ? (
-                  <p className="secondary-text">No forms created yet.</p>
+                  <p className="secondary-text">No forms created yet. Build your first form on the left, then save to assign it by role/department.</p>
                 ) : (
                   forms.map((form) => {
                     const selected = selectedFormId === form.id
@@ -617,7 +617,9 @@ export default function HealthChecksPage() {
               <h2 className="card-title">Recent Submissions</h2>
               <div className="mt-3 space-y-2">
                 {responses.length === 0 ? (
-                  <p className="secondary-text">No submissions yet for this store.</p>
+                  <p className="secondary-text">
+                    No submissions yet for this store. Assigned users will see forms in the app once you save and activate them.
+                  </p>
                 ) : (
                   responses.slice(0, 12).map((response) => (
                     <div key={response.id} className="rounded-xl border border-app-border p-3">
@@ -644,7 +646,7 @@ export default function HealthChecksPage() {
               </p>
               <div className="mt-3 max-h-[430px] space-y-2 overflow-y-auto pr-1">
                 {completionHistory.length === 0 ? (
-                  <p className="secondary-text">No health check submissions yet.</p>
+                  <p className="secondary-text">No completion history yet. Completed checks will appear here with user and timestamp details.</p>
                 ) : (
                   completionHistory.map((response) => (
                     <div key={`history-${response.id}`} className="rounded-xl border border-app-border p-3">

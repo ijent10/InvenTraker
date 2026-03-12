@@ -368,7 +368,9 @@ export default function NotificationsPage() {
             <h2 className="card-title">Recent Notifications</h2>
             <div className="mt-4 space-y-2">
               {notifications.length === 0 ? (
-                <p className="secondary-text">No notifications yet.</p>
+                <p className="secondary-text">
+                  No notifications yet. Send an immediate message to test delivery or schedule one for later.
+                </p>
               ) : (
                 notifications.map((entry) => {
                   const canCancelScheduled =

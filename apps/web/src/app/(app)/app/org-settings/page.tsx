@@ -140,22 +140,51 @@ export default function OrganizationSettingsPage() {
     setErrorMessage(null)
     try {
       const normalizedConfigs = normalizeDepartmentConfigs(departmentConfigs)
+      const cleanedRoles = roles
+        .filter((role) => role.title.trim().length > 0)
+        .map((role) => ({
+          ...role,
+          title: role.title.trim()
+        }))
+      const patch: Partial<OrgSettingsRecord> = {
+        organizationName: String(form.organizationName ?? "").trim(),
+        companyCode: String(form.companyCode ?? "").trim().toUpperCase(),
+        customBrandingEnabled: Boolean(form.customBrandingEnabled),
+        replaceAppNameWithLogo: Boolean(form.replaceAppNameWithLogo),
+        brandDisplayName: String(form.brandDisplayName ?? ""),
+        brandLogoUrl: String(form.brandLogoUrl ?? ""),
+        brandLogoAssetId: String(form.brandLogoAssetId ?? ""),
+        logoLightUrl: String(form.logoLightUrl ?? ""),
+        logoLightAssetId: String(form.logoLightAssetId ?? ""),
+        logoDarkUrl: String(form.logoDarkUrl ?? ""),
+        logoDarkAssetId: String(form.logoDarkAssetId ?? ""),
+        appHeaderStyle: form.appHeaderStyle === "icon_only" ? "icon_only" : "icon_name",
+        moduleIconStyle: form.moduleIconStyle === "square" ? "square" : "rounded",
+        welcomeMessage: String(form.welcomeMessage ?? ""),
+        canStoreRemoveItems: Boolean(form.canStoreRemoveItems),
+        maxSalePercent: Number(form.maxSalePercent ?? 30),
+        allowStoreRoleCreation: Boolean(form.allowStoreRoleCreation),
+        managerCanManageUsersOnlyInOwnStore: Boolean(form.managerCanManageUsersOnlyInOwnStore),
+        featureFlags: { ...(form.featureFlags ?? {}) },
+        departmentConfigs: normalizedConfigs,
+        departments: normalizedConfigs.map((entry) => entry.name),
+        locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
+        jobTitles: cleanedRoles,
+        roleDefaults: form.roleDefaults,
+        storeOverrideKeys: form.storeOverrideKeys,
+        reworkedBarcodeRule: form.reworkedBarcodeRule
+      }
       await saveOrgSettings(
         activeOrgId,
-        {
-          ...form,
-          departmentConfigs: normalizedConfigs,
-          departments: normalizedConfigs.map((entry) => entry.name),
-          locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
-          jobTitles: roles.filter((role) => role.title.trim().length > 0)
-        },
+        patch,
         user.uid
       )
       await refetch()
       await queryClient.invalidateQueries({ queryKey: ["shell-org-settings", activeOrgId] })
       setStatusMessage("Organization settings saved.")
-    } catch {
-      setErrorMessage("Could not save organization settings.")
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? ` ${error.message}` : ""
+      setErrorMessage(`Could not save organization settings.${detail}`)
     }
   }
 
@@ -251,8 +280,9 @@ export default function OrganizationSettingsPage() {
         }
       })
       setStatusMessage("Brand logo uploaded.")
-    } catch {
-      setErrorMessage("Could not upload brand logo.")
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? ` ${error.message}` : ""
+      setErrorMessage(`Could not upload brand logo.${detail}`)
     }
   }
 

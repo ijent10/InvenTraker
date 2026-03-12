@@ -107,7 +107,7 @@ export function PlanRequiredGate({ orgId, canManageBilling, organizationName }: 
         <h2 className="card-title">Select a plan</h2>
         {plans.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-            Stripe plans are not available yet. Verify active recurring prices in Stripe, then refresh this page.
+            No active plans are available yet. Publish at least one recurring plan, then refresh this page.
           </div>
         ) : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-3">

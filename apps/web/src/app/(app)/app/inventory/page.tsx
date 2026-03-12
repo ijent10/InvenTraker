@@ -179,21 +179,39 @@ export default function InventoryPage() {
             </div>
           ) : null}
           {mode === "table" ? (
-            <DataTable columns={columns} rows={filtered} empty="No inventory items." />
+            <DataTable
+              columns={columns}
+              rows={filtered}
+              empty={
+                scope === "organization"
+                  ? "No organization items yet. Add or approve items to build your shared catalog metadata."
+                  : "No store items yet. Run Spot Check or Receiving to create store-level inventory rows."
+              }
+            />
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((item) => (
-                <Link key={item.id} href={`/app/inventory/${item.id}`}>
-                  <div className="rounded-2xl border border-app-border bg-app-surface-soft p-4">
-                    <p className="font-semibold">{item.name}</p>
-                    <p className="secondary-text mt-1">Barcode: {item.upc ?? "—"}</p>
-                    <p className="secondary-text">
-                      Qty {item.totalQuantity.toFixed(3)} · Min {item.minimumQuantity.toFixed(3)} {item.unit}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <>
+              {filtered.length === 0 ? (
+                <div className="rounded-2xl border border-app-border bg-app-surface-soft px-4 py-3 text-sm text-app-muted">
+                  {scope === "organization"
+                    ? "No organization inventory metadata yet. Add items or approve pending submissions to populate this view."
+                    : "This store is currently empty. Add stock via Spot Check, Receiving, or the store sync tools."}
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {filtered.map((item) => (
+                    <Link key={item.id} href={`/app/inventory/${item.id}`}>
+                      <div className="rounded-2xl border border-app-border bg-app-surface-soft p-4">
+                        <p className="font-semibold">{item.name}</p>
+                        <p className="secondary-text mt-1">Barcode: {item.upc ?? "—"}</p>
+                        <p className="secondary-text">
+                          Qty {item.totalQuantity.toFixed(3)} · Min {item.minimumQuantity.toFixed(3)} {item.unit}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </AppCard>
@@ -214,7 +232,7 @@ export default function InventoryPage() {
 
           {pendingSubmissions.length === 0 ? (
             <div className="rounded-2xl border border-app-border bg-app-surface-soft px-4 py-3 text-sm text-app-muted">
-              No pending item submissions for this scope.
+              No pending submissions right now. New unknown scans will appear here for review.
             </div>
           ) : (
             <div className="space-y-2">

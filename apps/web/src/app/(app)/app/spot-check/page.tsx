@@ -234,7 +234,7 @@ export default function SpotCheckPage() {
           {!canRunQuery ? (
             <p className="secondary-text mt-3">Select an organization + store to load spot checks.</p>
           ) : !latestGroup ? (
-            <p className="secondary-text mt-3">No spot check history found yet for this store.</p>
+            <p className="secondary-text mt-3">No spot checks recorded yet for this store. Run the first spot check in the app to start history.</p>
           ) : (
             <div className="mt-3 space-y-2">
               <p className="text-sm font-semibold">{latestGroup.displayDate}</p>
@@ -259,7 +259,7 @@ export default function SpotCheckPage() {
           <AppCard>
             <h2 className="card-title">Spot Check History</h2>
             {groupedByDate.length === 0 ? (
-              <p className="secondary-text mt-3">No history yet.</p>
+              <p className="secondary-text mt-3">No completed sessions yet. Spot checks will appear here once teams submit counts.</p>
             ) : (
               <div className="mt-3 grid gap-4 lg:grid-cols-[280px_1fr]">
                 <div className="space-y-2">
@@ -303,7 +303,7 @@ export default function SpotCheckPage() {
           {!canRunQuery ? (
             <p className="secondary-text mt-3">Select a store to preview export rows.</p>
           ) : exportRows.length === 0 ? (
-            <p className="secondary-text mt-3">No UPC-coded items available in this store for export.</p>
+            <p className="secondary-text mt-3">No UPC-coded items are available yet. Add items with barcodes or run receiving first, then export again.</p>
           ) : (
             <div className="mt-3 grid gap-3 xl:grid-cols-2">
               {exportRows.map((row) => (

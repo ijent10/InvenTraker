@@ -273,7 +273,9 @@ export default function InsightsPage() {
               {wasteError ? (
                 <p className="text-sm text-rose-300">Could not load waste records for this scope.</p>
               ) : mostWasted.length === 0 ? (
-                <p className="secondary-text">No waste entries recorded.</p>
+                <p className="secondary-text">
+                  No waste entries recorded yet. Use Waste tracking to log spoilage so this section can surface top drivers.
+                </p>
               ) : (
                 mostWasted.map((entry) => (
                   <div key={entry.name} className="flex items-center justify-between rounded-xl border border-app-border px-3 py-2 text-sm">
@@ -290,7 +292,7 @@ export default function InsightsPage() {
             <h2 className="card-title">Overstocked</h2>
             <div className="mt-3 space-y-2">
               {(financial?.overstocked ?? []).length === 0 ? (
-                <p className="secondary-text">No overstocked items currently.</p>
+                <p className="secondary-text">Everything looks balanced right now. No overstocked items in the selected scope.</p>
               ) : (
                 (financial?.overstocked ?? []).map((entry) => (
                   <div key={entry.itemId} className="rounded-xl border border-app-border px-3 py-2 text-sm">

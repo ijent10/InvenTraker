@@ -166,10 +166,10 @@ export function OrgOnboardingGate({ userId }: { userId: string }) {
       <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <AppCard>
           <h2 className="card-title">1) Choose a plan</h2>
-          <p className="secondary-text mt-2">Pricing is synced from Stripe, so updates appear here automatically.</p>
+          <p className="secondary-text mt-2">Pricing updates automatically from your billing configuration.</p>
           {plans.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              Stripe plans are not available yet. Verify active recurring prices in Stripe, then refresh this page.
+              No active plans are available yet. Publish at least one recurring plan, then refresh this page.
             </div>
           ) : null}
           <div className="mt-4 grid gap-3 lg:grid-cols-3">

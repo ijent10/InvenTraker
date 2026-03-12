@@ -92,6 +92,14 @@ struct SpotCheckView: View {
             
             ContextTipCard(context: .spotCheck, accentColor: settings.accentColor)
                 .padding(.horizontal)
+
+            if scopedItems.isEmpty {
+                Text("No store inventory found yet. Run Receiving or import inventory metadata, then start Spot Check.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
             
             Spacer()
             

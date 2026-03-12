@@ -1271,6 +1271,14 @@ function stripUndefinedDeep(value: unknown): unknown {
   return value
 }
 
+function normalizeOptionalStringPatchValue(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 function asImageSources(data: Record<string, unknown>): string[] {
   const fromPictures = asStringArray(data.pictures)
   if (fromPictures.length > 0) {
@@ -4383,6 +4391,35 @@ export async function saveOrgSettings(
   const sanitizedPatch = stripUndefinedDeep(
     Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
   ) as Partial<OrgSettingsRecord>
+  const optionalStringKeys: Array<
+    | "brandDisplayName"
+    | "welcomeMessage"
+    | "brandLogoUrl"
+    | "brandLogoAssetId"
+    | "logoLightUrl"
+    | "logoLightAssetId"
+    | "logoDarkUrl"
+    | "logoDarkAssetId"
+  > = [
+    "brandDisplayName",
+    "welcomeMessage",
+    "brandLogoUrl",
+    "brandLogoAssetId",
+    "logoLightUrl",
+    "logoLightAssetId",
+    "logoDarkUrl",
+    "logoDarkAssetId"
+  ]
+  for (const key of optionalStringKeys) {
+    if (!(key in patch)) continue
+    const normalized = normalizeOptionalStringPatchValue((patch as Record<string, unknown>)[key])
+    if (normalized === undefined) {
+      delete (sanitizedPatch as Record<string, unknown>)[key]
+    } else {
+      const targetPatch = sanitizedPatch as Record<string, unknown>
+      targetPatch[key] = normalized
+    }
+  }
   if (sanitizedPatch.departmentConfigs !== undefined) {
     const normalizedConfigs = normalizeDepartmentConfigs(sanitizedPatch.departmentConfigs)
     sanitizedPatch.departmentConfigs = normalizedConfigs
@@ -4392,14 +4429,18 @@ export async function saveOrgSettings(
   if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
     sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
   }
+  const payload: Record<string, unknown> = {
+    organizationId: orgId,
+    updatedAt: serverTimestamp(),
+    updatedBy: actorUserId
+  }
+  for (const [key, value] of Object.entries(sanitizedPatch)) {
+    if (value === undefined) continue
+    payload[key] = value
+  }
   await setDoc(
     doc(db, "organizations", orgId, "settings", "default"),
-    {
-      organizationId: orgId,
-      ...sanitizedPatch,
-      updatedAt: serverTimestamp(),
-      updatedBy: actorUserId
-    },
+    payload,
     { merge: true }
   )
 }

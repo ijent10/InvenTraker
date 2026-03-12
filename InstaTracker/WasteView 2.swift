@@ -61,6 +61,14 @@ struct WasteView: View {
             
             ContextTipCard(context: .waste, accentColor: .red)
                 .padding(.horizontal)
+
+            if scopedItems.isEmpty {
+                Text("This store has no inventory rows yet. Add stock with Spot Check or Receiving before recording waste.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
             
             Spacer()
             

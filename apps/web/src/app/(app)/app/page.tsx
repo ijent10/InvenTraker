@@ -1,6 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import {
+  ArrowRight,
   BookOpenText,
   Box,
   Building2,
@@ -20,7 +22,7 @@ import { useEffect, useMemo, useState } from "react"
 import { getModuleAccent } from "@inventracker/shared"
 
 import { DashboardModuleCard } from "@/components/dashboard-module-card"
-import { AppButton, AppCard, AppCheckbox } from "@inventracker/ui"
+import { appButtonClass, AppButton, AppCard, AppCheckbox } from "@inventracker/ui"
 import { PageHead } from "@/components/page-head"
 import { useOrgContext } from "@/hooks/use-org-context"
 
@@ -60,6 +62,14 @@ const cardCatalog: DashboardCard[] = [
   { id: "orgSettings", href: "/app/org-settings", icon: Building2, title: "Organization Settings", subtitle: "Org-level controls", metric: "Policy", module: "orgSettings" },
   { id: "storeSettings", href: "/app/store-settings", icon: Settings, title: "Store Settings", subtitle: "Store-level controls", metric: "Local", module: "storeSettings" }
 ]
+
+type FlowStep = {
+  id: string
+  stage: string
+  title: string
+  description: string
+  href: string
+}
 
 export default function DashboardPage() {
   const { activeOrg, activeOrgId, effectivePermissions } = useOrgContext()
@@ -141,6 +151,50 @@ export default function DashboardPage() {
       })
   }, [effectivePermissions.appSpotCheck, effectivePermissions.manageOrgSettings, effectivePermissions.manageStoreSettings, effectivePermissions.manageStores, effectivePermissions.manageUsers, orderedCardIds, selectedCardIds])
 
+  const flowSteps = useMemo<FlowStep[]>(() => {
+    const steps: FlowStep[] = [
+      {
+        id: "flow-spot-check",
+        stage: "Step 1",
+        title: "Spot Check",
+        description: "Scan inventory to refresh on-hand counts and open variances.",
+        href: "/app/spot-check"
+      },
+      {
+        id: "flow-expiration",
+        stage: "Step 2",
+        title: "Expiration",
+        description: "Work near-date items first to protect margin and reduce waste.",
+        href: "/app/expiration"
+      },
+      {
+        id: "flow-orders",
+        stage: "Step 3",
+        title: "Orders",
+        description: "Review backend recommendations and adjust before completing.",
+        href: "/app/orders"
+      },
+      {
+        id: "flow-waste",
+        stage: "Step 4",
+        title: "Waste",
+        description: "Log discard events so insights and recommendations stay accurate.",
+        href: "/app/waste"
+      },
+      {
+        id: "flow-todo",
+        stage: "Step 5",
+        title: "To-Do",
+        description: "Close outstanding operational tasks and prep the next shift.",
+        href: "/app/todo"
+      }
+    ]
+    if (!effectivePermissions.appSpotCheck) {
+      return steps.filter((step) => step.id !== "flow-spot-check")
+    }
+    return steps
+  }, [effectivePermissions.appSpotCheck])
+
   return (
     <div>
       <PageHead
@@ -158,6 +212,41 @@ export default function DashboardPage() {
           </AppButton>
         }
       />
+
+      <AppCard className="mb-4">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="card-title">Flow</h2>
+            <p className="secondary-text mt-1">
+              Use this daily sequence to keep inventory, ordering, and closeout consistent.
+            </p>
+          </div>
+          <Link
+            href="/app/orders"
+            className={appButtonClass("secondary", "h-9 px-3 text-xs")}
+          >
+            Open Order Review
+          </Link>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {flowSteps.map((step) => (
+            <Link
+              key={step.id}
+              href={step.href}
+              className="group rounded-[20px] border border-app-border bg-app-surface px-3 py-3 transition hover:border-[color:var(--accent)]"
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--accent)]">
+                  {step.stage}
+                </span>
+                <ArrowRight className="h-4 w-4 text-[color:var(--app-muted)] transition group-hover:text-[color:var(--accent)]" />
+              </div>
+              <p className="text-sm font-semibold">{step.title}</p>
+              <p className="secondary-text mt-1">{step.description}</p>
+            </Link>
+          ))}
+        </div>
+      </AppCard>
 
       {showCustomize ? (
         <AppCard className="mb-4">

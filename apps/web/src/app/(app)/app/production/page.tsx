@@ -652,7 +652,9 @@ export default function ProductionPage() {
               <span className="rounded-full border border-app-border px-2 py-1 text-xs text-app-muted">Trend Based</span>
             </div>
             {makeTodayRows.length === 0 ? (
-              <p className="secondary-text">No production items configured yet.</p>
+              <p className="secondary-text">
+                No production items configured yet. Create your first product setup on this page to unlock make recommendations.
+              </p>
             ) : (
               <div className="space-y-2">
                 {makeTodayRows.map((row) => (
@@ -707,7 +709,9 @@ export default function ProductionPage() {
             </div>
 
             {pullForecast.rows.length === 0 ? (
-              <p className="secondary-text">No pull recommendations yet. Add frozen ingredients and production formulas.</p>
+              <p className="secondary-text">
+                No pull recommendations yet. Add frozen ingredients and production formulas, then run Make Today to generate tomorrow&apos;s pull list.
+              </p>
             ) : (
               <div className="space-y-2">
                 {pullForecast.rows.map((row) => (
@@ -733,7 +737,9 @@ export default function ProductionPage() {
               <span className="rounded-full border border-app-border px-2 py-1 text-xs text-app-muted">{products.length} total</span>
             </div>
             {products.length === 0 ? (
-              <p className="secondary-text">No production products saved yet.</p>
+              <p className="secondary-text">
+                No production products saved yet. Add a product with ingredients and yield so teams can run production from this dashboard.
+              </p>
             ) : (
               <div className="space-y-2">
                 {products.map((product) => (

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -86,6 +87,68 @@ const buyerQuestions = [
     q: "Can we customize permissions?",
     a: "Yes. Control access by role, department, and store so people only see what they should."
   }
+]
+
+const webShowcaseScreens = [
+  {
+    src: "/showcase/dashboard.png",
+    alt: "InvenTraker dashboard overview with module cards",
+    title: "Dashboard",
+    description: "A clear daily workflow layout across inventory, orders, waste, and production."
+  },
+  {
+    src: "/showcase/spot-check.png",
+    alt: "Spot check history and export preview screen",
+    title: "Spot Check",
+    description: "Count history, variance review, and barcode-ready export in one place."
+  },
+  {
+    src: "/showcase/health-checks.png",
+    alt: "Health checks form builder screen",
+    title: "Health Checks",
+    description: "Build role-based forms and review completion history across stores."
+  },
+  {
+    src: "/showcase/notifications.png",
+    alt: "Notifications composer screen",
+    title: "Notifications",
+    description: "Send immediate or scheduled operational alerts to selected roles."
+  },
+  {
+    src: "/showcase/insights.png",
+    alt: "Insights screen with inventory and waste metrics",
+    title: "Insights",
+    description: "Track inventory health, waste cost, overstock, and expiring value."
+  },
+  {
+    src: "/showcase/production.png",
+    alt: "Production setup and recommendation screen",
+    title: "Production",
+    description: "Configure formulas and review make + frozen pull recommendations."
+  },
+  {
+    src: "/showcase/howto-guide.png",
+    alt: "How-to guide editor with step blocks",
+    title: "How-To Library",
+    description: "Author SOPs with step blocks, media, and PDF-assisted drafting."
+  },
+  {
+    src: "/showcase/stores.png",
+    alt: "Stores management screen",
+    title: "Stores",
+    description: "Create stores, manage addresses, and keep organization structure tidy."
+  }
+]
+
+const mobileShowcaseScreens = [
+  { src: "/showcase/screen-01.png", alt: "InvenTraker app screen 1" },
+  { src: "/showcase/screen-02.png", alt: "InvenTraker app screen 2" },
+  { src: "/showcase/screen-03.png", alt: "InvenTraker app screen 3" },
+  { src: "/showcase/screen-04.png", alt: "InvenTraker app screen 4" },
+  { src: "/showcase/screen-05.png", alt: "InvenTraker app screen 5" },
+  { src: "/showcase/screen-06.png", alt: "InvenTraker app screen 6" },
+  { src: "/showcase/screen-07.png", alt: "InvenTraker app screen 7" },
+  { src: "/showcase/screen-08.png", alt: "InvenTraker app screen 8" }
 ]
 
 type PublicPlan = {
@@ -205,6 +268,53 @@ export default function LandingPage() {
               <p className="secondary-text text-slate-600">{feature.desc}</p>
             </AppCard>
           ))}
+        </section>
+
+        <section className="mt-14">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold text-slate-900">See the Screens Before You Start</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              A quick look at the actual web and mobile workflows your team will use daily.
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {webShowcaseScreens.map((screen) => (
+              <AppCard key={screen.src} className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <Image
+                    src={screen.src}
+                    alt={screen.alt}
+                    width={1920}
+                    height={1080}
+                    className="h-auto w-full object-cover"
+                  />
+                </div>
+                <h3 className="mt-3 text-lg font-semibold text-slate-900">{screen.title}</h3>
+                <p className="secondary-text mt-1 text-slate-600">{screen.description}</p>
+              </AppCard>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Mobile app walkthrough</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Barcode-first workflows for spot check, waste, production, and daily execution.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {mobileShowcaseScreens.map((screen) => (
+                <div key={screen.src} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <Image
+                    src={screen.src}
+                    alt={screen.alt}
+                    width={1080}
+                    height={1920}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="mt-14">

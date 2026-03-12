@@ -277,7 +277,9 @@ export default function StoresPage() {
               <p className="secondary-text mt-2">Request access to additional stores in your organization.</p>
               <div className="mt-4 space-y-3">
                 {requestableStores.length === 0 ? (
-                  <p className="secondary-text">No additional stores are available right now.</p>
+                  <p className="secondary-text">
+                    No additional stores are available right now. Ask an owner to add a store or approve access for your account.
+                  </p>
                 ) : (
                   requestableStores.map((store) => (
                     <div key={store.id} className="rounded-2xl border border-app-border p-3">

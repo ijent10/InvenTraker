@@ -271,7 +271,7 @@ export default function OrdersPage() {
           <DataTable
             columns={suggestionColumns}
             rows={previewLines}
-            empty="No preview yet. Generate a recommendation preview first."
+            empty="No preview yet. Select a vendor and click Generate to fetch server recommendations for this store."
           />
         </AppCard>
       </div>
@@ -280,7 +280,7 @@ export default function OrdersPage() {
         <h2 className="card-title">Saved Order Rows</h2>
         <div className="mt-3 space-y-3">
           {groupedOrders.length === 0 ? (
-            <p className="secondary-text">No orders saved yet.</p>
+            <p className="secondary-text">No completed orders saved yet. Review a recommendation preview and click Complete to save lines.</p>
           ) : (
             groupedOrders.map((group) => (
               <div key={group.key} className="rounded-2xl border border-app-border p-3">

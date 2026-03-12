@@ -29,6 +29,7 @@ __pycache__
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 InvenTraker.xcodeproj/project.xcworkspace/xcuserdata/
+.swiftpm-clones/
 
 # Local accidental files
 NEXT_DISABLE_WEBPACK_CACHE=1

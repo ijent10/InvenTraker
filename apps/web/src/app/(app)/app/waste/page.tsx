@@ -114,7 +114,9 @@ export default function WastePage() {
           ) : null}
         </div>
         {summary.rows.length === 0 ? (
-          <p className="secondary-text">No waste records found for this scope.</p>
+          <p className="secondary-text">
+            No waste records for this scope yet. Log waste from the mobile app (scan or manual entry) to start tracking spoilage and cost.
+          </p>
         ) : (
           <div className="space-y-2">
             {summary.rows.map((entry) => (

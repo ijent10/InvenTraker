@@ -235,7 +235,8 @@ service cloud.firestore {
         )
         || request.resource.data.ownerUid == userId()
       );
-      allow update, delete: if isOwner(orgId);
+      allow update: if isOwner(orgId) || hasPermissionFlag(orgId, "manageOrgSettings");
+      allow delete: if isOwner(orgId);
 
       match /members/{memberUid} {
         allow read: if signedIn() && (
@@ -254,7 +255,7 @@ service cloud.firestore {
 
       match /settings/{settingId} {
         allow read: if inOrg(orgId);
-        allow create, update, delete: if managerPlus(orgId);
+        allow create, update, delete: if managerPlus(orgId) || hasPermissionFlag(orgId, "manageOrgSettings");
       }
 
       match /billing/{billingId} {
@@ -452,7 +453,7 @@ service cloud.firestore {
 
             match /settings/{settingId} {
               allow read: if hasStore(orgId, storeId);
-              allow create, update, delete: if managerPlus(orgId);
+              allow create, update, delete: if managerPlus(orgId) || hasPermissionFlag(orgId, "manageStoreSettings");
             }
 
             match /departments/{deptId} {

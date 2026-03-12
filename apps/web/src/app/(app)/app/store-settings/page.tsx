@@ -272,8 +272,9 @@ export default function StoreSettingsPage() {
       )
       await refetch()
       setStatusMessage("Store settings saved.")
-    } catch {
-      setErrorMessage("Could not save store settings.")
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? ` ${error.message}` : ""
+      setErrorMessage(`Could not save store settings.${detail}`)
     }
   }
 

@@ -4374,9 +4374,7 @@ export async function saveOrgSettings(
   actorUserId: string
 ): Promise<void> {
   if (!db || !orgId) return
-  const orgDocPatch: Record<string, unknown> = {
-    updatedAt: serverTimestamp()
-  }
+  const orgDocPatch: Record<string, unknown> = {}
   if (patch.organizationName && patch.organizationName.trim()) {
     orgDocPatch.name = patch.organizationName.trim()
   }
@@ -4386,6 +4384,7 @@ export async function saveOrgSettings(
     orgDocPatch.companyCodeUpper = companyCode || null
   }
   if (Object.keys(orgDocPatch).length > 0) {
+    orgDocPatch.updatedAt = serverTimestamp()
     await updateDoc(doc(db, "organizations", orgId), orgDocPatch)
   }
   const sanitizedPatch = stripUndefinedDeep(

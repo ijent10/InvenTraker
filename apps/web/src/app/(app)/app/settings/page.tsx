@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { AppButton, AppCard, AppCheckbox, AppInput, AppSelect, AppTextarea, SegmentedControl } from "@inventracker/ui"
 import { accentPalette } from "@inventracker/shared"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -256,7 +256,7 @@ export default function SettingsPage() {
     }
   }
 
-  const refreshBillingStatus = async () => {
+  const refreshBillingStatus = useCallback(async () => {
     if (!activeOrgId || !canManageBilling) return
     setBillingMessage(null)
     setBillingError(null)
@@ -277,7 +277,7 @@ export default function SettingsPage() {
     } finally {
       setBillingBusy(false)
     }
-  }
+  }, [activeOrgId, canManageBilling, queryClient])
 
   useEffect(() => {
     if (!activeOrgId || !canManageBilling) return
@@ -293,7 +293,8 @@ export default function SettingsPage() {
     autoReconciledOrgId,
     billingStatus?.planTier,
     billingStatus?.subscriptionStatus,
-    canManageBilling
+    canManageBilling,
+    refreshBillingStatus
   ])
 
   return (

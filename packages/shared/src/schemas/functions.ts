@@ -1,6 +1,12 @@
 import { z } from "zod"
-import { platforms } from "../enums.js"
+import { platforms, recommendationDomains } from "../enums.js"
 import { platformPreferenceProfileSchema } from "./domain.js"
+import {
+  orderRecommendationSchema,
+  productionRecommendationSchema,
+  productionPlanSchema,
+  recommendationResponseMetaSchema
+} from "./recommendations.js"
 
 export const listMyOrganizationsRequestSchema = z.object({}).default({})
 export type ListMyOrganizationsRequest = z.infer<typeof listMyOrganizationsRequestSchema>
@@ -90,11 +96,78 @@ const generateOrderSuggestionLineSchema = z.object({
 export const generateOrderSuggestionsResponseSchema = z.object({
   orderId: z.string(),
   lines: z.array(generateOrderSuggestionLineSchema),
-  todosCreated: z.number().int().min(0)
+  todosCreated: z.number().int().min(0),
+  summary: z.string().optional(),
+  riskAlerts: z.array(z.string()).optional(),
+  questionsForManager: z.array(z.string()).optional(),
+  recommendationMeta: recommendationResponseMetaSchema.optional()
 })
 export type GenerateOrderSuggestionsResponse = z.infer<
   typeof generateOrderSuggestionsResponseSchema
 >
+
+export const getStoreRecommendationsRequestSchema = z.object({
+  orgId: z.string().min(1),
+  storeId: z.string().min(1),
+  vendorId: z.string().optional(),
+  windowStart: z.string().datetime().optional(),
+  windowEnd: z.string().datetime().optional(),
+  domains: z.array(z.enum(recommendationDomains)).min(1).default(["orders", "production"]),
+  productionPlanOptions: z
+    .object({
+      businessFactor: z.number().min(0.6).max(1.6).optional(),
+      includeNonFrozen: z.boolean().optional()
+    })
+    .optional(),
+  forceRefresh: z.boolean().default(false)
+})
+export type GetStoreRecommendationsRequest = z.infer<typeof getStoreRecommendationsRequestSchema>
+
+export const getStoreRecommendationsResponseSchema = z.object({
+  meta: recommendationResponseMetaSchema,
+  orderRecommendations: z.array(orderRecommendationSchema).default([]),
+  productionRecommendations: z.array(productionRecommendationSchema).default([]),
+  productionPlan: productionPlanSchema.default({
+    ingredientDemandRows: [],
+    frozenPullForecastRows: [],
+    factors: {
+      businessFactor: 1,
+      weatherFactor: 1,
+      holidayFactor: 1,
+      trendFactor: 1
+    }
+  }),
+  questions: z.array(z.string()).default([])
+})
+export type GetStoreRecommendationsResponse = z.infer<typeof getStoreRecommendationsResponseSchema>
+
+export const commitOrderRecommendationsRequestSchema = z.object({
+  orgId: z.string().min(1),
+  storeId: z.string().min(1),
+  runId: z.string().min(1),
+  vendorId: z.string().optional(),
+  selectedLines: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        finalQuantity: z.number().min(0),
+        unit: z.enum(["each", "lbs"]).optional(),
+        rationaleSummary: z.string().optional()
+      })
+    )
+    .default([])
+})
+export type CommitOrderRecommendationsRequest = z.infer<typeof commitOrderRecommendationsRequestSchema>
+
+export const commitOrderRecommendationsResponseSchema = z.object({
+  orderId: z.string(),
+  lineCount: z.number().int().min(0),
+  todosCreated: z.number().int().min(0),
+  runId: z.string(),
+  engineVersion: recommendationResponseMetaSchema.shape.engineVersion,
+  appliedFromRun: z.boolean().default(true)
+})
+export type CommitOrderRecommendationsResponse = z.infer<typeof commitOrderRecommendationsResponseSchema>
 
 export const computeFinancialHealthRequestSchema = z.object({
   orgId: z.string().min(1),

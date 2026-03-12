@@ -216,11 +216,14 @@ enum ProductionPlanningService {
         spotChecks: [ProductionSpotCheckRecord],
         runs: [ProductionRun],
         inventoryItems: [InventoryItem],
+        suggestionSeed: [ProductionSuggestion]? = nil,
         businessFactor: Double = 1.0,
         includeNonFrozen: Bool = false,
         asOf date: Date = Date()
     ) -> (rows: [FrozenPullRecommendation], factors: ProductionPullFactorSummary) {
-        let suggestions = suggestions(products: products, spotChecks: spotChecks, runs: runs, asOf: date)
+        let suggestions =
+            suggestionSeed
+            ?? suggestions(products: products, spotChecks: spotChecks, runs: runs, asOf: date)
         let demandByItem = ingredientDemandByItem(
             suggestions: suggestions,
             products: products,

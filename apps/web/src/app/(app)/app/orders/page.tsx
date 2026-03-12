@@ -1,25 +1,67 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { AppButton, AppCard, AppSelect, DataTable, type TableColumn } from "@inventracker/ui"
+import { AppButton, AppCard, AppCheckbox, AppInput, AppSelect, DataTable, type TableColumn } from "@inventracker/ui"
 import { useMutation, useQuery } from "@tanstack/react-query"
+import type { OrderRecommendation } from "@inventracker/shared"
 
 import { PageHead } from "@/components/page-head"
-import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
   fetchOrgOrders,
   fetchVendors,
-  generateOrderSuggestionsFromOrgData,
-  type OrderSuggestionLine,
   type OrgOrderRecord
 } from "@/lib/data/firestore"
+import {
+  commitOrderRecommendations,
+  getStoreRecommendations
+} from "@/lib/firebase/functions"
+
+type DraftLine = {
+  itemId: string
+  itemName: string
+  unit: "each" | "lbs"
+  recommendedQuantity: number
+  finalQuantity: string
+  onHand: number
+  minQuantity: number
+  rationaleSummary: string
+  caseInterpretation: "direct_units" | "case_rounded"
+  selected: boolean
+}
+
+function formatSuggestedQuantity(line: DraftLine): string {
+  if (line.unit === "lbs") {
+    return `${line.recommendedQuantity.toFixed(3)} lbs`
+  }
+  if (line.caseInterpretation === "case_rounded") {
+    return `${Math.round(line.recommendedQuantity)} units (case rounded)`
+  }
+  return `${Math.round(line.recommendedQuantity)} each`
+}
+
+function draftFromRecommendation(row: OrderRecommendation): DraftLine {
+  return {
+    itemId: row.itemId,
+    itemName: row.itemName ?? row.itemId,
+    unit: row.unit,
+    recommendedQuantity: row.recommendedQuantity,
+    finalQuantity: row.recommendedQuantity.toString(),
+    onHand: row.onHand,
+    minQuantity: row.minQuantity,
+    rationaleSummary: row.rationaleSummary,
+    caseInterpretation: row.caseInterpretation,
+    selected: row.recommendedQuantity > 0
+  }
+}
 
 export default function OrdersPage() {
-  const { user } = useAuthUser()
   const { activeOrgId, activeStoreId, effectivePermissions } = useOrgContext()
   const [selectedVendorId, setSelectedVendorId] = useState("")
-  const [generatedLines, setGeneratedLines] = useState<OrderSuggestionLine[]>([])
+  const [previewRunId, setPreviewRunId] = useState<string | null>(null)
+  const [previewMeta, setPreviewMeta] = useState<{ engineVersion: string; degraded: boolean; fallbackReason?: string } | null>(null)
+  const [previewLines, setPreviewLines] = useState<DraftLine[]>([])
+  const [previewQuestions, setPreviewQuestions] = useState<string[]>([])
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -32,42 +74,120 @@ export default function OrdersPage() {
   const { data: existingOrders = [], refetch: refetchOrders } = useQuery({
     queryKey: ["org-orders", activeOrgId, activeStoreId],
     queryFn: () => fetchOrgOrders(activeOrgId, activeStoreId || undefined),
-    enabled: Boolean(activeOrgId)
+    enabled: Boolean(activeOrgId && activeStoreId)
   })
 
-  const mutation = useMutation({
+  const previewMutation = useMutation({
     mutationFn: async () => {
-      if (!activeOrgId) return null
-      return generateOrderSuggestionsFromOrgData(
-        activeOrgId,
-        activeStoreId || undefined,
-        selectedVendorId || undefined,
-        user?.uid
-      )
+      if (!activeOrgId || !activeStoreId) return null
+      return getStoreRecommendations({
+        orgId: activeOrgId,
+        storeId: activeStoreId,
+        vendorId: selectedVendorId || undefined,
+        domains: ["orders"],
+        forceRefresh: true
+      })
     },
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       if (!result) return
-      setGeneratedLines(result.lines)
-      setStatusMessage(`Generated ${result.lines.length} suggestions and created ${result.orderIds.length} order rows.`)
+      setPreviewRunId(result.meta.runId)
+      setPreviewMeta({
+        engineVersion: result.meta.engineVersion,
+        degraded: result.meta.degraded,
+        fallbackReason: result.meta.fallbackReason
+      })
+      setPreviewLines(result.orderRecommendations.map(draftFromRecommendation))
+      setPreviewQuestions(result.questions)
+      setStatusMessage(`Preview ready: ${result.orderRecommendations.length} recommendation line(s).`)
       setErrorMessage(null)
-      await refetchOrders()
     },
-    onError: () => {
-      setErrorMessage("Could not generate suggestions.")
+    onError: (error) => {
       setStatusMessage(null)
+      setErrorMessage(error instanceof Error ? error.message : "Could not generate recommendation preview.")
     }
   })
 
-  const suggestionColumns: TableColumn<OrderSuggestionLine>[] = [
-    { key: "itemName", header: "Item", render: (row) => row.itemName },
-    {
-      key: "qty",
-      header: "Suggested",
-      render: (row) => `${row.suggestedQty.toFixed(row.unit === "lbs" ? 3 : 0)} ${row.unit}`
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeOrgId || !activeStoreId || !previewRunId) return null
+      const selectedLines = previewLines
+        .filter((line) => line.selected)
+        .map((line) => {
+          const parsed = Number(line.finalQuantity)
+          const finalQuantity = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+          return {
+            itemId: line.itemId,
+            finalQuantity,
+            unit: line.unit,
+            rationaleSummary: line.rationaleSummary
+          }
+        })
+        .filter((line) => line.finalQuantity > 0)
+
+      return commitOrderRecommendations({
+        orgId: activeOrgId,
+        storeId: activeStoreId,
+        vendorId: selectedVendorId || undefined,
+        runId: previewRunId,
+        selectedLines
+      })
     },
-    { key: "onhand", header: "On Hand", render: (row) => row.onHand.toFixed(3) },
+    onSuccess: async (result) => {
+      if (!result) return
+      setStatusMessage(`Applied ${result.lineCount} suggestion line(s). Order ${result.orderId} created.`)
+      setErrorMessage(null)
+      await refetchOrders()
+    },
+    onError: (error) => {
+      setStatusMessage(null)
+      setErrorMessage(error instanceof Error ? error.message : "Could not apply suggestions.")
+    }
+  })
+
+  const suggestionColumns: TableColumn<DraftLine>[] = [
+    {
+      key: "selected",
+      header: "Use",
+      render: (row) => (
+        <AppCheckbox
+          checked={row.selected}
+          onChange={(event) =>
+            setPreviewLines((current) =>
+              current.map((line) =>
+                line.itemId === row.itemId ? { ...line, selected: event.target.checked } : line
+              )
+            )
+          }
+        />
+      )
+    },
+    { key: "item", header: "Item", render: (row) => row.itemName },
+    {
+      key: "suggested",
+      header: "Recommended",
+      render: (row) => formatSuggestedQuantity(row)
+    },
+    {
+      key: "final",
+      header: "Final Qty",
+      render: (row) => (
+        <AppInput
+          value={row.finalQuantity}
+          onChange={(event) =>
+            setPreviewLines((current) =>
+              current.map((line) =>
+                line.itemId === row.itemId ? { ...line, finalQuantity: event.target.value } : line
+              )
+            )
+          }
+          inputMode="decimal"
+          className="h-9 w-28"
+        />
+      )
+    },
+    { key: "onHand", header: "On Hand", render: (row) => row.onHand.toFixed(3) },
     { key: "min", header: "Min", render: (row) => row.minQuantity.toFixed(3) },
-    { key: "reason", header: "Rationale", render: (row) => row.rationale }
+    { key: "reason", header: "Rationale", render: (row) => row.rationaleSummary }
   ]
 
   const groupedOrders = useMemo(() => {
@@ -84,20 +204,34 @@ export default function OrdersPage() {
     <div>
       <PageHead
         title="Orders"
-        subtitle="Generate order suggestions using current stock + vendor schedule. Includes 0-qty items so users can still order manually."
+        subtitle="Single-engine backend recommendations (preview first, then apply)."
         actions={
-          <AppButton
-            onClick={() => mutation.mutate()}
-            disabled={!effectivePermissions.generateOrders || mutation.isPending}
-          >
-            {mutation.isPending ? "Generating..." : "Generate Suggestions"}
-          </AppButton>
+          <div className="flex gap-2">
+            <AppButton
+              variant="secondary"
+              onClick={() => previewMutation.mutate()}
+              disabled={!effectivePermissions.generateOrders || previewMutation.isPending || !activeStoreId}
+            >
+              {previewMutation.isPending ? "Generating..." : "Generate Preview"}
+            </AppButton>
+            <AppButton
+              onClick={() => applyMutation.mutate()}
+              disabled={
+                !effectivePermissions.generateOrders ||
+                applyMutation.isPending ||
+                !previewRunId ||
+                previewLines.every((line) => !line.selected)
+              }
+            >
+              {applyMutation.isPending ? "Applying..." : "Apply Suggestions"}
+            </AppButton>
+          </div>
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_1.9fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.05fr_1.95fr]">
         <AppCard>
-          <h2 className="card-title">Generate</h2>
+          <h2 className="card-title">Preview Configuration</h2>
           <div className="mt-3 grid gap-3">
             <AppSelect
               value={selectedVendorId}
@@ -110,18 +244,34 @@ export default function OrdersPage() {
                 </option>
               ))}
             </AppSelect>
+
             <p className="secondary-text text-sm">
-              Suggestions use min quantity, on-hand stock, case size, and vendor lead time. Items with 0 suggestion remain visible.
+              Recommendations are generated by the shared backend engine (`rules_v1`) to keep web and iOS in sync.
             </p>
+
+            {previewMeta ? (
+              <div className="rounded-2xl border border-app-border px-3 py-2 text-xs text-app-muted">
+                Engine: {previewMeta.engineVersion} · Mode: {previewMeta.degraded ? "Degraded fallback" : "Primary"}
+                {previewMeta.fallbackReason ? ` · ${previewMeta.fallbackReason}` : ""}
+              </div>
+            ) : null}
+
+            {previewQuestions.length > 0 ? (
+              <div className="rounded-2xl border border-app-border px-3 py-2 text-xs text-app-muted">
+                {previewQuestions.slice(0, 3).map((question) => (
+                  <p key={question}>• {question}</p>
+                ))}
+              </div>
+            ) : null}
           </div>
         </AppCard>
 
         <AppCard>
-          <h2 className="card-title mb-3">Suggested Lines</h2>
+          <h2 className="card-title mb-3">Recommendation Preview</h2>
           <DataTable
             columns={suggestionColumns}
-            rows={generatedLines}
-            empty="No suggestions yet. Generate an order to populate."
+            rows={previewLines}
+            empty="No preview yet. Generate a recommendation preview first."
           />
         </AppCard>
       </div>

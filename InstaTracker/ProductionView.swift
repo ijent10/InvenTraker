@@ -20,6 +20,23 @@ struct ProductionView: View {
     @State private var feedbackMessage: String?
     @State private var isLoadingFromDatabase = false
     @State private var usingLocalCache = false
+    @State private var recommendationLoading = false
+    @State private var backendMakeSuggestions: [ProductionSuggestion] = []
+    @State private var backendIngredientDemandRows: [ProductionIngredientDemandRow] = []
+    @State private var backendFrozenPullRows: [FrozenPullRecommendation] = []
+    @State private var backendPullFactors = ProductionPullFactorSummary(
+        businessFactor: 1,
+        weatherFactor: 1,
+        holidayFactor: 1,
+        trendFactor: 1,
+        holidayName: nil
+    )
+    @State private var backendEngineVersion: String?
+    @State private var backendFallbackReason: String?
+    @State private var backendDegraded = false
+    @State private var backendUnavailable = true
+    @State private var backendFetchAttempted = false
+    @State private var recommendationQuestions: [String] = []
     @State private var pullBusinessFactor: Double = 1.0
     @State private var includeNonFrozenPull = false
 
@@ -97,12 +114,20 @@ struct ProductionView: View {
         return deduped.values.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    private var suggestions: [ProductionSuggestion] {
-        ProductionPlanningService.suggestions(
+    private var localSuggestions: [ProductionSuggestion] {
+        RecommendationFallbackService.productionSuggestions(
             products: scopedProducts,
             spotChecks: scopedSpotChecks,
             runs: scopedRuns
         )
+    }
+
+    private var usingLocalRecommendationFallback: Bool {
+        backendFetchAttempted && backendUnavailable
+    }
+
+    private var suggestions: [ProductionSuggestion] {
+        usingLocalRecommendationFallback ? localSuggestions : backendMakeSuggestions
     }
 
     private var makeTodaySuggestions: [ProductionSuggestion] {
@@ -110,12 +135,15 @@ struct ProductionView: View {
     }
 
     private var ingredientDemandRows: [ProductionIngredientDemandRow] {
-        ProductionPlanningService.ingredientDemandRows(
-            suggestions: suggestions,
-            products: scopedProducts,
-            ingredients: scopedIngredients,
-            inventoryItems: scopedItems
-        )
+        if usingLocalRecommendationFallback {
+            return RecommendationFallbackService.ingredientDemandRows(
+                suggestions: suggestions,
+                products: scopedProducts,
+                ingredients: scopedIngredients,
+                inventoryItems: scopedItems
+            )
+        }
+        return backendIngredientDemandRows
     }
 
     private var ingredientCountByProductID: [UUID: Int] {
@@ -123,15 +151,19 @@ struct ProductionView: View {
     }
 
     private var frozenPullForecast: (rows: [FrozenPullRecommendation], factors: ProductionPullFactorSummary) {
-        ProductionPlanningService.frozenPullForecast(
-            products: scopedProducts,
-            ingredients: scopedIngredients,
-            spotChecks: scopedSpotChecks,
-            runs: scopedRuns,
-            inventoryItems: scopedItems,
-            businessFactor: pullBusinessFactor,
-            includeNonFrozen: includeNonFrozenPull
-        )
+        if usingLocalRecommendationFallback {
+            return RecommendationFallbackService.frozenPullForecast(
+                products: scopedProducts,
+                ingredients: scopedIngredients,
+                spotChecks: scopedSpotChecks,
+                runs: scopedRuns,
+                inventoryItems: scopedItems,
+                suggestionSeed: suggestions,
+                businessFactor: pullBusinessFactor,
+                includeNonFrozen: includeNonFrozenPull
+            )
+        }
+        return (rows: backendFrozenPullRows, factors: backendPullFactors)
     }
 
     var body: some View {
@@ -170,6 +202,40 @@ struct ProductionView: View {
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                if recommendationLoading {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Refreshing recommendations from shared engine…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Label(
+                        usingLocalRecommendationFallback
+                            ? "Recommendation source: Local fallback (degraded mode)"
+                            : "Recommendation source: Backend \(backendEngineVersion ?? "rules_v1")\(backendDegraded ? " (degraded)" : "")",
+                        systemImage: usingLocalRecommendationFallback ? "exclamationmark.triangle" : "sparkles"
+                    )
+                    .font(.caption)
+                    .foregroundStyle((usingLocalRecommendationFallback || backendDegraded) ? .orange : .secondary)
+                }
+
+                if let backendFallbackReason, !backendFallbackReason.isEmpty {
+                    Text(backendFallbackReason)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+
+                if !recommendationQuestions.isEmpty {
+                    ForEach(recommendationQuestions.prefix(3), id: \.self) { question in
+                        Text("• \(question)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -250,15 +316,10 @@ struct ProductionView: View {
         } message: {
             Text(feedbackMessage ?? "")
         }
-        .onAppear {
-            seedSpotCheckDraftsIfNeeded()
-            Task {
-                await refreshProductionDatabaseFirst()
-            }
-        }
-        .task(id: "\(activeOrganizationId)|\(activeStoreId)") {
+        .task(id: "\(activeOrganizationId)|\(activeStoreId)|\(String(format: "%.2f", pullBusinessFactor))|\(includeNonFrozenPull)") {
             seedSpotCheckDraftsIfNeeded()
             await refreshProductionDatabaseFirst()
+            await refreshBackendRecommendations()
         }
     }
 
@@ -563,6 +624,172 @@ struct ProductionView: View {
                 storeId: activeStoreId,
                 modelContext: modelContext
             )
+        }
+    }
+
+    private func mapBackendProductionRecommendations(
+        _ rows: [ProductionRecommendationDTO]
+    ) -> [ProductionSuggestion] {
+        let productByBackendID = Dictionary(
+            uniqueKeysWithValues: scopedProducts.compactMap { product -> (String, ProductionProduct)? in
+                let key = (product.backendId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                    ? product.backendId!
+                    : product.id.uuidString
+                return (key, product)
+            }
+        )
+
+        let mapped: [ProductionSuggestion] = rows.compactMap { row in
+            guard let product = productByBackendID[row.productId] else { return nil }
+            let expectedUsage = max(row.expectedUsageToday, 0)
+            let scaleFactor = expectedUsage > 0
+                ? row.recommendedMakeQuantity / expectedUsage
+                : 0
+            return ProductionSuggestion(
+                productID: product.id,
+                productName: row.productName,
+                outputItemID: product.outputItemID,
+                outputUnitRaw: row.outputUnitRaw,
+                recommendedMakeQuantity: max(0, row.recommendedMakeQuantity),
+                expectedUsageToday: expectedUsage,
+                onHandQuantity: max(0, row.onHandQuantity),
+                scaleFactor: max(scaleFactor, 0)
+            )
+        }
+
+        return mapped.sorted { $0.productName.localizedCaseInsensitiveCompare($1.productName) == .orderedAscending }
+    }
+
+    private func resolveLocalItemID(_ backendItemID: String) -> UUID {
+        if let item = scopedItems.first(where: { row in
+            let backend = row.backendId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return backend == backendItemID || row.id.uuidString == backendItemID
+        }) {
+            return item.id
+        }
+        return UUID(uuidString: backendItemID) ?? UUID()
+    }
+
+    private func mapBackendIngredientDemandRows(
+        _ rows: [IngredientDemandRowDTO]
+    ) -> [ProductionIngredientDemandRow] {
+        rows.map { row in
+            ProductionIngredientDemandRow(
+                itemID: resolveLocalItemID(row.itemId),
+                itemName: row.itemName,
+                unitRaw: row.unitRaw,
+                requiredQuantity: row.requiredQuantity
+            )
+        }
+    }
+
+    private func mapBackendFrozenPullRows(
+        _ rows: [FrozenPullForecastRowDTO]
+    ) -> [FrozenPullRecommendation] {
+        rows.map { row in
+            FrozenPullRecommendation(
+                itemID: resolveLocalItemID(row.itemId),
+                itemName: row.itemName,
+                unitRaw: row.unitRaw,
+                requiredQuantity: row.requiredQuantity,
+                recommendedPullQuantity: row.recommendedPullQuantity,
+                onHandQuantity: row.onHandQuantity,
+                rationale: row.rationale
+            )
+        }
+    }
+
+    private func refreshBackendRecommendations() async {
+        backendFetchAttempted = false
+        backendUnavailable = false
+
+        guard !activeOrganizationId.isEmpty else {
+            backendMakeSuggestions = []
+            backendIngredientDemandRows = []
+            backendFrozenPullRows = []
+            backendPullFactors = ProductionPullFactorSummary(
+                businessFactor: 1,
+                weatherFactor: 1,
+                holidayFactor: 1,
+                trendFactor: 1,
+                holidayName: nil
+            )
+            backendEngineVersion = nil
+            backendFallbackReason = nil
+            backendDegraded = true
+            backendUnavailable = false
+            backendFetchAttempted = true
+            recommendationQuestions = []
+            return
+        }
+
+        let normalizedStoreID = activeStoreId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedStoreID.isEmpty else {
+            backendMakeSuggestions = []
+            backendIngredientDemandRows = []
+            backendFrozenPullRows = []
+            backendPullFactors = ProductionPullFactorSummary(
+                businessFactor: 1,
+                weatherFactor: 1,
+                holidayFactor: 1,
+                trendFactor: 1,
+                holidayName: nil
+            )
+            backendEngineVersion = nil
+            backendFallbackReason = "No active store selected."
+            backendDegraded = true
+            backendUnavailable = false
+            backendFetchAttempted = true
+            recommendationQuestions = []
+            return
+        }
+
+        recommendationLoading = true
+        defer { recommendationLoading = false }
+
+        do {
+            let response = try await RecommendationService.shared.fetchStoreRecommendations(
+                orgId: activeOrganizationId,
+                storeId: normalizedStoreID,
+                vendorId: nil,
+                domains: [.production],
+                forceRefresh: true,
+                productionPlanBusinessFactor: pullBusinessFactor,
+                includeNonFrozenPull: includeNonFrozenPull
+            )
+            backendMakeSuggestions = mapBackendProductionRecommendations(response.productionRecommendations)
+            backendIngredientDemandRows = mapBackendIngredientDemandRows(response.productionPlan.ingredientDemandRows)
+            backendFrozenPullRows = mapBackendFrozenPullRows(response.productionPlan.frozenPullForecastRows)
+            backendPullFactors = ProductionPullFactorSummary(
+                businessFactor: response.productionPlan.factors.businessFactor,
+                weatherFactor: response.productionPlan.factors.weatherFactor,
+                holidayFactor: response.productionPlan.factors.holidayFactor,
+                trendFactor: response.productionPlan.factors.trendFactor,
+                holidayName: response.productionPlan.factors.holidayName
+            )
+            backendEngineVersion = response.meta.engineVersion
+            backendFallbackReason = response.meta.fallbackReason
+            backendDegraded = response.meta.degraded || response.meta.fallbackUsed
+            backendFetchAttempted = true
+            backendUnavailable = false
+            recommendationQuestions = response.questions
+        } catch {
+            backendMakeSuggestions = []
+            backendIngredientDemandRows = []
+            backendFrozenPullRows = []
+            backendPullFactors = ProductionPullFactorSummary(
+                businessFactor: 1,
+                weatherFactor: 1,
+                holidayFactor: 1,
+                trendFactor: 1,
+                holidayName: nil
+            )
+            backendEngineVersion = "local_fallback_rules_v1"
+            backendFallbackReason = error.localizedDescription
+            backendDegraded = true
+            backendFetchAttempted = true
+            backendUnavailable = true
+            recommendationQuestions = []
         }
     }
 

@@ -1,0 +1,148 @@
+{
+  "orderScenarios": [
+    {
+      "id": "each_case_rounding",
+      "item": {
+        "itemId": "item-1",
+        "itemName": "Cheddar",
+        "unit": "each",
+        "qtyPerCase": 12,
+        "caseSize": 12,
+        "minQuantity": 24,
+        "weeklyUsage": 28,
+        "price": 4,
+        "vendorId": "v1",
+        "archived": false,
+        "onHand": 4,
+        "incomingBeforeLead": 0,
+        "wasteAffectingOrders": 1,
+        "expiringBeforeLead": 0,
+        "productionDemand": 0,
+        "leadDays": 2,
+        "nextOrderInDays": 1
+      },
+      "expected": {
+        "caseInterpretation": "case_rounded",
+        "recommendedQuantity": 48,
+        "confidence": 0.8,
+        "demandValue": 13.2
+      }
+    },
+    {
+      "id": "lbs_direct",
+      "item": {
+        "itemId": "item-2",
+        "itemName": "Steak",
+        "unit": "lbs",
+        "qtyPerCase": 10,
+        "caseSize": 1,
+        "minQuantity": 18,
+        "weeklyUsage": 21,
+        "price": 9,
+        "vendorId": "v1",
+        "archived": false,
+        "onHand": 2,
+        "incomingBeforeLead": 0,
+        "wasteAffectingOrders": 0,
+        "expiringBeforeLead": 0,
+        "productionDemand": 0,
+        "leadDays": 1,
+        "nextOrderInDays": 0
+      },
+      "expected": {
+        "caseInterpretation": "direct_units",
+        "recommendedQuantity": 28.642,
+        "confidence": 0.65,
+        "demandValue": 6.6
+      }
+    }
+  ],
+  "productionScenario": {
+    "features": {
+      "input": {
+        "orgId": "org-1",
+        "storeId": "store-1",
+        "domains": ["production"],
+        "actorUid": "uid-1",
+        "window": {
+          "start": "2026-01-15T00:00:00.000Z",
+          "end": "2026-01-16T00:00:00.000Z"
+        },
+        "productionPlanOptions": {
+          "businessFactor": 1.1,
+          "includeNonFrozen": true
+        }
+      },
+      "storePath": {
+        "mode": "root",
+        "path": "organizations/org-1/stores/store-1",
+        "storeId": "store-1"
+      },
+      "sourceRefs": ["organizations/org-1/items"],
+      "items": [
+        {
+          "itemId": "ingredient-1",
+          "itemName": "Mozzarella",
+          "unit": "each",
+          "qtyPerCase": 1,
+          "caseSize": 1,
+          "minQuantity": 2,
+          "weeklyUsage": 5,
+          "price": 3,
+          "vendorId": "v1",
+          "archived": false,
+          "onHand": 1,
+          "incomingBeforeLead": 0,
+          "wasteAffectingOrders": 0,
+          "expiringBeforeLead": 0,
+          "productionDemand": 0,
+          "leadDays": 1,
+          "nextOrderInDays": 0
+        }
+      ],
+      "productionProducts": [
+        {
+          "productId": "prod-1",
+          "productName": "Pizza",
+          "outputItemId": "out-1",
+          "outputUnitRaw": "pieces",
+          "defaultBatchYield": 6,
+          "targetDaysOnHand": 1.5,
+          "lastSpotCheckQuantity": 0,
+          "isActive": true
+        }
+      ],
+      "productionIngredients": [
+        {
+          "productionProductID": "prod-1",
+          "inventoryItemID": "ingredient-1",
+          "inventoryItemNameSnapshot": "Mozzarella",
+          "quantityPerBatch": 2,
+          "unitRaw": "pieces",
+          "needsConversion": false
+        }
+      ],
+      "productionSpotChecks": [
+        {
+          "productionProductID": "prod-1",
+          "usageObserved": 8,
+          "checkedAt": "2026-01-14T12:00:00.000Z"
+        }
+      ],
+      "productionRuns": [
+        {
+          "productionProductID": "prod-1",
+          "quantityMade": 10,
+          "madeAt": "2026-01-14T10:00:00.000Z"
+        }
+      ]
+    },
+    "expected": {
+      "recommendedMakeQuantity": 12,
+      "expectedUsageToday": 8,
+      "ingredientDemandQuantity": 4,
+      "frozenPullQuantity": 6,
+      "trendFactor": 1.1
+    }
+  }
+}

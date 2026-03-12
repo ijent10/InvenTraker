@@ -22,10 +22,10 @@ import {
   saveProductionProduct,
   type SaveProductionIngredientInput
 } from "@/lib/data/firestore"
+import { getStoreRecommendations } from "@/lib/firebase/functions"
+import { buildProductionFallback } from "@/lib/recommendations/fallback"
 import {
   conversionPreviewText,
-  generateFrozenPullRows,
-  makeTodaySuggestions,
   servingsConversion
 } from "@/lib/production/planning"
 
@@ -133,9 +133,81 @@ export default function ProductionPage() {
     enabled: Boolean(activeOrgId)
   })
 
+  const {
+    data: backendRecommendations,
+    isFetching: backendRecommendationLoading,
+    error: backendRecommendationError
+  } = useQuery({
+    queryKey: ["production-recommendations", activeOrgId, activeStoreId, businessFactor, includeNonFrozen],
+    queryFn: async () => {
+      if (!activeOrgId || !activeStoreId) return null
+      return getStoreRecommendations({
+        orgId: activeOrgId,
+        storeId: activeStoreId,
+        domains: ["production"],
+        productionPlanOptions: {
+          businessFactor,
+          includeNonFrozen
+        },
+        forceRefresh: true
+      })
+    },
+    enabled: Boolean(activeOrgId && activeStoreId)
+  })
+
+  const backendSuggestions = useMemo(
+    () =>
+      (backendRecommendations?.productionRecommendations ?? []).map((row) => ({
+        productId: row.productId,
+        productName: row.productName,
+        outputItemId: undefined,
+        outputUnitRaw: row.outputUnitRaw,
+        recommendedMakeQuantity: row.recommendedMakeQuantity,
+        expectedUsageToday: row.expectedUsageToday,
+        onHandQuantity: row.onHandQuantity,
+        scaleFactor:
+          row.expectedUsageToday > 0
+            ? Number((row.recommendedMakeQuantity / row.expectedUsageToday).toFixed(3))
+            : 0
+      })),
+    [backendRecommendations]
+  )
+
+  const backendDegraded = Boolean(
+    backendRecommendations?.meta.degraded || backendRecommendations?.meta.fallbackUsed
+  )
+  const usingRecommendationFallback = Boolean(backendRecommendationError)
+  const localFallback = useMemo(
+    () => {
+      if (!usingRecommendationFallback) return null
+      return buildProductionFallback({
+        products,
+        ingredients: productionIngredients,
+        items,
+        runs,
+        spotChecks,
+        businessFactor,
+        includeNonFrozen,
+        fallbackReason:
+          backendRecommendationError instanceof Error ? backendRecommendationError.message : undefined
+      })
+    },
+    [
+      backendRecommendationError,
+      businessFactor,
+      includeNonFrozen,
+      items,
+      products,
+      productionIngredients,
+      runs,
+      spotChecks,
+      usingRecommendationFallback
+    ]
+  )
+
   const suggestions = useMemo(
-    () => makeTodaySuggestions({ products, spotChecks, runs }),
-    [products, runs, spotChecks]
+    () => (usingRecommendationFallback ? (localFallback?.suggestions ?? []) : backendSuggestions),
+    [backendSuggestions, localFallback, usingRecommendationFallback]
   )
 
   const makeTodayRows = useMemo(
@@ -144,17 +216,31 @@ export default function ProductionPage() {
   )
 
   const pullForecast = useMemo(
-    () =>
-      generateFrozenPullRows({
-        products,
-        ingredients: productionIngredients,
-        items,
-        runs,
-        spotChecks,
-        businessFactor,
-        includeNonFrozen
-      }),
-    [businessFactor, includeNonFrozen, items, products, productionIngredients, runs, spotChecks]
+    () => {
+      if (usingRecommendationFallback) {
+        return {
+          rows: localFallback?.frozenPullRows ?? [],
+          factors:
+            localFallback?.factors ?? {
+              businessFactor: 1,
+              weatherFactor: 1,
+              holidayFactor: 1,
+              trendFactor: 1
+            }
+        }
+      }
+      return {
+        rows: backendRecommendations?.productionPlan.frozenPullForecastRows ?? [],
+        factors:
+          backendRecommendations?.productionPlan.factors ?? {
+            businessFactor: 1,
+            weatherFactor: 1,
+            holidayFactor: 1,
+            trendFactor: 1
+          }
+      }
+    },
+    [backendRecommendations, localFallback, usingRecommendationFallback]
   )
 
   const preferredConversionUnitRaw = useMemo(() => {
@@ -306,6 +392,16 @@ export default function ProductionPage() {
         message="Auto pull uses trends, seasonal weather demand, holiday boosts, and your business input factor."
         accentColor="#8B5CF6"
       />
+
+      <div className="mt-3 rounded-2xl border border-app-border px-3 py-2 text-xs text-app-muted">
+        Recommendation source:{" "}
+        {usingRecommendationFallback
+          ? `Local fallback (degraded mode · ${localFallback?.meta.engineVersion ?? "local_fallback_rules_v1"})`
+          : `Backend ${backendRecommendations?.meta.engineVersion ?? "rules_v1"}${backendDegraded ? " (degraded)" : ""}`}
+        {backendRecommendations?.meta.fallbackReason ? ` · ${backendRecommendations.meta.fallbackReason}` : ""}
+        {usingRecommendationFallback ? ` · ${localFallback?.meta.fallbackReason ?? "Backend unavailable."}` : ""}
+        {backendRecommendationLoading ? " · Refreshing…" : ""}
+      </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.25fr_1.75fr]">
         <AppCard>

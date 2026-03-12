@@ -9,9 +9,11 @@ import {
   adminStoreDetailRequestSchema,
   adminSafeEditRequestSchema,
   claimOrganizationByCompanyCodeRequestSchema,
+  commitOrderRecommendationsRequestSchema,
   computeFinancialHealthRequestSchema,
   ensurePlatformPreferenceProfileRequestSchema,
   generateOrderSuggestionsRequestSchema,
+  getStoreRecommendationsRequestSchema,
   listMyOrganizationsRequestSchema,
   pdfToHowtoDraftRequestSchema
 } from "@inventracker/shared"
@@ -24,9 +26,10 @@ import { resolvePreferenceProfile } from "./utils/preferences.js"
 import { findStorePath } from "./utils/store-path.js"
 import {
   enhanceFinancialHealth,
-  enhanceHowToDraft,
-  enhanceOrderSuggestions
+  enhanceHowToDraft
 } from "./ai/custom-engine.js"
+import { buildStoreRecommendations } from "./recommendation/engine.js"
+import { readRecommendationRun } from "./recommendation/persistence.js"
 export {
   sendOrgNotification,
   removeOrgNotification,
@@ -62,16 +65,6 @@ function normalizeMemberRole(rawRole: unknown, ownerByArray: boolean): "Owner" |
     if (role === "staff" || role === "employee" || role === "viewer") return "Staff"
   }
   return ownerByArray ? "Owner" : "Staff"
-}
-
-function daysUntilNextOrder(orderingDays: number[] | undefined, now: Date): number {
-  if (!orderingDays || orderingDays.length === 0) return 0
-  const today = now.getDay()
-  const sorted = [...orderingDays].sort((a, b) => a - b)
-  const next = sorted.find((day) => day >= today)
-  if (next !== undefined) return next - today
-  const first = sorted[0]
-  return first === undefined ? 0 : 7 - today + first
 }
 
 const permissionKeys = [
@@ -813,176 +806,302 @@ export const pdfToHowtoDraft = onCall(async (request) => {
   }
 })
 
-export const generateOrderSuggestions = onCall(async (request) => {
-  const uid = requireAuth(request)
-  const input = generateOrderSuggestionsRequestSchema.parse(request.data)
-  await requireStoreAccess(input.orgId, uid, input.storeId)
+type CommitOrderLine = {
+  itemId: string
+  finalQuantity: number
+  unit: "each" | "lbs"
+  rationaleSummary: string
+}
 
-  const storePath = await findStorePath(input.orgId, input.storeId)
-  if (!storePath) throw new HttpsError("not-found", "Store not found")
-
-  const itemsSnap = await adminDb.collection(`organizations/${input.orgId}/items`).get()
-  const vendorsSnap = await adminDb.collection(`organizations/${input.orgId}/vendors`).get()
-  type VendorRecord = { orderingDays?: number[]; cutoffTimeLocal?: string; leadDays?: number }
-  const vendorMap = new Map<string, VendorRecord>(
-    vendorsSnap.docs.map((vendor) => [vendor.id, vendor.data() as VendorRecord])
-  )
-
-  const batchesSnap = await adminDb
-    .collectionGroup("inventoryBatches")
-    .where("organizationId", "==", input.orgId)
-    .where("storeId", "==", input.storeId)
-    .get()
-
-  const onHandByItem = new Map<string, number>()
-  batchesSnap.docs.forEach((batch) => {
-    const data = batch.data() as { itemId?: string; quantity?: number }
-    if (!data.itemId) return
-    onHandByItem.set(data.itemId, (onHandByItem.get(data.itemId) ?? 0) + (data.quantity ?? 0))
-  })
-
-  const suggestions: Array<{
-    itemId: string
-    suggestedQty: number
-    unit: "each" | "lbs"
-    rationale: string
-    caseRounded: boolean
-    onHand: number
-    minQuantity: number
-  }> = []
-  const now = new Date()
-
-  itemsSnap.docs.forEach((itemDoc) => {
-    const item = itemDoc.data() as {
-      vendorId?: string
-      minQuantity?: number
-      unit?: "each" | "lbs"
-      qtyPerCase?: number
-      caseSize?: number
-      weeklyUsage?: number
-      name?: string
-      archived?: boolean
+async function resolveStoreCollections(orgId: string, storeId: string) {
+  const nestedStorePath = await findStorePath(orgId, storeId)
+  if (nestedStorePath) {
+    const basePath = `organizations/${orgId}/regions/${nestedStorePath.regionId}/districts/${nestedStorePath.districtId}/stores/${nestedStorePath.storeId}`
+    return {
+      basePath,
+      ordersPath: `${basePath}/orders`,
+      todoPath: `${basePath}/toDo`,
+      runPath: `${basePath}/recommendationRuns`,
+      regionId: nestedStorePath.regionId,
+      districtId: nestedStorePath.districtId
     }
+  }
 
-    if (item.archived) return
-    if (input.vendorId && item.vendorId !== input.vendorId) return
+  const basePath = `organizations/${orgId}/stores/${storeId}`
+  return {
+    basePath,
+    ordersPath: `${basePath}/orders`,
+    todoPath: `${basePath}/toDo`,
+    runPath: `${basePath}/recommendationRuns`,
+    regionId: null,
+    districtId: null
+  }
+}
 
-    const vendor = item.vendorId ? vendorMap.get(item.vendorId) : null
-    const onHand = onHandByItem.get(itemDoc.id) ?? 0
-    const min = item.minQuantity ?? 0
-    const weeklyUsage = item.weeklyUsage ?? 0
-
-    const deficit = Math.max(0, min - onHand)
-    const leadDays = Math.max(0, vendor?.leadDays ?? 0)
-    const nextOrderIn = daysUntilNextOrder(vendor?.orderingDays, now)
-    const urgencyAdd = Math.max(0, leadDays + Math.max(0, 2 - nextOrderIn))
-    const rawSuggested = deficit + Math.max(0, weeklyUsage * 0.25) + urgencyAdd
-
-    if (rawSuggested <= 0) return
-
-    const isLbsDirect = item.unit === "lbs" && (item.caseSize ?? 0) === 1
-    if (isLbsDirect) {
-      suggestions.push({
-        itemId: itemDoc.id,
-        suggestedQty: Number(rawSuggested.toFixed(3)),
-        unit: "lbs",
-        rationale: `${item.name ?? itemDoc.id}: below min, vendor window in ${nextOrderIn} day(s), weight-based caseSize=1 so ordering lbs directly.`,
-        caseRounded: false,
-        onHand,
-        minQuantity: min
-      })
-      return
-    }
-
-    const qtyPerCase = Math.max(1, item.qtyPerCase ?? 1)
-    const cases = Math.ceil(rawSuggested / qtyPerCase)
-    suggestions.push({
-      itemId: itemDoc.id,
-      suggestedQty: cases * qtyPerCase,
-      unit: item.unit ?? "each",
-      rationale: `${item.name ?? itemDoc.id}: below min, vendor window in ${nextOrderIn} day(s), rounded to full cases (${cases} x ${qtyPerCase}).`,
-      caseRounded: true,
-      onHand,
-      minQuantity: min
-    })
-  })
-
-  const enhancedSuggestions = await enhanceOrderSuggestions({
-    orgId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId,
-    lines: suggestions
-  })
-
-  const orderRef = adminDb
-    .collection(
-      `organizations/${input.orgId}/regions/${storePath.regionId}/districts/${storePath.districtId}/stores/${storePath.storeId}/orders`
-    )
-    .doc()
+async function commitRecommendationLines(params: {
+  uid: string
+  orgId: string
+  storeId: string
+  vendorId?: string
+  runId: string
+  engineVersion: string
+  lines: CommitOrderLine[]
+}) {
+  const collections = await resolveStoreCollections(params.orgId, params.storeId)
+  const orderRef = adminDb.collection(collections.ordersPath).doc()
 
   await orderRef.set({
-    organizationId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId ?? "mixed",
+    organizationId: params.orgId,
+    storeId: params.storeId,
+    vendorId: params.vendorId ?? "mixed",
     status: "suggested",
     createdAt: FieldValue.serverTimestamp(),
-    createdBy: uid,
-    vendorCutoffAt: null
+    createdBy: params.uid,
+    vendorCutoffAt: null,
+    recommendationRunId: params.runId,
+    recommendationEngineVersion: params.engineVersion
   })
 
   const batch = adminDb.batch()
-  enhancedSuggestions.lines.forEach((line) => {
-    batch.set(orderRef.collection("lines").doc(), line)
-  })
+  for (const line of params.lines) {
+    batch.set(orderRef.collection("lines").doc(), {
+      itemId: line.itemId,
+      suggestedQty: line.finalQuantity,
+      finalQty: line.finalQuantity,
+      unit: line.unit,
+      rationale: line.rationaleSummary,
+      caseRounded: line.unit !== "lbs"
+    })
+  }
 
   const todos = [
     {
-      organizationId: input.orgId,
-      storeId: input.storeId,
+      organizationId: params.orgId,
+      storeId: params.storeId,
       type: "auto",
-      title: `Place order ${input.vendorId ? `for ${input.vendorId}` : "for suggested items"}`,
+      title: `Place order ${params.vendorId ? `for ${params.vendorId}` : "for suggested items"}`,
       dueAt: FieldValue.serverTimestamp(),
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: uid
+      createdBy: params.uid
     },
     {
-      organizationId: input.orgId,
-      storeId: input.storeId,
+      organizationId: params.orgId,
+      storeId: params.storeId,
       type: "auto",
       title: "Spot check before order in 1 day",
       dueAt: FieldValue.serverTimestamp(),
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: uid
+      createdBy: params.uid
     }
   ]
 
-  const todoCollection = adminDb.collection(
-    `organizations/${input.orgId}/regions/${storePath.regionId}/districts/${storePath.districtId}/stores/${storePath.storeId}/toDo`
+  const todoCollection = adminDb.collection(collections.todoPath)
+  for (const todo of todos) {
+    batch.set(todoCollection.doc(), todo)
+  }
+
+  batch.set(
+    adminDb.doc(`${collections.runPath}/${params.runId}`),
+    {
+      committedAt: FieldValue.serverTimestamp(),
+      committedBy: params.uid,
+      committedOrderId: orderRef.id,
+      committedLineCount: params.lines.length,
+      committedTodosCreated: todos.length
+    },
+    { merge: true }
   )
-  todos.forEach((todo) => batch.set(todoCollection.doc(), todo))
 
   await batch.commit()
 
+  await writeAuditLog({
+    actorUserId: params.uid,
+    actorRoleSnapshot: "Manager",
+    organizationId: params.orgId,
+    storeId: params.storeId,
+    targetPath: orderRef.path,
+    action: "create",
+    after: {
+      recommendationRunId: params.runId,
+      recommendationEngineVersion: params.engineVersion,
+      lines: params.lines.length
+    }
+  })
+
+  return {
+    orderId: orderRef.id,
+    todosCreated: todos.length,
+    lineCount: params.lines.length
+  }
+}
+
+export const getStoreRecommendations = onCall(async (request) => {
+  const uid = requireAuth(request)
+  const input = getStoreRecommendationsRequestSchema.parse(request.data)
+  await requireStoreAccess(input.orgId, uid, input.storeId)
+
+  const { response } = await buildStoreRecommendations({
+    orgId: input.orgId,
+    storeId: input.storeId,
+    vendorId: input.vendorId,
+    domains: input.domains,
+    productionPlanOptions: input.productionPlanOptions,
+    windowStart: input.windowStart,
+    windowEnd: input.windowEnd,
+    actorUid: uid,
+    forceRefresh: input.forceRefresh
+  })
+
+  const collections = await resolveStoreCollections(input.orgId, input.storeId)
   await writeAuditLog({
     actorUserId: uid,
     actorRoleSnapshot: "Manager",
     organizationId: input.orgId,
     storeId: input.storeId,
-    targetPath: orderRef.path,
+    targetPath: `${collections.runPath}/${response.meta.runId}`,
     action: "create",
-    after: { lines: enhancedSuggestions.lines.length, ai: enhancedSuggestions.ai }
+    after: {
+      engineVersion: response.meta.engineVersion,
+      schemaVersion: response.meta.schemaVersion,
+      rulePathUsed: response.meta.rulePathUsed,
+      sourceRefs: response.meta.sourceRefs,
+      inputHash: response.meta.inputHash,
+      degraded: response.meta.degraded,
+      fallbackUsed: response.meta.fallbackUsed,
+      fallbackReason: response.meta.fallbackReason ?? null,
+      fallbackSource: response.meta.fallbackSource ?? null,
+      fallbackTrigger: response.meta.fallbackTrigger ?? null,
+      domains: response.meta.domains,
+      orderRecommendations: response.orderRecommendations.length,
+      productionRecommendations: response.productionRecommendations.length,
+      productionPlanRows:
+        response.productionPlan.ingredientDemandRows.length + response.productionPlan.frozenPullForecastRows.length,
+      questions: response.questions.length
+    }
+  })
+
+  return response
+})
+
+export const commitOrderRecommendations = onCall(async (request) => {
+  const uid = requireAuth(request)
+  const input = commitOrderRecommendationsRequestSchema.parse(request.data)
+  await requireStoreAccess(input.orgId, uid, input.storeId)
+
+  const collections = await resolveStoreCollections(input.orgId, input.storeId)
+  const runData = await readRecommendationRun({
+    storePath: collections.basePath,
+    runId: input.runId
+  })
+  if (!runData) {
+    throw new HttpsError("not-found", "Recommendation run not found for this store.")
+  }
+
+  if (runData.organizationId !== input.orgId || runData.storeId !== input.storeId) {
+    throw new HttpsError("permission-denied", "Recommendation run does not belong to this organization/store.")
+  }
+
+  const recommendationRows = Array.isArray(runData.orderRecommendations)
+    ? (runData.orderRecommendations as Array<Record<string, unknown>>)
+    : []
+  const recommendationByItem = new Map(
+    recommendationRows
+      .map((row) => [String(row.itemId ?? ""), row] as const)
+      .filter(([itemId]) => itemId.length > 0)
+  )
+
+  const selectedLines = input.selectedLines
+    .map((line) => {
+      const rec = recommendationByItem.get(line.itemId)
+      const fallbackUnit = rec?.unit === "lbs" ? "lbs" : "each"
+      const quantity = Math.max(0, Number(line.finalQuantity ?? 0))
+      return {
+        itemId: line.itemId,
+        finalQuantity: quantity,
+        unit: line.unit ?? fallbackUnit,
+        rationaleSummary:
+          line.rationaleSummary ??
+          (typeof rec?.rationaleSummary === "string" ? rec.rationaleSummary : "Applied from recommendation preview.")
+      } satisfies CommitOrderLine
+    })
+    .filter((line) => line.itemId.trim().length > 0)
+
+  const result = await commitRecommendationLines({
+    uid,
+    orgId: input.orgId,
+    storeId: input.storeId,
+    vendorId: input.vendorId,
+    runId: input.runId,
+    engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
+    lines: selectedLines
   })
 
   return {
-    orderId: orderRef.id,
-    lines: enhancedSuggestions.lines,
-    todosCreated: todos.length,
-    summary: enhancedSuggestions.summary,
-    riskAlerts: enhancedSuggestions.riskAlerts,
-    questionsForManager: enhancedSuggestions.questionsForManager,
-    ai: enhancedSuggestions.ai
+    orderId: result.orderId,
+    lineCount: result.lineCount,
+    todosCreated: result.todosCreated,
+    runId: input.runId,
+    engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
+    appliedFromRun: true
+  }
+})
+
+export const generateOrderSuggestions = onCall(async (request) => {
+  // Deprecated compatibility callable.
+  // Use getStoreRecommendations (preview) + commitOrderRecommendations (apply) on all clients.
+  const uid = requireAuth(request)
+  const input = generateOrderSuggestionsRequestSchema.parse(request.data)
+  await requireStoreAccess(input.orgId, uid, input.storeId)
+
+  const { response } = await buildStoreRecommendations({
+    orgId: input.orgId,
+    storeId: input.storeId,
+    vendorId: input.vendorId,
+    domains: ["orders"],
+    actorUid: uid,
+    forceRefresh: true
+  })
+
+  const selectedLines: CommitOrderLine[] = response.orderRecommendations
+    .filter((row) => row.recommendedQuantity > 0)
+    .map((row) => ({
+      itemId: row.itemId,
+      finalQuantity: row.recommendedQuantity,
+      unit: row.unit,
+      rationaleSummary: row.rationaleSummary
+    }))
+
+  const committed = await commitRecommendationLines({
+    uid,
+    orgId: input.orgId,
+    storeId: input.storeId,
+    vendorId: input.vendorId,
+    runId: response.meta.runId,
+    engineVersion: response.meta.engineVersion,
+    lines: selectedLines
+  })
+
+  return {
+    orderId: committed.orderId,
+    lines: response.orderRecommendations.map((row) => ({
+      itemId: row.itemId,
+      suggestedQty: row.recommendedQuantity,
+      unit: row.unit,
+      rationale: row.rationaleSummary,
+      caseRounded: row.caseInterpretation === "case_rounded",
+      onHand: row.onHand,
+      minQuantity: row.minQuantity
+    })),
+    todosCreated: committed.todosCreated,
+    summary: `Generated ${response.orderRecommendations.length} recommendation line(s).`,
+    riskAlerts: response.orderRecommendations
+      .filter((row) => row.predictedWasteRisk.probability >= 0.5)
+      .slice(0, 5)
+      .map((row) => `${row.itemName ?? row.itemId} has elevated waste risk.`),
+    questionsForManager: response.questions,
+    recommendationMeta: response.meta
   }
 })
 

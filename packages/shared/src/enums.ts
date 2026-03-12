@@ -20,3 +20,19 @@ export const auditActions = ["create", "update", "delete", "admin_edit"] as cons
 export type AuditAction = (typeof auditActions)[number]
 
 export const platformsWithDefaultTheme = ["WEB", "IOS"] as const
+
+export const recommendationEngineVersions = ["rules_v1", "hybrid_v2", "ml_v3"] as const
+export type RecommendationEngineVersion = (typeof recommendationEngineVersions)[number]
+
+export const recommendationDomains = ["orders", "production"] as const
+export type RecommendationDomain = (typeof recommendationDomains)[number]
+
+export const recommendationFallbackSources = ["server", "client"] as const
+export type RecommendationFallbackSource = (typeof recommendationFallbackSources)[number]
+
+export const recommendationFallbackTriggers = [
+  "backend_unavailable",
+  "input_incomplete",
+  "degraded_mode"
+] as const
+export type RecommendationFallbackTrigger = (typeof recommendationFallbackTriggers)[number]

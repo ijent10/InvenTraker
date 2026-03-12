@@ -7,6 +7,10 @@ import type {
   EnsurePlatformPreferenceProfileResponse,
   PdfToHowtoDraftRequest,
   PdfToHowtoDraftResponse,
+  GetStoreRecommendationsRequest,
+  GetStoreRecommendationsResponse,
+  CommitOrderRecommendationsRequest,
+  CommitOrderRecommendationsResponse,
   GenerateOrderSuggestionsRequest,
   GenerateOrderSuggestionsResponse,
   ComputeFinancialHealthRequest,
@@ -59,6 +63,30 @@ export async function parsePdfToHowto(input: PdfToHowtoDraftRequest): Promise<Pd
 export async function generateSuggestions(input: GenerateOrderSuggestionsRequest): Promise<GenerateOrderSuggestionsResponse | null> {
   if (!functions) return null
   const callable = httpsCallable<GenerateOrderSuggestionsRequest, GenerateOrderSuggestionsResponse>(functions, "generateOrderSuggestions")
+  const result = await callable(input)
+  return result.data
+}
+
+export async function getStoreRecommendations(
+  input: GetStoreRecommendationsRequest
+): Promise<GetStoreRecommendationsResponse | null> {
+  if (!functions) return null
+  const callable = httpsCallable<GetStoreRecommendationsRequest, GetStoreRecommendationsResponse>(
+    functions,
+    "getStoreRecommendations"
+  )
+  const result = await callable(input)
+  return result.data
+}
+
+export async function commitOrderRecommendations(
+  input: CommitOrderRecommendationsRequest
+): Promise<CommitOrderRecommendationsResponse | null> {
+  if (!functions) return null
+  const callable = httpsCallable<CommitOrderRecommendationsRequest, CommitOrderRecommendationsResponse>(
+    functions,
+    "commitOrderRecommendations"
+  )
   const result = await callable(input)
   return result.data
 }

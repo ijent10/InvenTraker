@@ -8,6 +8,7 @@ import { PageHead } from "@/components/page-head"
 import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
+  type DepartmentConfigRecord,
   fetchOrganizationBillingStatus,
   fetchOrgSettings,
   isProTierBilling,
@@ -26,6 +27,47 @@ const permissionSectionOrder: Array<{ key: "general" | "app" | "web"; title: str
 
 function emptyPermissionFlags() {
   return Object.fromEntries(permissionCatalog.map((entry) => [entry.key, false])) as Record<string, boolean>
+}
+
+function makeId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function cleanText(value: string): string {
+  return value.trim()
+}
+
+function normalizeDepartmentConfigs(configs: DepartmentConfigRecord[]): DepartmentConfigRecord[] {
+  const seen = new Set<string>()
+  const rows: DepartmentConfigRecord[] = []
+  for (const config of configs) {
+    const name = cleanText(config.name)
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    const locationSeen = new Set<string>()
+    const locations: string[] = []
+    for (const rawLocation of config.locations ?? []) {
+      const location = cleanText(rawLocation)
+      if (!location) continue
+      const locationKey = location.toLowerCase()
+      if (locationSeen.has(locationKey)) continue
+      locationSeen.add(locationKey)
+      locations.push(location)
+    }
+
+    rows.push({
+      id: cleanText(config.id) || makeId("department"),
+      name,
+      locations
+    })
+  }
+  return rows
 }
 
 function inferBaseRole(title: string, permissionFlags: Record<string, boolean>): "Owner" | "Manager" | "Staff" {
@@ -51,8 +93,9 @@ export default function OrganizationSettingsPage() {
   const [form, setForm] = useState<Partial<OrgSettingsRecord>>({})
   const [roles, setRoles] = useState<RoleTemplateRecord[]>([])
   const [selectedRoleId, setSelectedRoleId] = useState<string>("")
-  const [departmentsText, setDepartmentsText] = useState("")
-  const [locationsText, setLocationsText] = useState("")
+  const [departmentConfigs, setDepartmentConfigs] = useState<DepartmentConfigRecord[]>([])
+  const [newDepartmentName, setNewDepartmentName] = useState("")
+  const [newLocationsByDepartment, setNewLocationsByDepartment] = useState<Record<string, string>>({})
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -74,8 +117,7 @@ export default function OrganizationSettingsPage() {
     setForm(settings)
     setRoles(settings.jobTitles ?? [])
     setSelectedRoleId(settings.jobTitles?.[0]?.id ?? "")
-    setDepartmentsText((settings.departments ?? []).join(", "))
-    setLocationsText((settings.locationTemplates ?? []).join(", "))
+    setDepartmentConfigs(normalizeDepartmentConfigs(settings.departmentConfigs ?? []))
   }, [settings])
 
   const selectedRole = useMemo(
@@ -97,18 +139,14 @@ export default function OrganizationSettingsPage() {
     setStatusMessage(null)
     setErrorMessage(null)
     try {
+      const normalizedConfigs = normalizeDepartmentConfigs(departmentConfigs)
       await saveOrgSettings(
         activeOrgId,
         {
           ...form,
-          departments: departmentsText
-            .split(",")
-            .map((entry) => entry.trim())
-            .filter(Boolean),
-          locationTemplates: locationsText
-            .split(",")
-            .map((entry) => entry.trim())
-            .filter(Boolean),
+          departmentConfigs: normalizedConfigs,
+          departments: normalizedConfigs.map((entry) => entry.name),
+          locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
           jobTitles: roles.filter((role) => role.title.trim().length > 0)
         },
         user.uid
@@ -119,6 +157,38 @@ export default function OrganizationSettingsPage() {
     } catch {
       setErrorMessage("Could not save organization settings.")
     }
+  }
+
+  const addDepartment = () => {
+    const name = cleanText(newDepartmentName)
+    if (!name) return
+    setDepartmentConfigs((prev) =>
+      normalizeDepartmentConfigs([
+        ...prev,
+        {
+          id: makeId("department"),
+          name,
+          locations: []
+        }
+      ])
+    )
+    setNewDepartmentName("")
+  }
+
+  const addLocation = (departmentId: string) => {
+    const location = cleanText(newLocationsByDepartment[departmentId] ?? "")
+    if (!location) return
+    setDepartmentConfigs((prev) =>
+      prev.map((department) =>
+        department.id === departmentId
+          ? {
+              ...department,
+              locations: Array.from(new Set([...department.locations, location]))
+            }
+          : department
+      )
+    )
+    setNewLocationsByDepartment((prev) => ({ ...prev, [departmentId]: "" }))
   }
 
   const addRoleDraft = () => {
@@ -246,19 +316,93 @@ export default function OrganizationSettingsPage() {
 
         <AppCard>
           <h2 className="card-title">Departments + Locations</h2>
+          <p className="secondary-text mt-1">
+            Configure departments and locations in the new model used by web + app.
+          </p>
           <div className="mt-4 grid gap-3">
-            <AppTextarea
-              className="min-h-[92px]"
-              value={departmentsText}
-              onChange={(event) => setDepartmentsText(event.target.value)}
-              placeholder="Departments (comma-separated)"
-            />
-            <AppTextarea
-              className="min-h-[92px]"
-              value={locationsText}
-              onChange={(event) => setLocationsText(event.target.value)}
-              placeholder="Location templates (comma-separated)"
-            />
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <AppInput
+                placeholder="New department name"
+                value={newDepartmentName}
+                onChange={(event) => setNewDepartmentName(event.target.value)}
+              />
+              <AppButton variant="secondary" onClick={addDepartment}>
+                Add Department
+              </AppButton>
+            </div>
+
+            {departmentConfigs.length === 0 ? (
+              <p className="secondary-text rounded-2xl border border-app-border bg-app-surface-soft p-3 text-sm">
+                No departments configured yet.
+              </p>
+            ) : (
+              departmentConfigs.map((department) => (
+                <div key={department.id} className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
+                  <div className="mb-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <AppInput
+                      value={department.name}
+                      onChange={(event) =>
+                        setDepartmentConfigs((prev) =>
+                          prev.map((entry) =>
+                            entry.id === department.id ? { ...entry, name: event.target.value } : entry
+                          )
+                        )
+                      }
+                      placeholder="Department name"
+                    />
+                    <AppButton
+                      variant="secondary"
+                      className="!border-rose-500/40 !text-rose-300"
+                      onClick={() =>
+                        setDepartmentConfigs((prev) => prev.filter((entry) => entry.id !== department.id))
+                      }
+                    >
+                      Remove
+                    </AppButton>
+                  </div>
+
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {department.locations.length === 0 ? (
+                      <span className="secondary-text text-sm">No locations yet.</span>
+                    ) : (
+                      department.locations.map((location) => (
+                        <AppButton
+                          key={`${department.id}-${location}`}
+                          type="button"
+                          variant="secondary"
+                          className="h-7 rounded-full border border-app-border px-3 py-1 text-xs text-app-muted hover:!border-rose-500/50 hover:!text-rose-300"
+                          onClick={() =>
+                            setDepartmentConfigs((prev) =>
+                              prev.map((entry) =>
+                                entry.id === department.id
+                                  ? { ...entry, locations: entry.locations.filter((item) => item !== location) }
+                                  : entry
+                              )
+                            )
+                          }
+                          title="Remove location"
+                        >
+                          {location} ×
+                        </AppButton>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <AppInput
+                      placeholder="Add location"
+                      value={newLocationsByDepartment[department.id] ?? ""}
+                      onChange={(event) =>
+                        setNewLocationsByDepartment((prev) => ({ ...prev, [department.id]: event.target.value }))
+                      }
+                    />
+                    <AppButton variant="secondary" onClick={() => addLocation(department.id)}>
+                      Add Location
+                    </AppButton>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </AppCard>
 

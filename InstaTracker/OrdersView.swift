@@ -391,6 +391,11 @@ struct GenerateOrderView: View {
     @StateObject private var settings = AppSettings.shared
     
     @State private var generatedOrders: [OrderDraft] = []
+    @State private var backendRunID: String?
+    @State private var backendEngineVersion: String?
+    @State private var backendFallbackReason: String?
+    @State private var backendDegraded = false
+    @State private var usingLocalRecommendationFallback = false
     @State private var phase: Phase = .splash
     @State private var analysisProgress: Double = 0.0
     @State private var timer: Timer?
@@ -488,20 +493,6 @@ struct GenerateOrderView: View {
         return scopedItems.filter { !$0.isArchived && $0.vendor?.id == selectedVendorID }
     }
 
-    private var productionDemandByItem: [UUID: Double] {
-        let suggestions = ProductionPlanningService.suggestions(
-            products: scopedProductionProducts,
-            spotChecks: scopedProductionSpotChecks,
-            runs: scopedProductionRuns
-        )
-        return ProductionPlanningService.ingredientDemandByItem(
-            suggestions: suggestions,
-            products: scopedProductionProducts,
-            ingredients: scopedProductionIngredients,
-            inventoryItems: scopedItems
-        )
-    }
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -535,10 +526,6 @@ struct GenerateOrderView: View {
             if selectedVendorID == nil {
                 selectedVendorID = activeVendors.first?.id
             }
-            warmRecommendationCacheIfNeeded()
-        }
-        .onChange(of: selectedVendorID) { _, _ in
-            warmRecommendationCacheIfNeeded()
         }
     }
     
@@ -655,9 +642,19 @@ struct GenerateOrderView: View {
             } else {
                 List {
                     Section {
-                        Text("Every item for \(selectedTruckName) is listed below. AI recommendations can be 0, and you can still order any amount before tapping Complete Order.")
+                        Text("Every item for \(selectedTruckName) is listed below. Recommendations are server-generated and can be edited before completion.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                        if let backendEngineVersion {
+                            Text("Engine: \(backendEngineVersion)\(usingLocalRecommendationFallback ? \" (degraded fallback)\" : \"\")")
+                                .font(.caption2)
+                                .foregroundStyle((usingLocalRecommendationFallback || backendDegraded) ? .orange : .secondary)
+                        }
+                        if let backendFallbackReason, !backendFallbackReason.isEmpty {
+                            Text(backendFallbackReason)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
                     }
                     ForEach($generatedOrders) { $draft in
                         DraftOrderRow(draft: $draft)
@@ -673,6 +670,11 @@ struct GenerateOrderView: View {
     private func startAnalyzing() {
         guard canGenerateOrders else { return }
         guard let selectedVendorID else { return }
+        backendRunID = nil
+        backendEngineVersion = nil
+        backendFallbackReason = nil
+        backendDegraded = false
+        usingLocalRecommendationFallback = false
 
         itemSnapshots = selectedTruckItems.map { ItemSnapshot(from: $0) }
         wasteSnapshots = scopedWasteEntries.map { WasteSnapshot(from: $0) }
@@ -681,21 +683,10 @@ struct GenerateOrderView: View {
         let fingerprint = OrderRecommendationCacheStore.fingerprint(
             items: itemSnapshots,
             wastes: wasteSnapshots,
-            incomingOrders: incomingOrderSnapshots,
-            productionDemandByItem: productionDemandByItem
+            incomingOrders: incomingOrderSnapshots
         )
         activeFingerprint = fingerprint
         activeOrganizationCacheKey = activeOrganizationId
-
-        if let cached = OrderRecommendationCacheStore.shared.load(
-            organizationId: activeOrganizationId,
-            vendorID: selectedVendorID,
-            fingerprint: fingerprint
-        ) {
-            generatedOrders = cached
-            phase = .results
-            return
-        }
 
         phase = .analyzing
     }
@@ -707,14 +698,87 @@ struct GenerateOrderView: View {
         let vendorID = selectedVendorID
         let fingerprint = activeFingerprint
         let organizationCacheKey = activeOrganizationCacheKey
-        let productionDemand = productionDemandByItem
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let calculated = OrderRecommendationEngine.calculate(
+        Task {
+            guard
+                let selectedVendorID,
+                let organizationId = session.activeOrganizationId,
+                !activeStoreId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                usingLocalRecommendationFallback = false
+                backendDegraded = true
+                backendEngineVersion = "rules_v1"
+                backendFallbackReason = "No active store selected."
+                generatedOrders = []
+                phase = .results
+                return
+            }
+
+            let vendorBackendID = activeVendors.first(where: { $0.id == selectedVendorID })?.backendId
+            do {
+                let response = try await RecommendationService.shared.fetchStoreRecommendations(
+                    orgId: organizationId,
+                    storeId: activeStoreId,
+                    vendorId: vendorBackendID,
+                    domains: [.orders],
+                    forceRefresh: true
+                )
+                let mapped = mapBackendRecommendations(response.orderRecommendations)
+                backendRunID = response.meta.runId
+                backendEngineVersion = response.meta.engineVersion
+                backendFallbackReason = response.meta.fallbackReason
+                backendDegraded = response.meta.degraded || response.meta.fallbackUsed
+                usingLocalRecommendationFallback = false
+                generatedOrders = mapped
+                if
+                    let vendorID,
+                    let fingerprint,
+                    let organizationCacheKey
+                {
+                    OrderRecommendationCacheStore.shared.save(
+                        mapped,
+                        organizationId: organizationCacheKey,
+                        vendorID: vendorID,
+                        fingerprint: fingerprint
+                    )
+                }
+                phase = .results
+                return
+            } catch {
+                backendFallbackReason = error.localizedDescription
+            }
+
+            usingLocalRecommendationFallback = true
+            backendDegraded = true
+            if
+                let vendorID,
+                let fingerprint,
+                let organizationCacheKey,
+                let cached = OrderRecommendationCacheStore.shared.load(
+                    organizationId: organizationCacheKey,
+                    vendorID: vendorID,
+                    fingerprint: fingerprint
+                )
+            {
+                backendEngineVersion = "cached_backend_preview"
+                backendFallbackReason = backendFallbackReason ?? "Backend unavailable. Showing the latest server recommendation cache."
+                generatedOrders = cached
+                phase = .results
+                return
+            }
+
+            let fallbackProductionDemand = RecommendationFallbackService.productionDemandByItem(
+                products: scopedProductionProducts,
+                spotChecks: scopedProductionSpotChecks,
+                runs: scopedProductionRuns,
+                ingredients: scopedProductionIngredients,
+                inventoryItems: scopedItems
+            )
+            let calculated = RecommendationFallbackService.calculateOrderRecommendations(
                 items: snapshots,
                 wastes: wastes,
                 incomingOrders: incomingOrders,
-                productionDemandByItem: productionDemand
+                productionDemandByItem: fallbackProductionDemand
             )
 
             if
@@ -730,28 +794,77 @@ struct GenerateOrderView: View {
                 )
             }
 
-            DispatchQueue.main.async {
-                generatedOrders = calculated
-                phase = .results
-            }
+            backendEngineVersion = backendEngineVersion ?? "local_fallback_rules_v1"
+            backendFallbackReason = backendFallbackReason ?? "Backend unavailable. Using emergency local fallback."
+            generatedOrders = calculated
+            phase = .results
         }
     }
     
     private func saveOrders() {
         guard canGenerateOrders else { return }
+        if let runID = backendRunID, !usingLocalRecommendationFallback {
+            Task {
+                do {
+                    guard let organizationId = session.activeOrganizationId else {
+                        await MainActor.run { saveOrdersLocally() }
+                        return
+                    }
+                    let selectedVendorBackendID = selectedVendorID.flatMap { vendorID in
+                        activeVendors.first(where: { $0.id == vendorID })?.backendId
+                    }
+                    let selectedLines = generatedOrders.compactMap { draft -> CommitSelectedOrderLineDTO? in
+                        let finalQuantity = draft.normalizedFinalQuantity
+                        guard finalQuantity > 0 else { return nil }
+                        let itemID = draft.backendItemID ?? draft.itemID.uuidString
+                        return CommitSelectedOrderLineDTO(
+                            itemId: itemID,
+                            finalQuantity: finalQuantity,
+                            unit: draft.unit,
+                            rationaleSummary: "Applied from backend recommendation preview."
+                        )
+                    }
+                    let committed = try await RecommendationService.shared.commitOrderRecommendations(
+                        orgId: organizationId,
+                        storeId: activeStoreId,
+                        vendorId: selectedVendorBackendID,
+                        runId: runID,
+                        selectedLines: selectedLines
+                    )
+                    await recordGeneratedOrderSync(
+                        organizationId: organizationId,
+                        vendorID: selectedVendorID,
+                        lineCount: committed.lineCount,
+                        orderIDs: [committed.orderId]
+                    )
+                    await MainActor.run {
+                        dismiss()
+                    }
+                } catch {
+                    await MainActor.run {
+                        saveOrdersLocally()
+                    }
+                }
+            }
+            return
+        }
 
+        saveOrdersLocally()
+    }
+
+    private func saveOrdersLocally() {
         var insertedOrderIDs: [String] = []
         var earliestExpectedDate: Date?
 
         for draft in generatedOrders {
-            let finalBoxes = max(0, draft.orderedQuantity ?? draft.recommendedBoxes)
+            let finalBoxes = max(0, Int(draft.normalizedFinalQuantity.rounded()))
             guard finalBoxes > 0 else { continue }
 
             // Fresh fetch by id from the model context
             if let item = fetchInventoryItem(by: draft.itemID) {
                 let order = OrderItem(
                     item: item,
-                    recommendedQuantity: draft.recommendedBoxes,
+                    recommendedQuantity: max(0, Int(draft.normalizedRecommendedQuantity.rounded())),
                     orderDate: Date(),
                     expectedDeliveryDate: Calendar.current.date(
                         byAdding: .day,
@@ -773,34 +886,19 @@ struct GenerateOrderView: View {
                     }
                 }
             } else {
-                // Item no longer exists; skip
                 continue
             }
         }
         try? modelContext.save()
 
         if let organizationId = session.activeOrganizationId, !insertedOrderIDs.isEmpty {
-            let payload = ActionPayload.generateOrder(
-                GenerateOrderPayload(
-                    vendorId: selectedVendorID?.uuidString,
-                    lineCount: insertedOrderIDs.count,
-                    orderIds: insertedOrderIDs,
-                    expectedDeliveryDate: earliestExpectedDate
-                )
-            )
-            let refs = AuditObjectRefs(
-                organizationId: organizationId,
-                itemId: nil,
-                orderId: insertedOrderIDs.first,
-                batchIds: []
-            )
             Task {
-                await ActionSyncService.shared.logAndApply(
-                    action: payload,
-                    refs: refs,
-                    baseRevision: nil,
-                    session: session,
-                    modelContext: modelContext
+                await recordGeneratedOrderSync(
+                    organizationId: organizationId,
+                    vendorID: selectedVendorID,
+                    lineCount: insertedOrderIDs.count,
+                    orderIDs: insertedOrderIDs,
+                    expectedDeliveryDate: earliestExpectedDate
                 )
             }
         }
@@ -808,51 +906,36 @@ struct GenerateOrderView: View {
         dismiss()
     }
 
-    private func warmRecommendationCacheIfNeeded() {
-        guard canGenerateOrders else { return }
-        guard let selectedVendorID else { return }
-
-        let organizationId = activeOrganizationId
-        let snapshots = selectedTruckItems.map { ItemSnapshot(from: $0) }
-        let waste = scopedWasteEntries.map { WasteSnapshot(from: $0) }
-        let incoming = scopedExistingOrders.map { IncomingOrderSnapshot(from: $0) }
-        let productionDemand = productionDemandByItem
-
-        DispatchQueue.global(qos: .utility).async {
-            let fingerprint = OrderRecommendationCacheStore.fingerprint(
-                items: snapshots,
-                wastes: waste,
-                incomingOrders: incoming,
-                productionDemandByItem: productionDemand
+    private func recordGeneratedOrderSync(
+        organizationId: String,
+        vendorID: UUID?,
+        lineCount: Int,
+        orderIDs: [String],
+        expectedDeliveryDate: Date? = nil
+    ) async {
+        let payload = ActionPayload.generateOrder(
+            GenerateOrderPayload(
+                vendorId: vendorID?.uuidString,
+                lineCount: lineCount,
+                orderIds: orderIDs,
+                expectedDeliveryDate: expectedDeliveryDate
             )
-            let cacheKey = "\(organizationId)|\(selectedVendorID.uuidString)|\(fingerprint)"
-
-            guard OrderRecommendationWarmCoordinator.shared.begin(key: cacheKey) else { return }
-            defer { OrderRecommendationWarmCoordinator.shared.end(key: cacheKey) }
-
-            if OrderRecommendationCacheStore.shared.load(
-                organizationId: organizationId,
-                vendorID: selectedVendorID,
-                fingerprint: fingerprint
-            ) != nil {
-                return
-            }
-
-            let warmed = OrderRecommendationEngine.calculate(
-                items: snapshots,
-                wastes: waste,
-                incomingOrders: incoming,
-                productionDemandByItem: productionDemand
-            )
-            OrderRecommendationCacheStore.shared.save(
-                warmed,
-                organizationId: organizationId,
-                vendorID: selectedVendorID,
-                fingerprint: fingerprint
-            )
-        }
+        )
+        let refs = AuditObjectRefs(
+            organizationId: organizationId,
+            itemId: nil,
+            orderId: orderIDs.first,
+            batchIds: []
+        )
+        await ActionSyncService.shared.logAndApply(
+            action: payload,
+            refs: refs,
+            baseRevision: nil,
+            session: session,
+            modelContext: modelContext
+        )
     }
-    
+
     private func fetchInventoryItem(by id: UUID) -> InventoryItem? {
         // Try to find in current @Query first
         if let found = scopedItems.first(where: { $0.id == id }) {
@@ -866,34 +949,65 @@ struct GenerateOrderView: View {
         descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first(where: { $0.organizationId == activeOrganizationId })
     }
-    
-    // MARK: - Recommendation Logic (whole numbers, snapshot-based)
-    
-    private func calculateOrderRecommendations(
-        items: [ItemSnapshot],
-        wastes: [WasteSnapshot],
-        incomingOrders: [IncomingOrderSnapshot],
-        productionDemandByItem: [UUID: Double]
-    ) -> [OrderDraft] {
-        OrderRecommendationEngine.calculate(
-            items: items,
-            wastes: wastes,
-            incomingOrders: incomingOrders,
-            productionDemandByItem: productionDemandByItem
+
+    private func mapBackendRecommendations(_ rows: [OrderRecommendationDTO]) -> [OrderDraft] {
+        let itemByBackendID = Dictionary(
+            uniqueKeysWithValues: scopedItems.map { item in
+                ((item.backendId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? item.backendId! : item.id.uuidString), item)
+            }
         )
+
+        return rows.map { row in
+            let resolved = itemByBackendID[row.itemId]
+            let parsedUUID = UUID(uuidString: row.itemId)
+            let localID = resolved?.id ?? parsedUUID ?? UUID()
+            let quantityPerBox = max(Int(row.qtyPerCase.rounded()), 1)
+            let recommendedQuantity = normalizedDraftQuantity(row.recommendedQuantity, unit: row.unit)
+            return OrderDraft(
+                itemID: localID,
+                backendItemID: row.itemId,
+                name: row.itemName ?? row.itemId,
+                unit: row.unit,
+                quantityPerBox: quantityPerBox,
+                caseInterpretation: row.caseInterpretation,
+                recommendedQuantity: recommendedQuantity,
+                isChecked: false,
+                orderedQuantity: recommendedQuantity
+            )
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
+    
 }
 
 // Value-type draft used in generator UI
-private struct OrderDraft: Identifiable {
+struct OrderDraft: Identifiable {
     var id: UUID { itemID }
     let itemID: UUID
+    let backendItemID: String?
     let name: String
     let unit: String
     let quantityPerBox: Int
-    let recommendedBoxes: Int
+    let caseInterpretation: String
+    let recommendedQuantity: Double
     var isChecked: Bool
-    var orderedQuantity: Int?
+    var orderedQuantity: Double?
+
+    var usesDecimalEditor: Bool {
+        unit.lowercased() == "lbs"
+    }
+
+    var normalizedRecommendedQuantity: Double {
+        normalizedDraftQuantity(recommendedQuantity, unit: unit)
+    }
+
+    var normalizedFinalQuantity: Double {
+        normalizedDraftQuantity(orderedQuantity ?? recommendedQuantity, unit: unit)
+    }
+
+    func displayQuantity(_ quantity: Double) -> String {
+        formatDraftQuantity(quantity, unit: unit)
+    }
 }
 
 // Stateless row for drafts (generator results)
@@ -916,13 +1030,13 @@ private struct DraftOrderRow: View {
                     .strikethrough(draft.isChecked)
                 
                 HStack(spacing: 12) {
-                    Label("\(draft.recommendedBoxes) \(draft.quantityPerBox > 1 ? "boxes" : draft.unit)",
+                    Label("\(draft.displayQuantity(draft.normalizedRecommendedQuantity)) \(draft.quantityPerBox > 1 ? "boxes" : draft.unit)",
                           systemImage: "sparkles")
                         .font(.subheadline)
                         .foregroundStyle(.blue)
                     
                     if let ordered = draft.orderedQuantity {
-                        Label("Ordered: \(ordered)", systemImage: "checkmark")
+                        Label("Ordered: \(draft.displayQuantity(ordered))", systemImage: "checkmark")
                             .font(.subheadline)
                             .foregroundStyle(.green)
                     }
@@ -934,25 +1048,48 @@ private struct DraftOrderRow: View {
             TextField("Qty", text: Binding(
                 get: {
                     if orderedQuantityText.isEmpty {
-                        return String(draft.orderedQuantity ?? draft.recommendedBoxes)
+                        return draft.displayQuantity(draft.normalizedFinalQuantity)
                     }
                     return orderedQuantityText
                 },
                 set: { newText in
                     orderedQuantityText = newText
-                    draft.orderedQuantity = Int(newText)
+                    if draft.usesDecimalEditor {
+                        let normalized = newText.replacingOccurrences(of: ",", with: ".")
+                        if let parsed = Double(normalized) {
+                            draft.orderedQuantity = max(0, parsed)
+                        }
+                    } else if let parsed = Int(newText) {
+                        draft.orderedQuantity = Double(max(0, parsed))
+                    }
                 }
             ))
-            .keyboardType(.numberPad)
+            .keyboardType(draft.usesDecimalEditor ? .decimalPad : .numberPad)
             .multilineTextAlignment(.trailing)
             .frame(width: 60)
             .textFieldStyle(.roundedBorder)
         }
         .padding(.vertical, 4)
         .onAppear {
-            orderedQuantityText = String(draft.orderedQuantity ?? draft.recommendedBoxes)
+            orderedQuantityText = draft.displayQuantity(draft.normalizedFinalQuantity)
         }
     }
+}
+
+private func normalizedDraftQuantity(_ quantity: Double, unit: String) -> Double {
+    let safe = max(0, quantity)
+    if unit.lowercased() == "lbs" {
+        return (safe * 1000).rounded() / 1000
+    }
+    return Double(Int(safe.rounded()))
+}
+
+private func formatDraftQuantity(_ quantity: Double, unit: String) -> String {
+    let normalized = normalizedDraftQuantity(quantity, unit: unit)
+    if unit.lowercased() == "lbs" {
+        return String(format: "%.3f", normalized)
+    }
+    return String(Int(normalized))
 }
 
 // MARK: - Snapshot types used during generation (internal)
@@ -1017,102 +1154,6 @@ struct IncomingOrderSnapshot {
     }
 }
 
-private enum OrderRecommendationEngine {
-    static func calculate(
-        items: [ItemSnapshot],
-        wastes: [WasteSnapshot],
-        incomingOrders: [IncomingOrderSnapshot],
-        productionDemandByItem: [UUID: Double]
-    ) -> [OrderDraft] {
-        var recommendations: [OrderDraft] = []
-        let activeItems = items.filter { !$0.isArchived }
-        let calendar = Calendar.current
-        let now = Date()
-        let todayStart = calendar.startOfDay(for: now)
-
-        for item in activeItems {
-            let currentQuantity = item.totalQuantity
-            let productionDemand = max(0, productionDemandByItem[item.id] ?? 0)
-            let minimumQuantity = item.minimumQuantity + productionDemand
-            let qtyPerBox = max(item.quantityPerBox, 1)
-            let leadTimeDays = max(item.vendorLeadTimeDays, 1)
-            let cutoffDate = calendar.date(byAdding: .day, value: leadTimeDays, to: now) ?? now
-
-            let incomingUnits = incomingOrders
-                .filter { snapshot in
-                    guard snapshot.itemID == item.id else { return false }
-                    guard !snapshot.wasReceived else { return false }
-                    guard let expected = snapshot.expectedDeliveryDate else { return false }
-                    return expected >= todayStart && expected <= cutoffDate
-                }
-                .reduce(0.0) { partial, snapshot in
-                    partial + snapshot.unitsOrdered
-                }
-
-            let projectedQuantity = currentQuantity + incomingUnits
-
-            let relevantWaste = wastes.filter {
-                $0.itemID == item.id && $0.affectsOrders
-            }
-            let totalWaste = relevantWaste.reduce(0.0) { $0 + $1.quantity }
-
-            var recommendedUnits: Double = 0
-            if projectedQuantity < minimumQuantity {
-                recommendedUnits = (minimumQuantity - projectedQuantity) + (minimumQuantity * 0.2)
-            } else if totalWaste > minimumQuantity * 0.1 {
-                recommendedUnits = max(0, minimumQuantity * 0.8 - projectedQuantity)
-            }
-
-            let expiringSoon = item.batches.filter { batch in
-                let days = calendar.dateComponents([.day], from: now, to: batch.expirationDate).day ?? 999
-                return days <= leadTimeDays
-            }
-            let expiringQuantity = expiringSoon.reduce(0.0) { $0 + $1.quantity }
-            if expiringQuantity > max(projectedQuantity, 1) * 0.3 {
-                recommendedUnits *= 0.7
-            }
-
-            let recommendedBoxes = Int(ceil(recommendedUnits / Double(qtyPerBox)))
-            recommendations.append(
-                OrderDraft(
-                    itemID: item.id,
-                    name: item.name,
-                    unit: item.unitRaw,
-                    quantityPerBox: qtyPerBox,
-                    recommendedBoxes: max(0, recommendedBoxes),
-                    isChecked: false,
-                    orderedQuantity: max(0, recommendedBoxes)
-                )
-            )
-        }
-
-        return recommendations.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-}
-
-private final class OrderRecommendationWarmCoordinator {
-    static let shared = OrderRecommendationWarmCoordinator()
-
-    private var inFlight: Set<String> = []
-    private let lock = NSLock()
-
-    private init() {}
-
-    func begin(key: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !inFlight.contains(key) else { return false }
-        inFlight.insert(key)
-        return true
-    }
-
-    func end(key: String) {
-        lock.lock()
-        inFlight.remove(key)
-        lock.unlock()
-    }
-}
-
 private struct OrderRecommendationCacheStore {
     static let shared = OrderRecommendationCacheStore()
 
@@ -1121,11 +1162,13 @@ private struct OrderRecommendationCacheStore {
     private struct CachedPayload: Codable {
         struct CachedDraft: Codable {
             let itemID: UUID
+            let backendItemID: String?
             let name: String
             let unit: String
             let quantityPerBox: Int
-            let recommendedBoxes: Int
-            let orderedQuantity: Int?
+            let caseInterpretation: String?
+            let recommendedQuantity: Double?
+            let orderedQuantity: Double?
         }
 
         let fingerprint: String
@@ -1141,12 +1184,14 @@ private struct OrderRecommendationCacheStore {
         return decoded.drafts.map { draft in
             OrderDraft(
                 itemID: draft.itemID,
+                backendItemID: draft.backendItemID,
                 name: draft.name,
                 unit: draft.unit,
                 quantityPerBox: max(draft.quantityPerBox, 1),
-                recommendedBoxes: max(draft.recommendedBoxes, 0),
+                caseInterpretation: draft.caseInterpretation ?? "case_rounded",
+                recommendedQuantity: max(0, draft.recommendedQuantity ?? 0),
                 isChecked: false,
-                orderedQuantity: max(0, draft.orderedQuantity ?? draft.recommendedBoxes)
+                orderedQuantity: max(0, draft.orderedQuantity ?? draft.recommendedQuantity ?? 0)
             )
         }
     }
@@ -1158,10 +1203,12 @@ private struct OrderRecommendationCacheStore {
             drafts: drafts.map { draft in
                 CachedPayload.CachedDraft(
                     itemID: draft.itemID,
+                    backendItemID: draft.backendItemID,
                     name: draft.name,
                     unit: draft.unit,
                     quantityPerBox: max(draft.quantityPerBox, 1),
-                    recommendedBoxes: max(draft.recommendedBoxes, 0),
+                    caseInterpretation: draft.caseInterpretation,
+                    recommendedQuantity: max(0, draft.normalizedRecommendedQuantity),
                     orderedQuantity: draft.orderedQuantity
                 )
             }
@@ -1173,8 +1220,7 @@ private struct OrderRecommendationCacheStore {
     static func fingerprint(
         items: [ItemSnapshot],
         wastes: [WasteSnapshot],
-        incomingOrders: [IncomingOrderSnapshot],
-        productionDemandByItem: [UUID: Double]
+        incomingOrders: [IncomingOrderSnapshot]
     ) -> String {
         let itemPart = items
             .map { item in
@@ -1203,14 +1249,7 @@ private struct OrderRecommendationCacheStore {
             .sorted()
             .joined(separator: ";")
 
-        let productionPart = productionDemandByItem
-            .map { itemID, quantity in
-                "\(itemID.uuidString)|\(quantized(quantity))"
-            }
-            .sorted()
-            .joined(separator: ";")
-
-        return [itemPart, wastePart, incomingPart, productionPart].joined(separator: "#")
+        return [itemPart, wastePart, incomingPart].joined(separator: "#")
     }
 
     private func storageKey(organizationId: String, vendorID: UUID) -> String {

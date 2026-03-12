@@ -346,6 +346,16 @@ service cloud.firestore {
           allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
         }
 
+        match /recommendations/{recommendationId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if false;
+        }
+
+        match /recommendationRuns/{runId} {
+          allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+          allow create, update, delete: if false;
+        }
+
         match /healthCheckResponses/{responseId} {
           allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
           allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
@@ -483,6 +493,16 @@ service cloud.firestore {
             match /transfers/{transferId} {
               allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
               allow create, update, delete: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+            }
+
+            match /recommendations/{recommendationId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if false;
+            }
+
+            match /recommendationRuns/{runId} {
+              allow read: if canUseOrgData(orgId) && hasStore(orgId, storeId);
+              allow create, update, delete: if false;
             }
 
             match /healthCheckResponses/{responseId} {

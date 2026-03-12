@@ -560,13 +560,16 @@ final class OrganizationService {
     func departments(for organizationId: String) async throws -> [DepartmentRef] {
 #if canImport(FirebaseFirestore)
         if firestoreEnabled {
-            let db = Firestore.firestore()
-            let snapshot = try await db.collection("organizations")
-                .document(organizationId)
-                .collection("departments")
-                .getDocuments()
-            return snapshot.documents.compactMap { try? $0.data(as: DepartmentRef.self) }
-                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            let configs = await departmentConfigs(for: organizationId, storeId: nil)
+            let now = Date()
+            return configs.enumerated().map { index, config in
+                DepartmentRef(
+                    id: departmentIdentifier(from: config.name, fallbackIndex: index),
+                    name: config.name,
+                    isActive: true,
+                    updatedAt: now
+                )
+            }
         }
 #endif
         return loadDepartmentsLocal(organizationId: organizationId)
@@ -656,19 +659,7 @@ final class OrganizationService {
             }
         }
 #endif
-        let fallbackDepartments = (try? await departments(for: organizationId)) ?? []
-        if fallbackDepartments.isEmpty { return [] }
-        var configs: [DepartmentConfig] = []
-        for department in fallbackDepartments {
-            let rows = (try? await locations(for: organizationId, departmentId: department.id)) ?? []
-            configs.append(
-                DepartmentConfig(
-                    name: department.name,
-                    locations: rows.map(\.name)
-                )
-            )
-        }
-        return configs
+        return []
     }
 
     func brandingConfig(for organizationId: String) async -> OrganizationBrandingConfig {
@@ -751,16 +742,26 @@ final class OrganizationService {
     func saveDepartments(_ departments: [DepartmentRef], for organizationId: String) async throws {
 #if canImport(FirebaseFirestore)
         if firestoreEnabled {
-            let db = Firestore.firestore()
-            let batch = db.batch()
-            for department in departments {
-                let ref = db.collection("organizations")
-                    .document(organizationId)
-                    .collection("departments")
-                    .document(department.id)
-                try batch.setData(from: department, forDocument: ref)
+            let existing = await departmentConfigs(for: organizationId, storeId: nil)
+            var existingLocationsByName: [String: [String]] = [:]
+            for config in existing {
+                existingLocationsByName[config.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] = config.locations
             }
-            try await batch.commit()
+
+            let normalizedConfigs = departments
+                .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .map { name in
+                    DepartmentConfig(
+                        name: name,
+                        locations: existingLocationsByName[name.lowercased()] ?? []
+                    )
+                }
+
+            try await saveDepartmentConfigsToSettings(
+                normalizedConfigs,
+                organizationId: organizationId
+            )
             return
         }
 #endif
@@ -770,15 +771,23 @@ final class OrganizationService {
     func locations(for organizationId: String, departmentId: String) async throws -> [LocationRef] {
 #if canImport(FirebaseFirestore)
         if firestoreEnabled {
-            let db = Firestore.firestore()
-            let snapshot = try await db.collection("organizations")
-                .document(organizationId)
-                .collection("departments")
-                .document(departmentId)
-                .collection("locations")
-                .getDocuments()
-            return snapshot.documents.compactMap { try? $0.data(as: LocationRef.self) }
-                .sorted { $0.sortOrder < $1.sortOrder }
+            let configs = await departmentConfigs(for: organizationId, storeId: nil)
+            let normalizedDepartmentId = departmentId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !normalizedDepartmentId.isEmpty else { return [] }
+            guard let matched = configs.enumerated().first(where: { index, config in
+                departmentIdentifier(from: config.name, fallbackIndex: index) == normalizedDepartmentId ||
+                config.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedDepartmentId
+            })?.element else {
+                return []
+            }
+            return matched.locations.enumerated().map { index, name in
+                LocationRef(
+                    id: locationIdentifier(from: name, fallbackIndex: index),
+                    name: name,
+                    sortOrder: index,
+                    isActive: true
+                )
+            }
         }
 #endif
         return loadLocationsLocal(organizationId: organizationId, departmentId: departmentId)
@@ -787,23 +796,71 @@ final class OrganizationService {
     func saveLocations(_ locations: [LocationRef], organizationId: String, departmentId: String) async throws {
 #if canImport(FirebaseFirestore)
         if firestoreEnabled {
-            let db = Firestore.firestore()
-            let batch = db.batch()
-            for location in locations {
-                let ref = db.collection("organizations")
-                    .document(organizationId)
-                    .collection("departments")
-                    .document(departmentId)
-                    .collection("locations")
-                    .document(location.id)
-                try batch.setData(from: location, forDocument: ref)
+            let allConfigs = await departmentConfigs(for: organizationId, storeId: nil)
+            let normalizedDepartmentId = departmentId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !normalizedDepartmentId.isEmpty else { return }
+
+            var updatedConfigs = allConfigs
+            if let matchIndex = allConfigs.enumerated().first(where: { index, config in
+                departmentIdentifier(from: config.name, fallbackIndex: index) == normalizedDepartmentId ||
+                config.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedDepartmentId
+            })?.offset {
+                updatedConfigs[matchIndex] = DepartmentConfig(
+                    name: allConfigs[matchIndex].name,
+                    locations: locations
+                        .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                )
+            } else {
+                updatedConfigs.append(
+                    DepartmentConfig(
+                        name: departmentId.trimmingCharacters(in: .whitespacesAndNewlines),
+                        locations: locations
+                            .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                    )
+                )
             }
-            try await batch.commit()
+            try await saveDepartmentConfigsToSettings(
+                updatedConfigs,
+                organizationId: organizationId
+            )
             return
         }
 #endif
         saveLocationsLocal(locations, organizationId: organizationId, departmentId: departmentId)
     }
+
+#if canImport(FirebaseFirestore)
+    private func saveDepartmentConfigsToSettings(
+        _ configs: [DepartmentConfig],
+        organizationId: String
+    ) async throws {
+        let db = Firestore.firestore()
+        let normalizedConfigs = configs
+            .map { config in
+                let name = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let locations = config.locations
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                return DepartmentConfig(name: name, locations: Array(Set(locations)).sorted())
+            }
+            .filter { !$0.name.isEmpty }
+
+        let payload: [String: Any] = [
+            "organizationId": organizationId,
+            "departmentConfigs": normalizedConfigs.map { ["name": $0.name, "locations": $0.locations] },
+            "departments": normalizedConfigs.map(\.name),
+            "locationTemplates": Array(Set(normalizedConfigs.flatMap(\.locations))).sorted(),
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+        try await db.collection("organizations")
+            .document(organizationId)
+            .collection("settings")
+            .document("default")
+            .setData(payload, merge: true)
+    }
+#endif
 
     private func decodeDepartmentConfigsFromSettingsData(_ data: [String: Any]) -> [DepartmentConfig] {
         if let rawConfigs = data["departmentConfigs"] as? [[String: Any]], !rawConfigs.isEmpty {
@@ -1350,6 +1407,28 @@ final class OrganizationService {
                 .last(where: { !$0.isEmpty }) ?? ""
         }
         return trimmed
+    }
+
+    private func departmentIdentifier(from raw: String, fallbackIndex: Int) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleaned = trimmed
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        if cleaned.isEmpty {
+            return "department_\(fallbackIndex + 1)"
+        }
+        return cleaned
+    }
+
+    private func locationIdentifier(from raw: String, fallbackIndex: Int) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleaned = trimmed
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        if cleaned.isEmpty {
+            return "location_\(fallbackIndex + 1)"
+        }
+        return cleaned
     }
 #endif
 }

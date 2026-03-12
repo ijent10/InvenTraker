@@ -99,7 +99,25 @@ async function checkStoreSubcollections(orgId: string, regionId: string, distric
         "createdByUid",
         "createdAt"
       ]
-    ])
+    ),
+    checkOptionalCollection(
+      `organizations/${orgId}/regions/${regionId}/districts/${districtId}/stores/${storeId}/recommendations`,
+      ["organizationId", "storeId", "domains", "generatedAt", "response", "summary"]
+    ),
+    checkOptionalCollection(
+      `organizations/${orgId}/regions/${regionId}/districts/${districtId}/stores/${storeId}/recommendationRuns`,
+      [
+        "runId",
+        "organizationId",
+        "storeId",
+        "engineVersion",
+        "schemaVersion",
+        "rulePathUsed",
+        "sourceRefs",
+        "fallbackUsed",
+        "inputHash"
+      ]
+    )
   ]
 
   const orderDoc = await firstDoc(

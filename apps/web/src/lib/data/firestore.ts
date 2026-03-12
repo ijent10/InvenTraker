@@ -3300,106 +3300,19 @@ export async function computeFinancialHealthFromOrgData(orgId: string, storeId?:
   }
 }
 
-function daysUntilNextVendorOrder(orderingDays: number[], now: Date): number {
-  if (!orderingDays.length) return 0
-  const currentDay = now.getDay()
-  let best = 7
-  for (const day of orderingDays) {
-    const delta = (day - currentDay + 7) % 7
-    if (delta < best) best = delta
-  }
-  return best
-}
-
 export async function generateOrderSuggestionsFromOrgData(
   orgId: string,
   storeId?: string,
   vendorId?: string,
   actorUid?: string
 ): Promise<{ lines: OrderSuggestionLine[]; orderIds: string[]; todoId?: string }> {
-  if (!db || !orgId) return { lines: [], orderIds: [] }
-  const [items, vendors] = await Promise.all([fetchItems(orgId, { storeId }), fetchVendors(orgId)])
-  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]))
-  const now = new Date()
-
-  const lines = items
-    .filter((item) => !item.isArchived)
-    .filter((item) => !vendorId || item.vendorId === vendorId)
-    .map((item) => {
-      const selectedVendor = item.vendorId ? vendorMap.get(item.vendorId) : undefined
-      const minQty = Number(item.minimumQuantity.toFixed(3))
-      const onHand = Number(item.totalQuantity.toFixed(3))
-      const deficit = Math.max(0, minQty - onHand)
-      const leadDays = Math.max(0, selectedVendor?.leadDays ?? 0)
-      const orderingDays = selectedVendor?.orderingDays ?? selectedVendor?.orderDays ?? []
-      const nextWindow = daysUntilNextVendorOrder(orderingDays, now)
-      const urgencyAdd = Math.max(0, leadDays + Math.max(0, 1 - nextWindow))
-      const baseline = deficit + urgencyAdd
-      const lbsDirect = item.unit === "lbs" && item.caseSize === 1
-      const suggestedQty = lbsDirect
-        ? Number(baseline.toFixed(3))
-        : Math.max(0, Math.ceil(baseline / Math.max(1, item.quantityPerBox)) * Math.max(1, item.quantityPerBox))
-      return {
-        itemId: item.id,
-        itemName: item.name,
-        suggestedQty,
-        unit: item.unit,
-        rationale:
-          suggestedQty <= 0
-            ? `${item.name}: on hand meets minimum.`
-            : lbsDirect
-              ? `${item.name}: below minimum + vendor lead time, ordering by lbs.`
-              : `${item.name}: below minimum + vendor lead time, rounded to case quantity.`,
-        caseRounded: !lbsDirect && suggestedQty > 0,
-        onHand,
-        minQuantity: minQty,
-        qtyPerCase: item.quantityPerBox
-      } satisfies OrderSuggestionLine
-    })
-    .sort((a, b) => {
-      if (a.suggestedQty === b.suggestedQty) return a.itemName.localeCompare(b.itemName)
-      return b.suggestedQty - a.suggestedQty
-    })
-
-  const orderIds: string[] = []
-  for (const line of lines) {
-    const orderRef = doc(collection(db, "organizations", orgId, "orders"))
-    await setDoc(orderRef, {
-      id: orderRef.id,
-      organizationId: orgId,
-      storeId: storeId ?? null,
-      itemId: line.itemId,
-      itemName: line.itemName,
-      itemUnit: line.unit,
-      itemQuantityPerBox: line.qtyPerCase,
-      vendorId: vendorId ?? null,
-      recommendedQuantity: Math.round(line.suggestedQty),
-      orderedQuantity: null,
-      isChecked: false,
-      wasReceived: false,
-      status: "suggested",
-      orderDate: serverTimestamp(),
-      expectedDeliveryDate: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      updatedByUid: actorUid ?? null
-    })
-    orderIds.push(orderRef.id)
-  }
-
-  const todoRef = doc(collection(db, "organizations", orgId, "toDo"))
-  await setDoc(todoRef, {
-    organizationId: orgId,
-    storeId: storeId ?? null,
-    type: "auto",
-    title: vendorId ? `Place order for vendor ${vendorId}` : "Review suggested order",
-    dueAt: serverTimestamp(),
-    status: "open",
-    createdAt: serverTimestamp(),
-    createdBy: actorUid ?? null
-  })
-
-  return { lines, orderIds, todoId: todoRef.id }
+  // Deprecated compatibility helper retained for old imports.
+  // Recommendation math is backend-only: use getStoreRecommendations + commitOrderRecommendations.
+  void orgId
+  void storeId
+  void vendorId
+  void actorUid
+  return { lines: [], orderIds: [] }
 }
 
 export type CreateStoreInput = {

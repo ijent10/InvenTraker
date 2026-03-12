@@ -134,7 +134,7 @@ export default function OrdersPage() {
     },
     onSuccess: async (result) => {
       if (!result) return
-      setStatusMessage(`Applied ${result.lineCount} suggestion line(s). Order ${result.orderId} created.`)
+      setStatusMessage(`Order completed with ${result.lineCount} line(s). Order ${result.orderId} created.`)
       setErrorMessage(null)
       await refetchOrders()
     },
@@ -204,7 +204,7 @@ export default function OrdersPage() {
     <div>
       <PageHead
         title="Orders"
-        subtitle="Single-engine backend recommendations (preview first, then apply)."
+        subtitle="Single-engine backend recommendations. Quantities are prefilled and fully editable before completion."
         actions={
           <div className="flex gap-2">
             <AppButton
@@ -223,7 +223,7 @@ export default function OrdersPage() {
                 previewLines.every((line) => !line.selected)
               }
             >
-              {applyMutation.isPending ? "Applying..." : "Apply Suggestions"}
+              {applyMutation.isPending ? "Completing..." : "Complete Order"}
             </AppButton>
           </div>
         }

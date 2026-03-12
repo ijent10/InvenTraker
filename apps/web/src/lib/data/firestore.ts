@@ -3382,6 +3382,87 @@ export async function createStore(orgId: string, input: CreateStoreInput): Promi
   return storeRef.id
 }
 
+export async function syncOrganizationItemsToStoreCatalog(
+  orgId: string,
+  storeId: string,
+  actorUid?: string
+): Promise<number> {
+  if (!db || !orgId || !storeId.trim()) return 0
+  const firestore = db
+
+  const normalizedStoreId = storeId.trim()
+  const itemsSnap = await getDocs(query(collection(firestore, "organizations", orgId, "items"), limit(2500)))
+  if (itemsSnap.empty) return 0
+
+  let writes = 0
+  let pending = 0
+  let batch = writeBatch(firestore)
+
+  const flush = async () => {
+    if (pending === 0) return
+    await batch.commit()
+    batch = writeBatch(firestore)
+    pending = 0
+  }
+
+  for (const item of itemsSnap.docs) {
+    const data = item.data() as Record<string, unknown>
+    const upc = asString(data.upc) ?? ""
+    const catalogDocId = upc.trim() || item.id
+    const qtyPerCase = Math.max(1, asNumber(data.qtyPerCase ?? data.quantityPerBox, 1))
+    const defaultExpiration = Math.max(
+      1,
+      asNumber(data.defaultExpirationDays ?? data.defaultExpiration, 7)
+    )
+    const defaultPackedExpiration = Math.max(
+      1,
+      asNumber(data.defaultPackedExpiration ?? data.defaultPackedExpirationDays ?? defaultExpiration, defaultExpiration)
+    )
+
+    batch.set(
+      doc(firestore, "organizations", orgId, "stores", normalizedStoreId, "catalog", catalogDocId),
+      {
+        organizationId: orgId,
+        storeId: normalizedStoreId,
+        itemId: item.id,
+        upc: upc.trim() || null,
+        name: asString(data.name) ?? "Item",
+        unitRaw: (asString(data.unit) ?? "each").toLowerCase() === "lbs" ? "lbs" : "each",
+        qtyPerCase,
+        caseSize: Math.max(1, asNumber(data.caseSize, qtyPerCase)),
+        defaultExpirationDays: defaultExpiration,
+        defaultPackedExpiration,
+        vendorId: asString(data.vendorId) ?? null,
+        vendorName: asString(data.vendorName) ?? null,
+        department: asString(data.department) ?? null,
+        departmentId: asString(data.departmentId) ?? null,
+        tags: asStringArray(data.tags),
+        price: Math.max(0, asNumber(data.price, 0)),
+        isPrepackaged: Boolean(data.isPrepackaged ?? false),
+        rewrapsWithUniqueBarcode: Boolean(data.rewrapsWithUniqueBarcode ?? false),
+        canBeReworked: Boolean(data.canBeReworked ?? false),
+        reworkItemCode: asString(data.reworkItemCode) ?? null,
+        reworkShelfLifeDays: Math.max(1, asNumber(data.reworkShelfLifeDays, 1)),
+        maxReworkCount: Math.max(1, asNumber(data.maxReworkCount, 1)),
+        syncedFromOrganizationItems: true,
+        updatedByUid: actorUid ?? null,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+
+    pending += 1
+    writes += 1
+    if (pending >= 450) {
+      await flush()
+    }
+  }
+
+  await flush()
+  return writes
+}
+
 export async function updateStore(
   orgId: string,
   store: StoreWithPath,

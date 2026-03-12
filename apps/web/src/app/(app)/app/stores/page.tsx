@@ -23,6 +23,7 @@ import {
   fetchStores,
   formatStoreLabel,
   reviewStoreAccessRequest,
+  syncOrganizationItemsToStoreCatalog,
   submitStoreAccessRequest,
   updateStore,
   type StoreWithPath
@@ -47,6 +48,7 @@ export default function StoresPage() {
   const [requestReasonByStoreId, setRequestReasonByStoreId] = useState<Record<string, string>>({})
   const [requestingStoreId, setRequestingStoreId] = useState<string | null>(null)
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null)
+  const [syncingStoreId, setSyncingStoreId] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -104,26 +106,38 @@ export default function StoresPage() {
       key: "actions",
       header: "Actions",
       render: (store) => (
-        <AppButton
-          className="h-8 px-3 py-1"
-          variant="secondary"
-          onClick={() => {
-            setEditingStoreId(store.id)
-            setTitle(store.title ?? store.name)
-            setStoreNumber(store.storeNumber ?? "")
-            setAddressLine1(store.addressLine1 ?? "")
-            setAddressLine2(store.addressLine2 ?? "")
-            setCity(store.city ?? "")
-            setState(store.state ?? "")
-            setPostalCode(store.postalCode ?? "")
-            setCountry(store.country ?? "USA")
-            setRegionName("")
-            setDistrictName("")
-            setStatus(store.status || "active")
-          }}
-        >
-          Edit
-        </AppButton>
+        <div className="flex flex-wrap gap-2">
+          <AppButton
+            className="h-8 px-3 py-1"
+            variant="secondary"
+            onClick={() => {
+              setEditingStoreId(store.id)
+              setTitle(store.title ?? store.name)
+              setStoreNumber(store.storeNumber ?? "")
+              setAddressLine1(store.addressLine1 ?? "")
+              setAddressLine2(store.addressLine2 ?? "")
+              setCity(store.city ?? "")
+              setState(store.state ?? "")
+              setPostalCode(store.postalCode ?? "")
+              setCountry(store.country ?? "USA")
+              setRegionName("")
+              setDistrictName("")
+              setStatus(store.status || "active")
+            }}
+          >
+            Edit
+          </AppButton>
+          <AppButton
+            className="h-8 px-3 py-1"
+            variant="secondary"
+            onClick={() => void syncStoreCatalog(store.id)}
+            disabled={syncingStoreId === store.id}
+          >
+            {syncingStoreId === store.id
+              ? "Syncing..."
+              : `Sync Items from ${activeOrg?.organizationName ?? "Organization"}`}
+          </AppButton>
+        </div>
       )
     }
   ]
@@ -155,7 +169,7 @@ export default function StoresPage() {
           status
         })
       } else {
-        await createStore(activeOrgId, {
+        const createdStoreId = await createStore(activeOrgId, {
           title: title.trim(),
           storeNumber: storeNumber.trim(),
           regionName: regionName.trim() || undefined,
@@ -167,6 +181,9 @@ export default function StoresPage() {
           postalCode: postalCode.trim(),
           country: country.trim() || "USA"
         })
+        setStatusMessage(
+          `Store created. Use “Sync Items from ${activeOrg?.organizationName ?? "Organization"}” on ${title.trim() || createdStoreId} to copy org item metadata.`
+        )
       }
       await refetch()
       setTitle("")
@@ -181,9 +198,26 @@ export default function StoresPage() {
       setCountry("USA")
       setStatus("active")
       setEditingStoreId("")
-      setStatusMessage(editingStoreId ? "Store updated." : "Store created.")
+      if (editingStoreId) {
+        setStatusMessage("Store updated.")
+      }
     } catch {
       setErrorMessage(editingStoreId ? "Could not update store." : "Could not create store.")
+    }
+  }
+
+  const syncStoreCatalog = async (storeId: string) => {
+    if (!activeOrgId || !storeId.trim()) return
+    setStatusMessage(null)
+    setErrorMessage(null)
+    setSyncingStoreId(storeId)
+    try {
+      const count = await syncOrganizationItemsToStoreCatalog(activeOrgId, storeId, user?.uid)
+      setStatusMessage(`Synced ${count} item metadata record(s) to store catalog (no quantities copied).`)
+    } catch {
+      setErrorMessage("Could not sync organization items to this store.")
+    } finally {
+      setSyncingStoreId(null)
     }
   }
 

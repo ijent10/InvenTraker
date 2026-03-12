@@ -152,9 +152,9 @@ struct HomeView: View {
 
     private var notificationBadgeCount: Int {
         if notificationFeed.unreadCount > 0 {
-            return notificationFeed.unreadCount
+            return min(notificationFeed.unreadCount, 9)
         }
-        return visibleNotifications.count
+        return min(visibleNotifications.count, 9)
     }
 
     private var activeStoreLabel: String {
@@ -753,7 +753,7 @@ private struct NotificationBellButton: View {
     let tint: Color
 
     private var badgeText: String {
-        count > 99 ? "99+" : "\(count)"
+        count > 9 ? "9+" : "\(count)"
     }
 
     var body: some View {
@@ -770,14 +770,14 @@ private struct NotificationBellButton: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2.5)
-                    .frame(minWidth: badgeText.count > 2 ? 28 : 22)
+                    .padding(.horizontal, badgeText.count > 1 ? 6 : 5)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: badgeText.count > 1 ? 24 : 20)
                     .background(Color.red, in: Capsule())
-                    .offset(x: 8, y: -8)
+                    .offset(x: 7, y: -4)
                     .accessibilityLabel("\(count) unread notifications")
             }
         }
-        .frame(width: 48, height: 36, alignment: .center)
+        .frame(width: 46, height: 36, alignment: .center)
     }
 }

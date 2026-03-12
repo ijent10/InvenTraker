@@ -51,7 +51,7 @@
       },
       "expected": {
         "caseInterpretation": "direct_units",
-        "recommendedQuantity": 28.642,
+        "recommendedQuantity": 16.2,
         "confidence": 0.65,
         "demandValue": 6.6
       }

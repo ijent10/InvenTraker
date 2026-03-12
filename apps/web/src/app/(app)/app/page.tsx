@@ -9,6 +9,7 @@ import {
   Clock3,
   Factory,
   ListTodo,
+  ScanLine,
   Settings,
   ShoppingCart,
   Store,
@@ -47,6 +48,7 @@ const cardCatalog: DashboardCard[] = [
   { id: "expiration", href: "/app/expiration", icon: Clock3, title: "Expiration", subtitle: "Items expiring soon", metric: "Soon", module: "expiration" },
   { id: "waste", href: "/app/waste", icon: Trash2, title: "Waste", subtitle: "Track spoilage cost", metric: "Live", module: "waste" },
   { id: "inventory", href: "/app/inventory", icon: Box, title: "Inventory", subtitle: "Search UPC, tags, names", metric: "Active", module: "inventory" },
+  { id: "spotCheck", href: "/app/spot-check", icon: ScanLine, title: "Spot Check", subtitle: "Latest count + barcode export", metric: "Recent", module: "inventory" },
   { id: "healthChecks", href: "/app/health-checks", icon: ClipboardList, title: "Health Checks", subtitle: "Assigned QA + safety forms", metric: "Daily", module: "healthChecks" },
   { id: "orders", href: "/app/orders", icon: ShoppingCart, title: "Orders", subtitle: "Suggested lines by vendor", metric: "Draft", module: "orders" },
   { id: "todo", href: "/app/todo", icon: ListTodo, title: "To-Do", subtitle: "Manual + auto tasks", metric: "Open", module: "todo" },
@@ -130,13 +132,14 @@ export default function DashboardPage() {
       .filter((card): card is DashboardCard => Boolean(card))
       .filter((card) => selectedCardIds.includes(card.id))
       .filter((card) => {
+        if (card.id === "spotCheck") return effectivePermissions.appSpotCheck
         if (card.id === "stores") return effectivePermissions.manageStores
         if (card.id === "users") return effectivePermissions.manageUsers
         if (card.id === "orgSettings") return effectivePermissions.manageOrgSettings
         if (card.id === "storeSettings") return effectivePermissions.manageStoreSettings
         return true
       })
-  }, [effectivePermissions.manageOrgSettings, effectivePermissions.manageStoreSettings, effectivePermissions.manageStores, effectivePermissions.manageUsers, orderedCardIds, selectedCardIds])
+  }, [effectivePermissions.appSpotCheck, effectivePermissions.manageOrgSettings, effectivePermissions.manageStoreSettings, effectivePermissions.manageStores, effectivePermissions.manageUsers, orderedCardIds, selectedCardIds])
 
   return (
     <div>

@@ -85,6 +85,8 @@ export async function buildStoreRecommendations(input) {
                 sourceRefs: features.sourceRefs,
                 degraded: false,
                 fallbackUsed: false,
+                fallbackSource: undefined,
+                fallbackTrigger: undefined,
                 inputHash
             },
             orderRecommendations,
@@ -110,7 +112,9 @@ export async function buildStoreRecommendations(input) {
             reason,
             runId,
             inputHash,
-            sourceRefs: features.sourceRefs
+            sourceRefs: features.sourceRefs,
+            fallbackSource: "server",
+            fallbackTrigger: "backend_unavailable"
         });
         await persistRecommendationArtifacts({
             features,

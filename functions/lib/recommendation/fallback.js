@@ -13,6 +13,8 @@ export function degradedRecommendationResponse(input) {
         degraded: true,
         fallbackUsed: true,
         fallbackReason: input.reason,
+        fallbackSource: input.fallbackSource ?? "server",
+        fallbackTrigger: input.fallbackTrigger ?? "backend_unavailable",
         inputHash: input.inputHash
     };
     return {

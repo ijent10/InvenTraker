@@ -593,6 +593,14 @@ final class OrganizationService {
                let scopedDoc = scopedSnapshot.documents.first {
                 let scopedConfigs = decodeDepartmentConfigsFromSettingsData(scopedDoc.data())
                 if !scopedConfigs.isEmpty {
+                    if shouldBackfillDepartmentConfigs(from: scopedDoc.data()) {
+                        await backfillDepartmentConfigs(
+                            scopedConfigs,
+                            to: scopedDoc.reference,
+                            organizationId: organizationId,
+                            storeId: normalizedStoreId
+                        )
+                    }
                     return scopedConfigs
                 }
             }
@@ -623,6 +631,14 @@ final class OrganizationService {
                                let data = nestedSettings.data() {
                                 let scopedConfigs = decodeDepartmentConfigsFromSettingsData(data)
                                 if !scopedConfigs.isEmpty {
+                                    if shouldBackfillDepartmentConfigs(from: data) {
+                                        await backfillDepartmentConfigs(
+                                            scopedConfigs,
+                                            to: nestedSettings.reference,
+                                            organizationId: organizationId,
+                                            storeId: normalizedStoreId
+                                        )
+                                    }
                                     return scopedConfigs
                                 }
                             }
@@ -641,6 +657,14 @@ final class OrganizationService {
                    let data = legacySettings.data() {
                     let scopedConfigs = decodeDepartmentConfigsFromSettingsData(data)
                     if !scopedConfigs.isEmpty {
+                        if shouldBackfillDepartmentConfigs(from: data) {
+                            await backfillDepartmentConfigs(
+                                scopedConfigs,
+                                to: legacySettings.reference,
+                                organizationId: organizationId,
+                                storeId: normalizedStoreId
+                            )
+                        }
                         return scopedConfigs
                     }
                 }
@@ -654,6 +678,14 @@ final class OrganizationService {
                let data = orgSettingsDoc.data() {
                 let configs = decodeDepartmentConfigsFromSettingsData(data)
                 if !configs.isEmpty {
+                    if shouldBackfillDepartmentConfigs(from: data) {
+                        await backfillDepartmentConfigs(
+                            configs,
+                            to: orgSettingsDoc.reference,
+                            organizationId: organizationId,
+                            storeId: nil
+                        )
+                    }
                     return configs
                 }
             }
@@ -832,6 +864,54 @@ final class OrganizationService {
     }
 
 #if canImport(FirebaseFirestore)
+    private func shouldBackfillDepartmentConfigs(from data: [String: Any]) -> Bool {
+        if let rawConfigs = data["departmentConfigs"] as? [[String: Any]], !rawConfigs.isEmpty {
+            return false
+        }
+        let legacyDepartments = ((data["departments"] as? [String]) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return !legacyDepartments.isEmpty
+    }
+
+    private func backfillDepartmentConfigs(
+        _ configs: [DepartmentConfig],
+        to reference: DocumentReference,
+        organizationId: String,
+        storeId: String?
+    ) async {
+        let normalized: [DepartmentConfig] = configs
+            .map { config in
+                let name = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let locations = config.locations
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                return DepartmentConfig(name: name, locations: Array(Set(locations)).sorted())
+            }
+            .filter { !$0.name.isEmpty }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+
+        guard !normalized.isEmpty else { return }
+
+        var payload: [String: Any] = [
+            "organizationId": organizationId,
+            "departmentConfigs": normalized.map { ["name": $0.name, "locations": $0.locations] },
+            "departments": normalized.map { $0.name },
+            "locationTemplates": Array(Set(normalized.flatMap { $0.locations })).sorted(),
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+        if let storeId, !storeId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            payload["storeId"] = storeId
+        }
+        do {
+            try await reference.setData(payload, merge: true)
+        } catch {
+            // Best-effort migration path; ignore write failure and keep read results.
+        }
+    }
+
     private func saveDepartmentConfigsToSettings(
         _ configs: [DepartmentConfig],
         organizationId: String

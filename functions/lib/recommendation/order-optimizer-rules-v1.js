@@ -62,20 +62,27 @@ export function runOrderOptimizerRulesV1(input) {
         };
         const minimumQuantity = Math.max(0, item.minQuantity + item.productionDemand);
         const projectedQuantity = Math.max(0, item.onHand + item.incomingBeforeLead);
-        const deficit = Math.max(0, minimumQuantity - projectedQuantity);
-        const urgencyAdd = Math.max(0, item.leadDays + Math.max(0, 2 - item.nextOrderInDays));
-        const usageAdd = Math.max(0, item.weeklyUsage * 0.25);
-        let recommendedUnits = 0;
-        if (projectedQuantity < minimumQuantity) {
-            recommendedUnits = deficit + minimumQuantity * 0.2;
+        const shortfallToMinimum = Math.max(0, minimumQuantity - projectedQuantity);
+        const dailyDemand = Math.max(0, demand.value);
+        const horizonDays = Math.max(1, Math.min(7, item.leadDays + Math.max(1, item.nextOrderInDays)));
+        const demandCoverageNeed = dailyDemand * horizonDays;
+        const safetyStock = Math.max(Math.max(1, item.qtyPerCase) * 0.5, minimumQuantity * 0.15);
+        const targetStock = Math.max(minimumQuantity, demandCoverageNeed + safetyStock);
+        let recommendedUnits = Math.max(0, targetStock - projectedQuantity);
+        // Keep recommendations conservative for low-signal or waste-heavy rows.
+        if (item.weeklyUsage <= 0 && dailyDemand <= 0 && projectedQuantity >= minimumQuantity) {
+            recommendedUnits = 0;
         }
-        else if (item.wasteAffectingOrders > minimumQuantity * 0.1) {
-            recommendedUnits = Math.max(0, minimumQuantity * 0.8 - projectedQuantity);
+        if (item.wasteAffectingOrders > minimumQuantity * 0.2) {
+            recommendedUnits *= 0.75;
         }
-        recommendedUnits += usageAdd + urgencyAdd + Math.max(0, demand.value * 0.12);
         if (item.expiringBeforeLead > Math.max(projectedQuantity, 1) * 0.3) {
-            recommendedUnits *= 0.7;
+            recommendedUnits *= 0.65;
         }
+        // Prevent runaway over-ordering while still preserving case-pack behavior.
+        const extraBufferCap = Math.max(Math.max(1, item.qtyPerCase) * 2, minimumQuantity * 0.5);
+        const extraBeyondMinimum = Math.max(0, recommendedUnits - shortfallToMinimum);
+        recommendedUnits = shortfallToMinimum + Math.min(extraBeyondMinimum, extraBufferCap);
         const lbsDirect = item.unit === "lbs" && item.caseSize === 1;
         const recommendedQuantity = lbsDirect
             ? Number(Math.max(0, recommendedUnits).toFixed(3))
@@ -103,8 +110,8 @@ export function runOrderOptimizerRulesV1(input) {
             confidence,
             topContributingFactors: topFactors,
             rationaleSummary: recommendedQuantity > 0
-                ? `${item.itemName}: projected ${Number(projectedQuantity.toFixed(2))} vs minimum ${Number(minimumQuantity.toFixed(2))}; ${lbsDirect ? "ordering direct units." : "rounded to case pack."}`
-                : `${item.itemName}: projected stock covers current minimum.`,
+                ? `${item.itemName}: projected ${Number(projectedQuantity.toFixed(2))}, target ${Number(targetStock.toFixed(2))}; ${lbsDirect ? "ordering direct units." : "rounded to case pack."}`
+                : `${item.itemName}: projected stock already covers target inventory.`,
             degraded: false,
             fallbackUsed: false,
             questions

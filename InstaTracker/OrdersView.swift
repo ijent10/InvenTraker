@@ -646,7 +646,7 @@ struct GenerateOrderView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let backendEngineVersion {
-                            Text("Engine: \(backendEngineVersion)\(usingLocalRecommendationFallback ? \" (degraded fallback)\" : \"\")")
+                            Text("Engine: \(backendEngineVersion)\(usingLocalRecommendationFallback ? " (degraded fallback)" : "")")
                                 .font(.caption2)
                                 .foregroundStyle((usingLocalRecommendationFallback || backendDegraded) ? .orange : .secondary)
                         }

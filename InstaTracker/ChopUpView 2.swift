@@ -42,19 +42,19 @@ struct ChopUpView: View {
                         .listRowBackground(Color.clear)
                 }
 
-                Section("Rework") {
+                Section("Scan + Decode") {
                     Button {
                         showingReworkFlow = true
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                            Image(systemName: "barcode.viewfinder")
                                 .font(.title3)
                                 .foregroundStyle(settings.accentColor)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Rework Item")
+                                Text("Scan Reworked Barcode")
                                     .font(.headline)
                                     .foregroundStyle(.primary)
-                                Text("Scan wrapped barcode and issue a new barcode.")
+                                Text("Spot Check-style flow: scan item, decode weight/price, and auto-fill expiration.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -81,6 +81,7 @@ struct ChopUpView: View {
                         description: Text("Mark items as prepackaged in Add Item or Item Detail to use Chop.")
                     )
                 } else {
+                    Section("Pack Existing Item") {
                     ForEach(prepackagedItems) { item in
                         Button {
                             selectedItem = item
@@ -117,6 +118,7 @@ struct ChopUpView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
                     }
                 }
             }
@@ -622,6 +624,7 @@ private struct ChopReworkView: View {
     @State private var parsedTrailingDigits: String?
     @State private var parsedProductCode = ""
     @State private var ruleLoaded = false
+    @State private var hasAutoPromptedScanner = false
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingSaved = false
@@ -755,6 +758,12 @@ private struct ChopReworkView: View {
             }
             .task {
                 await loadReworkedBarcodeRule()
+            }
+            .onAppear {
+                if entryMode == .quickScan && !hasAutoPromptedScanner {
+                    hasAutoPromptedScanner = true
+                    showingScanner = true
+                }
             }
             .sheet(isPresented: $showingScanner) {
                 BarcodeScannerSheet(scannerService: scannerService) { scanned in

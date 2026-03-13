@@ -1261,6 +1261,12 @@ function stripUndefinedDeep(value: unknown): unknown {
       .filter((entry) => entry !== undefined)
   }
   if (value && typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value)
+    const isPlainObject = prototype === Object.prototype || prototype === null
+    if (!isPlainObject) {
+      // Preserve Firestore sentinel values and special object types (Timestamp, Date, etc).
+      return value
+    }
     const record = value as Record<string, unknown>
     return Object.fromEntries(
       Object.entries(record)
@@ -4437,9 +4443,10 @@ export async function saveOrgSettings(
     if (value === undefined) continue
     payload[key] = value
   }
+  const cleanedPayload = stripUndefinedDeep(payload) as Record<string, unknown>
   await setDoc(
     doc(db, "organizations", orgId, "settings", "default"),
-    payload,
+    cleanedPayload,
     { merge: true }
   )
 }
@@ -4518,6 +4525,13 @@ export async function saveStoreSettings(
   if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
     sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
   }
+  const payload = stripUndefinedDeep({
+    organizationId: orgId,
+    storeId: store.id,
+    ...sanitizedPatch,
+    updatedAt: serverTimestamp(),
+    updatedBy: actorUserId
+  }) as Record<string, unknown>
   await setDoc(
     doc(
       db,
@@ -4532,13 +4546,7 @@ export async function saveStoreSettings(
       "settings",
       "default"
     ),
-    {
-      organizationId: orgId,
-      storeId: store.id,
-      ...sanitizedPatch,
-      updatedAt: serverTimestamp(),
-      updatedBy: actorUserId
-    },
+    payload,
     { merge: true }
   )
 }

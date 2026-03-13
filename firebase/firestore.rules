@@ -167,12 +167,15 @@ service cloud.firestore {
     match /mediaAssets/{assetId} {
       allow read: if signedIn() && (
         resource.data.ownerUserId == userId() ||
-        (resource.data.organizationId is string && isMember(resource.data.organizationId))
+        (resource.data.organizationId is string && inOrg(resource.data.organizationId))
       );
-      allow create: if signedIn() && request.resource.data.ownerUserId == userId() && isMember(request.resource.data.organizationId);
+      allow create: if signedIn()
+        && request.resource.data.ownerUserId == userId()
+        && request.resource.data.organizationId is string
+        && inOrg(request.resource.data.organizationId);
       allow update: if signedIn() && (
         resource.data.ownerUserId == userId() ||
-        managerPlus(resource.data.organizationId)
+        (resource.data.organizationId is string && managerPlus(resource.data.organizationId))
       );
       allow delete: if false;
     }

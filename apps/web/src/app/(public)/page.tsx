@@ -2,9 +2,9 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AppCard, IconTile, appButtonClass } from "@inventracker/ui"
+import { AppButton, AppCard, IconTile, appButtonClass } from "@inventracker/ui"
 import {
   ArrowRight,
   Barcode,
@@ -48,6 +48,25 @@ const outcomes = [
   {
     title: "Run every store cleaner",
     desc: "Give managers a clear daily playbook instead of scattered spreadsheets."
+  }
+]
+
+const operationFlow = [
+  {
+    title: "1. Scan + capture",
+    desc: "Run spot checks, receiving, and waste in seconds with barcode-first workflows."
+  },
+  {
+    title: "2. Analyze risk",
+    desc: "See expiring inventory, waste patterns, and demand signals in one operational view."
+  },
+  {
+    title: "3. Take action",
+    desc: "Apply order and production recommendations before shrink compounds."
+  },
+  {
+    title: "4. Improve weekly",
+    desc: "Use health checks and insights to tighten execution store by store."
   }
 ]
 
@@ -141,14 +160,13 @@ const webShowcaseScreens = [
 ]
 
 const mobileShowcaseScreens = [
-  { src: "/showcase/screen-01.png", alt: "InvenTraker app screen 1" },
-  { src: "/showcase/screen-02.png", alt: "InvenTraker app screen 2" },
-  { src: "/showcase/screen-03.png", alt: "InvenTraker app screen 3" },
-  { src: "/showcase/screen-04.png", alt: "InvenTraker app screen 4" },
-  { src: "/showcase/screen-05.png", alt: "InvenTraker app screen 5" },
-  { src: "/showcase/screen-06.png", alt: "InvenTraker app screen 6" },
-  { src: "/showcase/screen-07.png", alt: "InvenTraker app screen 7" },
-  { src: "/showcase/screen-08.png", alt: "InvenTraker app screen 8" }
+  { src: "/showcase/mobile-home.png", alt: "InvenTraker mobile home dashboard" },
+  { src: "/showcase/mobile-spot-check.png", alt: "InvenTraker mobile spot check screen" },
+  { src: "/showcase/mobile-waste.png", alt: "InvenTraker mobile waste scan screen" },
+  { src: "/showcase/mobile-chop-items.png", alt: "InvenTraker mobile chop items screen" },
+  { src: "/showcase/mobile-waste-types.png", alt: "InvenTraker mobile waste types settings" },
+  { src: "/showcase/mobile-orders.png", alt: "InvenTraker mobile orders screen" },
+  { src: "/showcase/mobile-production.png", alt: "InvenTraker mobile production screen" }
 ]
 
 type PublicPlan = {
@@ -197,6 +215,13 @@ function formatPlanPrice(unitAmount: number, currency: string, interval: string)
 }
 
 export default function LandingPage() {
+  const [expandedImage, setExpandedImage] = useState<{
+    src: string
+    alt: string
+    title?: string
+    description?: string
+  } | null>(null)
+
   const { data: planData } = useQuery({
     queryKey: ["public-pricing-plans"],
     queryFn: async () => {
@@ -217,6 +242,22 @@ export default function LandingPage() {
       .sort((a, b) => (a.prices[0]?.unitAmount ?? Number.MAX_SAFE_INTEGER) - (b.prices[0]?.unitAmount ?? Number.MAX_SAFE_INTEGER))
     return filtered.length ? filtered : fallbackPlans
   }, [planData])
+
+  useEffect(() => {
+    if (!expandedImage) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpandedImage(null)
+      }
+    }
+    const priorOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.body.style.overflow = priorOverflow
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [expandedImage])
 
   return (
     <div className="public-landing min-h-screen bg-white text-slate-900">
@@ -270,6 +311,32 @@ export default function LandingPage() {
           ))}
         </section>
 
+        <section className="mt-14 grid gap-4 lg:grid-cols-3">
+          <AppCard className="bg-white lg:col-span-2 !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
+            <h2 className="text-2xl font-semibold text-slate-900">How the flow works</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              One simple loop for teams: capture what happened, surface risk, act early, and improve continuously.
+            </p>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {operationFlow.map((step) => (
+                <div key={step.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">{step.title}</p>
+                  <p className="secondary-text mt-1 text-slate-600">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </AppCard>
+          <AppCard className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Estimated impact</p>
+            <p className="mt-3 text-4xl font-semibold text-slate-900">12% - 28%</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">Potential waste reduction</p>
+            <p className="secondary-text mt-3 text-slate-600">
+              Teams that consistently run spot checks, expiration reviews, and guided ordering can typically reduce avoidable
+              waste in this range over the first 90 days.
+            </p>
+          </AppCard>
+        </section>
+
         <section className="mt-14">
           <div className="mb-5">
             <h2 className="text-2xl font-semibold text-slate-900">See the Screens Before You Start</h2>
@@ -281,17 +348,24 @@ export default function LandingPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             {webShowcaseScreens.map((screen) => (
               <AppCard key={screen.src} className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <Image
-                    src={screen.src}
-                    alt={screen.alt}
-                    width={1920}
-                    height={1080}
-                    className="h-auto w-full object-cover"
-                  />
-                </div>
+                <AppButton
+                  variant="secondary"
+                  className="group !h-auto !w-full !cursor-zoom-in !rounded-2xl !border-slate-200 !bg-slate-50 !p-2 !text-left transition hover:!border-blue-300"
+                  onClick={() => setExpandedImage(screen)}
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-slate-950">
+                    <Image
+                      src={screen.src}
+                      alt={screen.alt}
+                      width={1920}
+                      height={1080}
+                      className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
+                    />
+                  </div>
+                </AppButton>
                 <h3 className="mt-3 text-lg font-semibold text-slate-900">{screen.title}</h3>
                 <p className="secondary-text mt-1 text-slate-600">{screen.description}</p>
+                <p className="mt-2 text-xs font-medium text-blue-700">Click image to expand</p>
               </AppCard>
             ))}
           </div>
@@ -303,17 +377,26 @@ export default function LandingPage() {
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {mobileShowcaseScreens.map((screen) => (
-                <div key={screen.src} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                  <Image
-                    src={screen.src}
-                    alt={screen.alt}
-                    width={1080}
-                    height={1920}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <AppButton
+                  key={screen.src}
+                  variant="secondary"
+                  type="button"
+                  className="group !h-auto !rounded-2xl !border-slate-200 !bg-white !p-2 !text-left transition hover:!border-blue-300"
+                  onClick={() => setExpandedImage(screen)}
+                >
+                  <div className="relative mx-auto aspect-[9/19] w-full max-w-[220px] overflow-hidden rounded-[22px] bg-slate-950">
+                    <Image
+                      src={screen.src}
+                      alt={screen.alt}
+                      width={1080}
+                      height={1920}
+                      className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
+                    />
+                  </div>
+                </AppButton>
               ))}
             </div>
+            <p className="mt-3 text-xs font-medium text-blue-700">Click any screenshot to expand</p>
           </div>
         </section>
 
@@ -435,6 +518,44 @@ export default function LandingPage() {
           <Link href="/contact">Contact</Link>
         </footer>
       </div>
+
+      {expandedImage ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4"
+          onClick={() => setExpandedImage(null)}
+        >
+          <div
+            className="w-full max-w-6xl rounded-3xl border border-slate-700 bg-slate-950 p-4 md:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{expandedImage.title ?? "Screenshot Preview"}</p>
+                {expandedImage.description ? (
+                  <p className="mt-1 text-xs text-slate-300">{expandedImage.description}</p>
+                ) : null}
+              </div>
+              <AppButton
+                variant="secondary"
+                type="button"
+                className="!h-auto !rounded-xl !border-slate-600 !px-3 !py-1.5 !text-sm !font-medium !text-slate-200 transition hover:!border-slate-400 hover:!text-white"
+                onClick={() => setExpandedImage(null)}
+              >
+                Close
+              </AppButton>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-slate-700 bg-black/70">
+              <Image
+                src={expandedImage.src}
+                alt={expandedImage.alt}
+                width={2560}
+                height={1600}
+                className="mx-auto max-h-[78vh] h-auto w-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
-import { getFirestore } from "firebase/firestore/lite"
+import { initializeFirestore } from "firebase/firestore/lite"
 import { getFunctions } from "firebase/functions"
 import { getStorage } from "firebase/storage"
 
@@ -22,6 +22,10 @@ const app = firebaseConfig ? (getApps().length ? getApp() : initializeApp(fireba
 
 export const firebaseReady = Boolean(app)
 export const auth = app ? getAuth(app) : null
-export const db = app ? getFirestore(app) : null
+export const db = app
+  ? initializeFirestore(app, {
+      ignoreUndefinedProperties: true
+    })
+  : null
 export const functions = app ? getFunctions(app, "us-central1") : null
 export const storage = app ? getStorage(app) : null

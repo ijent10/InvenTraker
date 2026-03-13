@@ -45,6 +45,24 @@ function asDate(value: unknown): Date | null {
   return null
 }
 
+function normalizeStoreId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function pathContainsStore(path: string, storeId: string): boolean {
+  if (!storeId) return false
+  return path.includes(`/stores/${storeId}/`) || path.endsWith(`/stores/${storeId}`)
+}
+
+function isStoreScopedMatch(data: Record<string, unknown>, path: string, storeId: string): boolean {
+  if (!storeId) return true
+  const rowStoreId = normalizeStoreId(data.storeId)
+  if (rowStoreId) {
+    return rowStoreId === storeId
+  }
+  return pathContainsStore(path, storeId)
+}
+
 function normalizeWindow(window: RecommendationWindow | undefined): RecommendationWindow {
   const now = new Date()
   if (!window) {
@@ -119,6 +137,7 @@ export async function collectRecommendationFeatures(params: {
   actorUid: string
 }): Promise<CollectedRecommendationFeatures> {
   const now = new Date()
+  const normalizedStoreId = params.storeId.trim()
   const input: RecommendationInput = {
     orgId: params.orgId,
     storeId: params.storeId,
@@ -150,17 +169,14 @@ export async function collectRecommendationFeatures(params: {
       adminDb
         .collectionGroup("inventoryBatches")
         .where("organizationId", "==", params.orgId)
-        .where("storeId", "==", params.storeId)
         .get(),
       adminDb
         .collectionGroup("wasteRecords")
         .where("organizationId", "==", params.orgId)
-        .where("storeId", "==", params.storeId)
         .get(),
       adminDb
         .collectionGroup("orders")
         .where("organizationId", "==", params.orgId)
-        .where("storeId", "==", params.storeId)
         .get(),
       adminDb.collection(`organizations/${params.orgId}/productionProducts`).get().catch(() => null),
       adminDb.collection(`organizations/${params.orgId}/productionIngredients`).get().catch(() => null),
@@ -189,6 +205,7 @@ export async function collectRecommendationFeatures(params: {
   const expiringByItemByLead = new Map<string, number>()
   for (const batch of batchesSnap.docs) {
     const data = batch.data() as Record<string, unknown>
+    if (!isStoreScopedMatch(data, batch.ref.path, normalizedStoreId)) continue
     const itemId = asString(data.itemId)
     if (!itemId) continue
     const quantity = Math.max(0, asNumber(data.quantity, 0))
@@ -205,6 +222,7 @@ export async function collectRecommendationFeatures(params: {
   const wasteByItem = new Map<string, number>()
   for (const waste of wasteSnap.docs) {
     const data = waste.data() as Record<string, unknown>
+    if (!isStoreScopedMatch(data, waste.ref.path, normalizedStoreId)) continue
     const itemId = asString(data.itemId)
     if (!itemId) continue
     const affectsOrdersRaw = data.affectsOrders ?? data.wasteTypeAffectsOrders
@@ -216,6 +234,7 @@ export async function collectRecommendationFeatures(params: {
   const incomingLines: IncomingLine[] = []
   for (const order of ordersSnap.docs) {
     const orderData = order.data() as Record<string, unknown>
+    if (!isStoreScopedMatch(orderData, order.ref.path, normalizedStoreId)) continue
     const status = (asString(orderData.status) ?? "suggested").toLowerCase()
     if (status === "received" || status === "closed") continue
     if (params.vendorId) {
@@ -285,12 +304,11 @@ export async function collectRecommendationFeatures(params: {
     items.push(item)
   }
 
-  const normalizedStore = params.storeId.trim()
   const productionProducts: ProductionProductFeature[] = []
   for (const doc of productsSnap?.docs ?? []) {
     const row = doc.data() as Record<string, unknown>
     const rowStoreId = asString(row.storeId) ?? ""
-    if (rowStoreId.length > 0 && rowStoreId !== normalizedStore) continue
+    if (rowStoreId.length > 0 && rowStoreId !== normalizedStoreId) continue
     const productId = doc.id
     if (!productId) continue
     productionProducts.push({
@@ -309,7 +327,7 @@ export async function collectRecommendationFeatures(params: {
   for (const doc of ingredientsSnap?.docs ?? []) {
     const row = doc.data() as Record<string, unknown>
     const rowStoreId = asString(row.storeId) ?? ""
-    if (rowStoreId.length > 0 && rowStoreId !== normalizedStore) continue
+    if (rowStoreId.length > 0 && rowStoreId !== normalizedStoreId) continue
     const productionProductID = asString(row.productionProductID) ?? ""
     const quantityPerBatch = Math.max(0, asNumber(row.quantityPerBatch, 0))
     if (!productionProductID || quantityPerBatch <= 0) continue
@@ -328,7 +346,7 @@ export async function collectRecommendationFeatures(params: {
   for (const doc of spotChecksSnap?.docs ?? []) {
     const row = doc.data() as Record<string, unknown>
     const rowStoreId = asString(row.storeId) ?? ""
-    if (rowStoreId.length > 0 && rowStoreId !== normalizedStore) continue
+    if (rowStoreId.length > 0 && rowStoreId !== normalizedStoreId) continue
     const productionProductID = asString(row.productionProductID) ?? ""
     const usageObserved = Math.max(0, asNumber(row.usageObserved, 0))
     if (!productionProductID || usageObserved <= 0) continue
@@ -343,7 +361,7 @@ export async function collectRecommendationFeatures(params: {
   for (const doc of runsSnap?.docs ?? []) {
     const row = doc.data() as Record<string, unknown>
     const rowStoreId = asString(row.storeId) ?? ""
-    if (rowStoreId.length > 0 && rowStoreId !== normalizedStore) continue
+    if (rowStoreId.length > 0 && rowStoreId !== normalizedStoreId) continue
     const productionProductID = asString(row.productionProductID) ?? ""
     const quantityMade = Math.max(0, asNumber(row.quantityMade, 0))
     if (!productionProductID || quantityMade <= 0) continue

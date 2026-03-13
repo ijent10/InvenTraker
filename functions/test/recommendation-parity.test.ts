@@ -1,5 +1,4 @@
 import fs from "node:fs"
-import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { runDemandRulesV1 } from "../src/recommendation/demand-rules-v1.js"
 import { runWasteRiskRulesV1 } from "../src/recommendation/waste-risk-rules-v1.js"
@@ -63,9 +62,7 @@ type RecommendationParityFixture = {
 }
 
 function loadFixture(): RecommendationParityFixture {
-  const fixturePath = path.resolve(
-    "/Users/ianjent/Desktop/InvenTracker/functions/test/fixtures/recommendations/rules-v1-baseline.json"
-  )
+  const fixturePath = new URL("./fixtures/recommendations/rules-v1-baseline.json", import.meta.url)
   const text = fs.readFileSync(fixturePath, "utf8")
   return JSON.parse(text) as RecommendationParityFixture
 }

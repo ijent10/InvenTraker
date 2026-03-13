@@ -1,4 +1,6 @@
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
+import { readdirSync, readFileSync, statSync } from "node:fs"
+import path from "node:path"
 
 type BoundaryCheck = {
   label: string
@@ -41,6 +43,85 @@ type Match = {
   content: string
 }
 
+const searchRoots = [
+  "apps/web/src",
+  "InstaTracker",
+  "functions/src",
+  "packages/shared/src",
+  "scripts"
+]
+
+const excludedPathFragments = [
+  `${path.sep}node_modules${path.sep}`,
+  `${path.sep}.next${path.sep}`,
+  `${path.sep}functions${path.sep}lib${path.sep}`
+]
+
+function hasRipgrep(): boolean {
+  const probe = spawnSync("rg", ["--version"], {
+    stdio: "ignore"
+  })
+  if (probe.error) return false
+  return probe.status === 0
+}
+
+function shouldSkipPath(absolutePath: string): boolean {
+  return excludedPathFragments.some((fragment) => absolutePath.includes(fragment))
+}
+
+function collectFiles(root: string): string[] {
+  const absoluteRoot = path.resolve(root)
+  if (!statSync(absoluteRoot, { throwIfNoEntry: false })?.isDirectory()) return []
+
+  const results: string[] = []
+  const queue = [absoluteRoot]
+  while (queue.length > 0) {
+    const current = queue.pop()
+    if (!current) continue
+    if (shouldSkipPath(current)) continue
+
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const next = path.join(current, entry.name)
+      if (shouldSkipPath(next)) continue
+      if (entry.isDirectory()) {
+        queue.push(next)
+      } else if (entry.isFile()) {
+        results.push(next)
+      }
+    }
+  }
+
+  return results
+}
+
+function runFilesystemScan(pattern: string): Match[] {
+  const expression = new RegExp(pattern)
+  const files = searchRoots.flatMap((root) => collectFiles(root))
+  const matches: Match[] = []
+
+  for (const absoluteFilePath of files) {
+    let content = ""
+    try {
+      content = readFileSync(absoluteFilePath, "utf8")
+    } catch {
+      continue
+    }
+
+    const lines = content.split("\n")
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index] ?? ""
+      if (!expression.test(line)) continue
+      matches.push({
+        file: path.relative(process.cwd(), absoluteFilePath).replaceAll(path.sep, "/"),
+        line: String(index + 1),
+        content: line.trim()
+      })
+    }
+  }
+
+  return matches
+}
+
 function runRipgrep(pattern: string): Match[] {
   const args = [
     "--line-number",
@@ -53,11 +134,7 @@ function runRipgrep(pattern: string): Match[] {
     "--glob",
     "!**/functions/lib/**",
     pattern,
-    "apps/web/src",
-    "InstaTracker",
-    "functions/src",
-    "packages/shared/src",
-    "scripts"
+    ...searchRoots
   ]
 
   try {
@@ -85,6 +162,10 @@ function runRipgrep(pattern: string): Match[] {
         ? Number((error as { status?: unknown }).status)
         : null
     const message = String(error)
+    const isMissingBinary = message.includes("ENOENT") || message.includes("spawnSync rg")
+    if (isMissingBinary) {
+      return runFilesystemScan(pattern)
+    }
     if (maybeStatus === 1 || message.includes("status 1")) return []
     throw error
   }
@@ -97,8 +178,13 @@ function isAllowed(file: string, allowFiles: RegExp[]): boolean {
 function main() {
   const violations: string[] = []
 
+  const ripgrepAvailable = hasRipgrep()
+  if (!ripgrepAvailable) {
+    console.warn("[single-engine-boundary] rg not found; using filesystem fallback scan.")
+  }
+
   for (const check of checks) {
-    const matches = runRipgrep(check.pattern)
+    const matches = ripgrepAvailable ? runRipgrep(check.pattern) : runFilesystemScan(check.pattern)
     for (const match of matches) {
       if (isAllowed(match.file, check.allowFiles)) continue
       violations.push(`${check.label}: ${match.file}:${match.line} -> ${match.content}`)

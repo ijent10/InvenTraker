@@ -359,6 +359,7 @@ export default function LandingPage() {
                       alt={screen.alt}
                       width={1920}
                       height={1080}
+                      unoptimized
                       className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
                     />
                   </div>
@@ -390,6 +391,7 @@ export default function LandingPage() {
                       alt={screen.alt}
                       width={1080}
                       height={1920}
+                      unoptimized
                       className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
                     />
                   </div>
@@ -550,6 +552,7 @@ export default function LandingPage() {
                 alt={expandedImage.alt}
                 width={2560}
                 height={1600}
+                unoptimized
                 className="mx-auto max-h-[78vh] h-auto w-full object-contain"
               />
             </div>

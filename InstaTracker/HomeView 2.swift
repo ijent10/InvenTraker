@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var showingSectionEditor = false
     @State private var showingNotifications = false
     @State private var dismissedNotificationIDs: Set<String> = []
+    @State private var lastNotificationFeedSignature = ""
 
     private var editableVisibleSectionOrder: [HomeSection] {
         sectionOrder.filter { session.canView($0.appModule) }
@@ -152,24 +153,9 @@ struct HomeView: View {
 
     private var notificationBadgeCount: Int {
         if notificationFeed.unreadCount > 0 {
-            return min(notificationFeed.unreadCount, 9)
+            return min(notificationFeed.unreadCount, 999)
         }
-        return min(visibleNotifications.count, 9)
-    }
-
-    private var activeStoreLabel: String {
-        let activeStoreID = settings.normalizedActiveStoreID
-        guard !activeStoreID.isEmpty else { return "Select Store" }
-        guard let store = session.stores.first(where: {
-            $0.id.trimmingCharacters(in: .whitespacesAndNewlines) == activeStoreID
-        }) else {
-            return "Store"
-        }
-        let storeNumber = store.storeNumber?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !storeNumber.isEmpty {
-            return "\(store.name) (\(storeNumber))"
-        }
-        return store.name
+        return min(visibleNotifications.count, 999)
     }
 
     private var appHeaderStyle: AppHeaderStyle {
@@ -232,35 +218,6 @@ struct HomeView: View {
             .navigationTitle(appHeaderStyle == .iconOnly ? "" : settings.brandedAppName)
             .navigationBarTitleDisplayMode(appHeaderStyle == .iconOnly ? .inline : .large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !session.stores.isEmpty {
-                        Menu {
-                            ForEach(session.stores) { store in
-                                let storeNumber = store.storeNumber?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                                let label = storeNumber.isEmpty ? store.name : "\(store.name) (\(storeNumber))"
-                                Button {
-                                    session.switchStore(store.id)
-                                } label: {
-                                    if settings.normalizedActiveStoreID == store.id.trimmingCharacters(in: .whitespacesAndNewlines) {
-                                        Label(label, systemImage: "checkmark")
-                                    } else {
-                                        Text(label)
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "mappin.and.ellipse")
-                                    .font(.system(size: 14, weight: .semibold))
-                                Text(activeStoreLabel)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(settings.accentColor)
-                        }
-                    }
-                }
-
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingNotifications = true
@@ -342,52 +299,22 @@ struct HomeView: View {
                     sectionOrder = settings.homeSectionOrder
                 }
                 loadDismissedNotifications()
-                notificationFeed.start(
-                    organizationId: session.activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID,
-                    user: session.firebaseUser,
-                    role: session.activeMembership?.role ?? .viewer,
-                    roleTitle: session.activeMembership?.jobTitle
-                )
+                startNotificationFeedIfNeeded()
             }
             .onChange(of: session.activeOrganizationId) { _, _ in
                 loadDismissedNotifications()
-                notificationFeed.start(
-                    organizationId: session.activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID,
-                    user: session.firebaseUser,
-                    role: session.activeMembership?.role ?? .viewer,
-                    roleTitle: session.activeMembership?.jobTitle
-                )
+                startNotificationFeedIfNeeded()
             }
             .onChange(of: settings.normalizedActiveStoreID) { _, _ in
                 loadDismissedNotifications()
-                notificationFeed.start(
-                    organizationId: session.activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID,
-                    user: session.firebaseUser,
-                    role: session.activeMembership?.role ?? .viewer,
-                    roleTitle: session.activeMembership?.jobTitle
-                )
+                startNotificationFeedIfNeeded()
             }
             .onChange(of: session.firebaseUser?.id) { _, _ in
                 loadDismissedNotifications()
-                notificationFeed.start(
-                    organizationId: session.activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID,
-                    user: session.firebaseUser,
-                    role: session.activeMembership?.role ?? .viewer,
-                    roleTitle: session.activeMembership?.jobTitle
-                )
+                startNotificationFeedIfNeeded()
             }
             .onChange(of: session.activeMembership?.role) { _, _ in
-                notificationFeed.start(
-                    organizationId: session.activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID,
-                    user: session.firebaseUser,
-                    role: session.activeMembership?.role ?? .viewer,
-                    roleTitle: session.activeMembership?.jobTitle
-                )
+                startNotificationFeedIfNeeded()
             }
             .onChange(of: showingNotifications) { _, showing in
                 if showing {
@@ -443,6 +370,26 @@ struct HomeView: View {
         }
         notificationFeed.markAllRead()
         persistDismissedNotifications()
+    }
+
+    private func startNotificationFeedIfNeeded() {
+        let org = session.activeOrganizationId ?? ""
+        let store = settings.normalizedActiveStoreID
+        let uid = session.firebaseUser?.id ?? ""
+        let role = session.activeMembership?.role ?? .viewer
+        let roleTitle = session.activeMembership?.jobTitle ?? ""
+        let signature = "\(org)|\(store)|\(uid)|\(role.rawValue)|\(roleTitle)"
+        if signature == lastNotificationFeedSignature {
+            return
+        }
+        lastNotificationFeedSignature = signature
+        notificationFeed.start(
+            organizationId: session.activeOrganizationId,
+            storeId: settings.normalizedActiveStoreID,
+            user: session.firebaseUser,
+            role: role,
+            roleTitle: session.activeMembership?.jobTitle
+        )
     }
 }
 
@@ -753,7 +700,7 @@ private struct NotificationBellButton: View {
     let tint: Color
 
     private var badgeText: String {
-        count > 9 ? "9+" : "\(count)"
+        count > 99 ? "99+" : "\(count)"
     }
 
     var body: some View {
@@ -761,7 +708,7 @@ private struct NotificationBellButton: View {
             Image(systemName: "bell.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 40, height: 34, alignment: .center)
+                .frame(width: 42, height: 34, alignment: .center)
         }
         .overlay(alignment: .topTrailing) {
             if count > 0 {
@@ -770,14 +717,19 @@ private struct NotificationBellButton: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .padding(.horizontal, badgeText.count > 1 ? 6 : 5)
-                    .padding(.vertical, 2)
-                    .frame(minWidth: badgeText.count > 1 ? 24 : 20)
+                    .padding(.horizontal, badgeText.count >= 3 ? 6 : 5)
+                    .padding(.vertical, 2.5)
+                    .frame(minWidth: badgeText.count >= 3 ? 28 : 20)
                     .background(Color.red, in: Capsule())
-                    .offset(x: 7, y: -4)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(.systemBackground), lineWidth: 1.25)
+                    )
+                    .offset(x: 5, y: -6)
                     .accessibilityLabel("\(count) unread notifications")
+                    .allowsHitTesting(false)
             }
         }
-        .frame(width: 46, height: 36, alignment: .center)
+        .frame(width: 52, height: 44, alignment: .center)
     }
 }

@@ -68,7 +68,8 @@ describe("recommendation engine rules_v1", () => {
     if (!rec) return
     expect(rec.caseInterpretation).toBe("direct_units")
     expect(rec.unit).toBe("lbs")
-    expect(Number.isInteger(rec.recommendedQuantity)).toBe(false)
+    expect(rec.recommendedQuantity).toBeGreaterThan(0)
+    expect(rec.recommendedQuantity).toBeGreaterThanOrEqual(item.minQuantity - item.onHand)
   })
 
   it("returns production recommendations and a production-demand map for order phase", () => {

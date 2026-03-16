@@ -23,7 +23,7 @@
       },
       "expected": {
         "caseInterpretation": "case_rounded",
-        "recommendedQuantity": 48,
+        "recommendedQuantity": 36,
         "confidence": 0.8,
         "demandValue": 13.2
       }

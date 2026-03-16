@@ -8,6 +8,8 @@ struct AppEntryView: View {
     @StateObject private var settings = AppSettings.shared
     @StateObject private var notificationFeed = RealtimeNotificationFeedService.shared
     @State private var hydratedPreferenceUserId: String?
+    @State private var pendingRemoteRefreshTask: Task<Void, Never>?
+    @State private var lastRemoteRefreshAt: Date = .distantPast
     private let periodicSyncTimer = Timer.publish(every: 900, on: .main, in: .common).autoconnect()
     private var departmentScopeToken: String {
         session.inventoryDepartmentScope.sorted().joined(separator: "|")
@@ -227,7 +229,15 @@ struct AppEntryView: View {
     }
 
     private func requestRemoteScopeRefresh(force: Bool) {
-        Task {
+        pendingRemoteRefreshTask?.cancel()
+        pendingRemoteRefreshTask = Task {
+            let delayNanos: UInt64 = force ? 150_000_000 : 650_000_000
+            try? await Task.sleep(nanoseconds: delayNanos)
+            guard !Task.isCancelled else { return }
+
+            if !force, Date().timeIntervalSince(lastRemoteRefreshAt) < 20 {
+                return
+            }
             guard let organizationId = session.activeOrganizationId, !organizationId.isEmpty else { return }
             let scopedStoreID = settings.normalizedActiveStoreID
             guard !scopedStoreID.isEmpty else { return }
@@ -240,6 +250,9 @@ struct AppEntryView: View {
                 includeOperational: true,
                 force: force
             )
+            await MainActor.run {
+                lastRemoteRefreshAt = Date()
+            }
         }
     }
 

@@ -21,10 +21,11 @@ struct ReceivedView: View {
     @State private var selectedTruckOrderID: String?
     @State private var showingOutstandingPrompt = false
     @State private var outstandingSummary = ""
-    @State private var catalogImportRecord: CatalogProductRecord?
-    @State private var showingCatalogImportPrompt = false
+    @State private var pendingUnknownUPCForStoreConfirm: String?
+    @State private var showingUnknownStoreConfirm = false
     @State private var catalogLookupMessage = ""
     @State private var showingCatalogLookupMessage = false
+    @State private var requiresMinimumSetupForScannedItem = false
 
     private var canReceiveInventory: Bool {
         session.canPerform(.receiveInventory)
@@ -152,7 +153,10 @@ struct ReceivedView: View {
             }
         }
         .sheet(item: $scannedItem) { item in
-            ReceivedQuantityView(item: item) { receivedItem in
+            ReceivedQuantityView(
+                item: item,
+                requiresMinimumSetup: requiresMinimumSetupForScannedItem
+            ) { receivedItem in
                 markMatchedOrderReceived(for: receivedItem)
                 createFrontOfHouseSpotCheckTaskIfNeeded(for: receivedItem)
                 showingAddAnotherPrompt = true
@@ -190,13 +194,16 @@ struct ReceivedView: View {
         } message: {
             Text(outstandingSummary)
         }
-        .alert("Add From Central Catalog?", isPresented: $showingCatalogImportPrompt, presenting: catalogImportRecord) { record in
-            Button("Cancel", role: .cancel) { }
-            Button("Add to Inventory") {
-                importCatalogRecordAndContinue(record)
+        .alert("Add Item to This Store?", isPresented: $showingUnknownStoreConfirm, presenting: pendingUnknownUPCForStoreConfirm) { rawUPC in
+            Button("No", role: .cancel) {
+                pendingUnknownUPCForStoreConfirm = nil
             }
-        } message: { record in
-            Text("\"\(record.title)\" is in the central catalog. Add it to this store inventory and continue receiving?")
+            Button("Yes") {
+                createUnknownStoreDraftAndContinue(scannedUPC: rawUPC)
+                pendingUnknownUPCForStoreConfirm = nil
+            }
+        } message: { _ in
+            Text("This barcode is not in your organization inventory yet. Is this item located in your current store?")
         }
         .alert("Barcode Not Found", isPresented: $showingCatalogLookupMessage) {
             Button("OK", role: .cancel) { }
@@ -375,6 +382,7 @@ struct ReceivedView: View {
         let normalized = catalogService.normalizeUPC(rawCode)
 
         if let item = scopedItems.first(where: { ($0.upc ?? "").caseInsensitiveCompare(normalized) == .orderedSame }) {
+            requiresMinimumSetupForScannedItem = false
             scannedItem = item
             return
         }
@@ -389,33 +397,20 @@ struct ReceivedView: View {
                     storeId: settings.normalizedActiveStoreID
                 ) {
                     await MainActor.run {
-                        catalogImportRecord = record
-                        showingCatalogImportPrompt = true
-                    }
-                } else {
-                    let draftItem = await MainActor.run {
-                        CatalogInventoryImporter.createStoreDraftForUnknownUPC(
-                            scannedUPC: normalized,
+                        let imported = CatalogInventoryImporter.importOrGetLocalItem(
+                            from: record,
                             organizationId: activeOrganizationId,
                             storeId: settings.normalizedActiveStoreID,
                             modelContext: modelContext,
                             existingItems: scopedItems
                         )
+                        requiresMinimumSetupForScannedItem = true
+                        scannedItem = imported
                     }
-                    let submissionId = await catalogService.submitItemDraftForVerification(
-                        organizationId: activeOrganizationId,
-                        storeId: settings.normalizedActiveStoreID,
-                        submittedByUid: session.firebaseUser?.id ?? "",
-                        scannedUPC: normalized,
-                        draftItem: draftItem,
-                        note: "Created from Receiving unknown scan."
-                    )
+                } else {
                     await MainActor.run {
-                        catalogLookupMessage = submissionId == nil
-                            ? "Created a store draft item. Review submission could not be sent right now."
-                            : "Created a store draft and sent it for organization review."
-                        showingCatalogLookupMessage = true
-                        scannedItem = draftItem
+                        pendingUnknownUPCForStoreConfirm = normalized
+                        showingUnknownStoreConfirm = true
                     }
                 }
             } catch {
@@ -427,15 +422,32 @@ struct ReceivedView: View {
         }
     }
 
-    private func importCatalogRecordAndContinue(_ record: CatalogProductRecord) {
-        let imported = CatalogInventoryImporter.importOrGetLocalItem(
-            from: record,
+    private func createUnknownStoreDraftAndContinue(scannedUPC normalizedUPC: String) {
+        let draftItem = CatalogInventoryImporter.createStoreDraftForUnknownUPC(
+            scannedUPC: normalizedUPC,
             organizationId: activeOrganizationId,
             storeId: settings.normalizedActiveStoreID,
             modelContext: modelContext,
             existingItems: scopedItems
         )
-        scannedItem = imported
+        requiresMinimumSetupForScannedItem = true
+        scannedItem = draftItem
+        Task {
+            let submissionId = await catalogService.submitItemDraftForVerification(
+                organizationId: activeOrganizationId,
+                storeId: settings.normalizedActiveStoreID,
+                submittedByUid: session.firebaseUser?.id ?? "",
+                scannedUPC: normalizedUPC,
+                draftItem: draftItem,
+                note: "Created from Receiving unknown scan."
+            )
+            await MainActor.run {
+                catalogLookupMessage = submissionId == nil
+                    ? "Created a store draft item. Review submission could not be sent right now."
+                    : "Created a store draft and sent it for organization review."
+                showingCatalogLookupMessage = true
+            }
+        }
     }
 
     private func createFrontOfHouseSpotCheckTaskIfNeeded(for item: InventoryItem) {
@@ -555,9 +567,11 @@ struct ReceivedQuantityView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var session: AccountSessionStore
     let item: InventoryItem
+    let requiresMinimumSetup: Bool
     let onSaved: (InventoryItem) -> Void
     @State private var quantityText = ""
     @State private var expirationDate = Date()
+    @State private var minimumQuantityText = ""
     
     var body: some View {
         NavigationStack {
@@ -575,9 +589,25 @@ struct ReceivedQuantityView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                if requiresMinimumSetup {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Set minimum quantity (first-time setup)")
+                            .font(.subheadline.weight(.semibold))
+                        TextField("Minimum quantity", text: $minimumQuantityText)
+                            .keyboardType(.decimalPad)
+                            .roundedInputField(tint: .green)
+                        Text("This prompt only appears the first time this item is added to this store.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Button("Add to Stock") {
                     guard session.canPerform(.receiveInventory) else { return }
                     guard let qty = Double(quantityText), qty > 0 else { return }
+                    if requiresMinimumSetup {
+                        guard let minQty = Double(minimumQuantityText), minQty >= 0 else { return }
+                        item.minimumQuantity = minQty
+                    }
 
                     let batch = Batch(
                         quantity: qty,
@@ -634,6 +664,10 @@ struct ReceivedQuantityView: View {
             .onAppear {
                 if quantityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     quantityText = "\(max(1, item.quantityPerBox))"
+                }
+                if minimumQuantityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let suggested = item.minimumQuantity > 0 ? item.minimumQuantity : Double(max(1, item.quantityPerBox))
+                    minimumQuantityText = suggested.formattedQuantity()
                 }
                 let days = item.effectiveDefaultExpiration
                 if let suggested = Calendar.current.date(byAdding: .day, value: days, to: Date()) {

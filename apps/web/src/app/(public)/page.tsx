@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -163,6 +162,7 @@ const mobileShowcaseScreens = [
   { src: "/showcase/mobile-home.png", alt: "InvenTraker mobile home dashboard" },
   { src: "/showcase/mobile-spot-check.png", alt: "InvenTraker mobile spot check screen" },
   { src: "/showcase/mobile-waste.png", alt: "InvenTraker mobile waste scan screen" },
+  { src: "/showcase/mobile-generate-order.png", alt: "InvenTraker mobile generate order screen" },
   { src: "/showcase/mobile-chop-items.png", alt: "InvenTraker mobile chop items screen" },
   { src: "/showcase/mobile-waste-types.png", alt: "InvenTraker mobile waste types settings" },
   { src: "/showcase/mobile-orders.png", alt: "InvenTraker mobile orders screen" },
@@ -354,12 +354,10 @@ export default function LandingPage() {
                   onClick={() => setExpandedImage(screen)}
                 >
                   <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-slate-950">
-                    <Image
+                    <img
                       src={screen.src}
                       alt={screen.alt}
-                      width={1920}
-                      height={1080}
-                      unoptimized
+                      loading="lazy"
                       className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
                     />
                   </div>
@@ -386,12 +384,10 @@ export default function LandingPage() {
                   onClick={() => setExpandedImage(screen)}
                 >
                   <div className="relative mx-auto aspect-[9/19] w-full max-w-[220px] overflow-hidden rounded-[22px] bg-slate-950">
-                    <Image
+                    <img
                       src={screen.src}
                       alt={screen.alt}
-                      width={1080}
-                      height={1920}
-                      unoptimized
+                      loading="lazy"
                       className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.01]"
                     />
                   </div>
@@ -547,12 +543,9 @@ export default function LandingPage() {
               </AppButton>
             </div>
             <div className="overflow-hidden rounded-2xl border border-slate-700 bg-black/70">
-              <Image
+              <img
                 src={expandedImage.src}
                 alt={expandedImage.alt}
-                width={2560}
-                height={1600}
-                unoptimized
                 className="mx-auto max-h-[78vh] h-auto w-full object-contain"
               />
             </div>

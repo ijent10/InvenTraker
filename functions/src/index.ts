@@ -1368,7 +1368,22 @@ export const adminListAuditLogs = onCall(async (request) => {
 })
 
 export const setPlatformAdminClaim = onCall(async (request) => {
-  await requirePlatformAdmin(request)
+  const actorUid = await requirePlatformAdmin(request)
+  const actorEmailFromToken =
+    typeof request.auth?.token?.email === "string" ? request.auth.token.email.trim().toLowerCase() : ""
+  let actorEmail = actorEmailFromToken
+  if (!actorEmail) {
+    const actorUserSnap = await adminDb.doc(`users/${actorUid}`).get()
+    const actorUserData = (actorUserSnap.data() as { email?: string } | undefined) ?? {}
+    actorEmail = typeof actorUserData.email === "string" ? actorUserData.email.trim().toLowerCase() : ""
+  }
+  const allowedGrantors = new Set(["ianjjent@icloud.com"])
+  if (!allowedGrantors.has(actorEmail)) {
+    throw new HttpsError(
+      "permission-denied",
+      "Only the primary platform admin account can grant or revoke platform admin claims."
+    )
+  }
   const uid = String(request.data?.uid ?? "")
   const enabled = Boolean(request.data?.enabled)
   if (!uid) throw new HttpsError("invalid-argument", "uid required")

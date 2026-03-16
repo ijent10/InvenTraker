@@ -257,17 +257,23 @@ export default function StoreSettingsPage() {
         trailingDigitsLength: preparedSections.trailingDigitsLength,
         priceDivisor: preparedSections.priceDivisor
       }
+      const patch: Partial<StoreSettingsRecord> = {
+        departmentConfigs: normalizedConfigs,
+        departments: normalizedConfigs.map((entry) => entry.name),
+        locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
+        jobTitles: localRoles.filter((entry) => entry.title.trim().length > 0),
+        canStoreRemoveItems: Boolean(form.canStoreRemoveItems),
+        maxSalePercent: Number(form.maxSalePercent ?? 30),
+        featureFlags: { ...(form.featureFlags ?? {}) },
+        reworkedBarcodeRule
+      }
+      if (form.roleDefaults) {
+        patch.roleDefaults = form.roleDefaults
+      }
       await saveStoreSettings(
         activeOrgId,
         activeStore,
-        {
-          ...form,
-          departmentConfigs: normalizedConfigs,
-          departments: normalizedConfigs.map((entry) => entry.name),
-          locationTemplates: Array.from(new Set(normalizedConfigs.flatMap((entry) => entry.locations))),
-          jobTitles: localRoles.filter((entry) => entry.title.trim().length > 0),
-          reworkedBarcodeRule
-        },
+        patch,
         user.uid
       )
       await refetch()

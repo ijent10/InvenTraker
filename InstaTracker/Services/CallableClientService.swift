@@ -49,47 +49,91 @@ final class CallableClientService {
         }
 
         let token = try await user.getIDToken()
-        guard let url = URL(string: "https://us-central1-\(projectID).cloudfunctions.net/\(name)") else {
-            throw CallableClientError.invalidEndpoint
-        }
+        let callableRegions = resolveCallableRegions()
+        let requestBody = try JSONSerialization.data(withJSONObject: ["data": data], options: [])
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["data": data], options: [])
-
-        let (responseData, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CallableClientError.invalidResponse
-        }
-
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            if let message = parseCallableErrorMessage(data: responseData) {
-                throw CallableClientError.failedRequest(message)
+        var lastError: Error?
+        var lastStatusCode: Int?
+        for region in callableRegions {
+            guard let url = URL(string: "https://\(region)-\(projectID).cloudfunctions.net/\(name)") else {
+                continue
             }
-            throw CallableClientError.failedRequest("Callable request failed with status \(httpResponse.statusCode).")
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.httpBody = requestBody
+
+            do {
+                let (responseData, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw CallableClientError.invalidResponse
+                }
+
+                if (200..<300).contains(httpResponse.statusCode) {
+                    guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+                        throw CallableClientError.invalidResponse
+                    }
+
+                    let payload = (json["result"] as? [String: Any]) ?? (json["data"] as? [String: Any])
+                    guard let payload else {
+                        throw CallableClientError.invalidResponse
+                    }
+
+                    let payloadData = try JSONSerialization.data(withJSONObject: payload, options: [])
+                    guard let decoded = try? JSONDecoder().decode(Result.self, from: payloadData) else {
+                        throw CallableClientError.decodeFailed
+                    }
+                    return decoded
+                }
+
+                lastStatusCode = httpResponse.statusCode
+                if httpResponse.statusCode == 404 {
+                    // Try the next candidate region before failing.
+                    continue
+                }
+                if let message = parseCallableErrorMessage(data: responseData) {
+                    throw CallableClientError.failedRequest(message)
+                }
+                throw CallableClientError.failedRequest("Callable request failed with status \(httpResponse.statusCode).")
+            } catch {
+                lastError = error
+            }
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
-            throw CallableClientError.invalidResponse
+        if let lastError {
+            throw lastError
         }
-
-        let payload = (json["result"] as? [String: Any]) ?? (json["data"] as? [String: Any])
-        guard let payload else {
-            throw CallableClientError.invalidResponse
+        if let lastStatusCode {
+            throw CallableClientError.failedRequest("Callable request failed with status \(lastStatusCode).")
         }
-
-        let payloadData = try JSONSerialization.data(withJSONObject: payload, options: [])
-        guard let decoded = try? JSONDecoder().decode(Result.self, from: payloadData) else {
-            throw CallableClientError.decodeFailed
-        }
-        return decoded
+        throw CallableClientError.invalidEndpoint
 #else
         _ = name
         _ = data
         throw CallableClientError.missingFirebaseConfiguration
 #endif
+    }
+
+    private func resolveCallableRegions() -> [String] {
+        var regions: [String] = []
+        if let configured = UserDefaults.standard.string(forKey: "callable_function_region")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !configured.isEmpty {
+            regions.append(configured)
+        }
+        regions.append(contentsOf: ["us-central1", "us-east1", "us-east4"])
+        var deduped: [String] = []
+        var seen: Set<String> = []
+        for region in regions {
+            let normalized = region.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+            guard !seen.contains(normalized) else { continue }
+            seen.insert(normalized)
+            deduped.append(normalized)
+        }
+        return deduped
     }
 
     private func parseCallableErrorMessage(data: Data) -> String? {

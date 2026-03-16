@@ -25,6 +25,8 @@ const draftSchema = z.object({
   tags: z.array(z.string().trim().max(64)).max(40).optional(),
   photoUrl: z.string().trim().url().max(2000).optional(),
   photoAssetId: z.string().trim().max(220).optional(),
+  isPrepackaged: z.boolean().optional(),
+  rewrapsWithUniqueBarcode: z.boolean().optional(),
   reworkItemCode: z.string().trim().max(64).optional(),
   canBeReworked: z.boolean().optional(),
   reworkShelfLifeDays: z.number().int().min(1).max(730).optional(),
@@ -94,6 +96,8 @@ function normalizeItemDraft(input: DraftInput, fallbackUpc?: string): Record<str
     tags: normalizeTags(input.tags),
     photoUrl: input.photoUrl?.trim() || null,
     photoAssetId: input.photoAssetId?.trim() || null,
+    isPrepackaged: input.isPrepackaged === true,
+    rewrapsWithUniqueBarcode: input.rewrapsWithUniqueBarcode === true,
     reworkItemCode: input.reworkItemCode?.trim() || null,
     canBeReworked: input.canBeReworked === true,
     reworkShelfLifeDays: Math.max(1, input.reworkShelfLifeDays ?? 1),
@@ -231,9 +235,10 @@ export const reviewItemSubmission = onCall(async (request) => {
   }
 
   const normalizedDraft = normalizeItemDraft(rawDraft as DraftInput)
+  const itemDocId = resolveItemDocId(normalizedDraft)
+  const storeId = typeof submission.storeId === "string" ? submission.storeId.trim() : ""
 
   if (input.decision === "approved" || input.decision === "promoted") {
-    const itemDocId = resolveItemDocId(normalizedDraft)
     const itemRef = adminDb.collection("organizations").doc(input.orgId).collection("items").doc(itemDocId)
     const existingItem = await itemRef.get()
 
@@ -261,10 +266,12 @@ export const reviewItemSubmission = onCall(async (request) => {
         reworkShelfLifeDays: normalizedDraft.reworkShelfLifeDays,
         maxReworkCount: normalizedDraft.maxReworkCount,
         archived: false,
-        isDraft: input.decision !== "promoted",
+        isDraft: false,
         draftSubmissionId: input.submissionId,
         photoUrl: normalizedDraft.photoUrl,
         photoAssetId: normalizedDraft.photoAssetId,
+        isPrepackaged: normalizedDraft.isPrepackaged === true,
+        rewrapsWithUniqueBarcode: normalizedDraft.rewrapsWithUniqueBarcode === true,
         createdAt: existingItem.exists ? existingItem.get("createdAt") ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         updatedByUid: uid
@@ -272,7 +279,10 @@ export const reviewItemSubmission = onCall(async (request) => {
       { merge: true }
     )
 
-    if (input.decision === "promoted") {
+    const shouldExcludeFromCentral =
+      normalizedDraft.rewrapsWithUniqueBarcode === true || normalizedDraft.canBeReworked === true
+
+    if (!shouldExcludeFromCentral && (input.decision === "approved" || input.decision === "promoted")) {
       const promotedUpc =
         normalizeUpc(input.centralOverride?.upc) ?? (normalizedDraft.upc as string | null) ?? null
       if (promotedUpc) {
@@ -282,21 +292,52 @@ export const reviewItemSubmission = onCall(async (request) => {
           .collection("items")
           .doc(promotedUpc)
 
-        await centralRef.set(
-          {
-            upc: promotedUpc,
-            name: input.centralOverride?.name?.trim() || normalizedDraft.name,
-            defaultExpirationDays:
-              input.centralOverride?.defaultExpirationDays ?? normalizedDraft.defaultExpirationDays,
-            photoUrl: input.centralOverride?.photoUrl?.trim() || normalizedDraft.photoUrl || null,
-            photoAssetId: input.centralOverride?.photoAssetId?.trim() || normalizedDraft.photoAssetId || null,
-            editorOrganizationId: input.orgId,
-            updatedByUid: uid,
-            updatedAt: FieldValue.serverTimestamp(),
-            createdAt: FieldValue.serverTimestamp()
-          },
-          { merge: true }
-        )
+        const centralSnap = await centralRef.get()
+        const shouldWriteCentral = input.decision === "promoted" || !centralSnap.exists
+        if (shouldWriteCentral) {
+          await centralRef.set(
+            {
+              upc: promotedUpc,
+              name: input.centralOverride?.name?.trim() || normalizedDraft.name,
+              defaultExpirationDays:
+                input.centralOverride?.defaultExpirationDays ?? normalizedDraft.defaultExpirationDays,
+              photoUrl: input.centralOverride?.photoUrl?.trim() || normalizedDraft.photoUrl || null,
+              photoAssetId: input.centralOverride?.photoAssetId?.trim() || normalizedDraft.photoAssetId || null,
+              editorOrganizationId: input.orgId,
+              updatedByUid: uid,
+              updatedAt: FieldValue.serverTimestamp(),
+              createdAt: centralSnap.exists ? centralSnap.get("createdAt") ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          )
+        }
+      }
+    }
+  } else if (input.decision === "rejected") {
+    const itemRef = adminDb.collection("organizations").doc(input.orgId).collection("items").doc(itemDocId)
+    const existingItem = await itemRef.get()
+    if (existingItem.exists) {
+      const draftSubmissionId = String(existingItem.get("draftSubmissionId") ?? "")
+      const isDraft = Boolean(existingItem.get("isDraft"))
+      if (draftSubmissionId === input.submissionId || isDraft) {
+        await itemRef.delete()
+      }
+    }
+
+    if (storeId) {
+      const batchesSnap = await adminDb
+        .collectionGroup("inventoryBatches")
+        .where("organizationId", "==", input.orgId)
+        .where("storeId", "==", storeId)
+        .where("itemId", "==", itemDocId)
+        .limit(500)
+        .get()
+      if (!batchesSnap.empty) {
+        const batch = adminDb.batch()
+        for (const docSnap of batchesSnap.docs) {
+          batch.delete(docSnap.ref)
+        }
+        await batch.commit()
       }
     }
   }

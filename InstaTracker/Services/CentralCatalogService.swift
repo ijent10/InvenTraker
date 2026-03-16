@@ -262,6 +262,8 @@ final class CentralCatalogService {
             "tags": tags,
             "photoUrl": NSNull(),
             "photoAssetId": NSNull(),
+            "isPrepackaged": draftItem?.isPrepackaged ?? false,
+            "rewrapsWithUniqueBarcode": draftItem?.rewrapsWithUniqueBarcode ?? false,
             "reworkItemCode": draftItem?.reworkItemCode as Any,
             "canBeReworked": draftItem?.canBeReworked ?? false,
             "reworkShelfLifeDays": draftItem?.effectiveReworkShelfLifeDays ?? 1,

@@ -1014,15 +1014,20 @@ function normalizeReworkedBarcodeSections(raw: unknown): ReworkedBarcodeSectionR
         ? weightUnitRaw
         : "lbs"
 
-    rows.push({
+    const section: ReworkedBarcodeSectionRecord = {
       id: asString(record.id)?.trim() || `section_${index + 1}`,
       name: asString(record.name)?.trim() || `Section ${index + 1}`,
       digits,
       type,
-      useAsItemCode: Boolean(record.useAsItemCode),
-      decimalPlaces: type === "price" || type === "weight" ? decimals : undefined,
-      weightUnit: type === "weight" ? weightUnit : undefined
-    })
+      useAsItemCode: Boolean(record.useAsItemCode)
+    }
+    if (type === "price" || type === "weight") {
+      section.decimalPlaces = decimals
+    }
+    if (type === "weight") {
+      section.weightUnit = weightUnit
+    }
+    rows.push(section)
   }
   if (rows.length === 0) return []
   const hasItemCode = rows.some((row) => row.useAsItemCode)
@@ -1261,6 +1266,11 @@ function stripUndefinedDeep(value: unknown): unknown {
       .filter((entry) => entry !== undefined)
   }
   if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    if (typeof record._methodName === "string") return value
+    if (typeof (record as { toDate?: unknown }).toDate === "function") return value
+  }
+  if (value && typeof value === "object") {
     const prototype = Object.getPrototypeOf(value)
     const isPlainObject = prototype === Object.prototype || prototype === null
     if (!isPlainObject) {
@@ -1283,6 +1293,82 @@ function normalizeOptionalStringPatchValue(value: unknown): string | null | unde
   if (typeof value !== "string") return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+const ORG_SETTINGS_WRITABLE_KEYS: Array<keyof OrgSettingsRecord> = [
+  "organizationName",
+  "companyCode",
+  "customBrandingEnabled",
+  "replaceAppNameWithLogo",
+  "brandDisplayName",
+  "brandLogoUrl",
+  "brandLogoAssetId",
+  "logoLightUrl",
+  "logoLightAssetId",
+  "logoDarkUrl",
+  "logoDarkAssetId",
+  "appHeaderStyle",
+  "moduleIconStyle",
+  "welcomeMessage",
+  "canStoreRemoveItems",
+  "maxSalePercent",
+  "allowStoreRoleCreation",
+  "managerCanManageUsersOnlyInOwnStore",
+  "featureFlags",
+  "jobTitles",
+  "roleDefaults",
+  "departmentConfigs",
+  "departments",
+  "locationTemplates",
+  "storeOverrideKeys",
+  "reworkedBarcodeRule"
+]
+
+const STORE_SETTINGS_WRITABLE_KEYS: Array<keyof StoreSettingsRecord> = [
+  "departmentConfigs",
+  "departments",
+  "locationTemplates",
+  "jobTitles",
+  "roleDefaults",
+  "canStoreRemoveItems",
+  "maxSalePercent",
+  "featureFlags",
+  "reworkedBarcodeRule"
+]
+
+function pickWriteableKeys<T extends Record<string, unknown>>(source: Partial<T>, keys: Array<keyof T>): Partial<T> {
+  const target: Partial<T> = {}
+  for (const key of keys) {
+    if (!(key in source)) continue
+    ;(target as Record<string, unknown>)[key as string] = source[key]
+  }
+  return target
+}
+
+function sanitizeFirestoreWriteData(value: unknown): unknown {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => sanitizeFirestoreWriteData(entry))
+      .filter((entry) => entry !== undefined)
+  }
+  if (value instanceof Date) return value
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    // Preserve Firebase FieldValue sentinels and Firestore-native timestamp-like values.
+    if (typeof record._methodName === "string") return value
+    if (typeof (record as { toDate?: unknown }).toDate === "function") return value
+    const cleaned: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(record)) {
+      const sanitized = sanitizeFirestoreWriteData(entry)
+      if (sanitized !== undefined) {
+        cleaned[key] = sanitized
+      }
+    }
+    return cleaned
+  }
+  return value
 }
 
 function asImageSources(data: Record<string, unknown>): string[] {
@@ -4393,8 +4479,8 @@ export async function saveOrgSettings(
     orgDocPatch.updatedAt = serverTimestamp()
     await updateDoc(doc(db, "organizations", orgId), orgDocPatch)
   }
-  const sanitizedPatch = stripUndefinedDeep(
-    Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+  const sanitizedPatch = sanitizeFirestoreWriteData(
+    pickWriteableKeys(patch, ORG_SETTINGS_WRITABLE_KEYS)
   ) as Partial<OrgSettingsRecord>
   const optionalStringKeys: Array<
     | "brandDisplayName"
@@ -4425,25 +4511,28 @@ export async function saveOrgSettings(
       targetPatch[key] = normalized
     }
   }
-  if (sanitizedPatch.departmentConfigs !== undefined) {
-    const normalizedConfigs = normalizeDepartmentConfigs(sanitizedPatch.departmentConfigs)
-    sanitizedPatch.departmentConfigs = normalizedConfigs
-    sanitizedPatch.departments = normalizedConfigs.map((config) => config.name)
-    sanitizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
+  const normalizedPatch = stripUndefinedDeep(sanitizedPatch) as Partial<OrgSettingsRecord>
+  if (normalizedPatch.departmentConfigs !== undefined) {
+    const normalizedConfigs = normalizeDepartmentConfigs(normalizedPatch.departmentConfigs)
+    normalizedPatch.departmentConfigs = normalizedConfigs
+    normalizedPatch.departments = normalizedConfigs.map((config) => config.name)
+    normalizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
   }
-  if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
-    sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
+  if (normalizedPatch.reworkedBarcodeRule !== undefined) {
+    normalizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(normalizedPatch.reworkedBarcodeRule)
   }
   const payload: Record<string, unknown> = {
     organizationId: orgId,
     updatedAt: serverTimestamp(),
     updatedBy: actorUserId
   }
-  for (const [key, value] of Object.entries(sanitizedPatch)) {
+  for (const [key, value] of Object.entries(normalizedPatch)) {
     if (value === undefined) continue
     payload[key] = value
   }
-  const cleanedPayload = stripUndefinedDeep(payload) as Record<string, unknown>
+  const cleanedPayload = stripUndefinedDeep(
+    sanitizeFirestoreWriteData(payload)
+  ) as Record<string, unknown>
   await setDoc(
     doc(db, "organizations", orgId, "settings", "default"),
     cleanedPayload,
@@ -4513,25 +4602,28 @@ export async function saveStoreSettings(
   actorUserId: string
 ): Promise<void> {
   if (!db || !orgId) return
-  const sanitizedPatch = stripUndefinedDeep(
-    Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+  const sanitizedPatch = sanitizeFirestoreWriteData(
+    pickWriteableKeys(patch, STORE_SETTINGS_WRITABLE_KEYS)
   ) as Partial<StoreSettingsRecord>
-  if (sanitizedPatch.departmentConfigs !== undefined) {
-    const normalizedConfigs = normalizeDepartmentConfigs(sanitizedPatch.departmentConfigs)
-    sanitizedPatch.departmentConfigs = normalizedConfigs
-    sanitizedPatch.departments = normalizedConfigs.map((config) => config.name)
-    sanitizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
+  const normalizedPatch = stripUndefinedDeep(sanitizedPatch) as Partial<StoreSettingsRecord>
+  if (normalizedPatch.departmentConfigs !== undefined) {
+    const normalizedConfigs = normalizeDepartmentConfigs(normalizedPatch.departmentConfigs)
+    normalizedPatch.departmentConfigs = normalizedConfigs
+    normalizedPatch.departments = normalizedConfigs.map((config) => config.name)
+    normalizedPatch.locationTemplates = Array.from(new Set(normalizedConfigs.flatMap((config) => config.locations)))
   }
-  if (sanitizedPatch.reworkedBarcodeRule !== undefined) {
-    sanitizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(sanitizedPatch.reworkedBarcodeRule)
+  if (normalizedPatch.reworkedBarcodeRule !== undefined) {
+    normalizedPatch.reworkedBarcodeRule = normalizeReworkedBarcodeRule(normalizedPatch.reworkedBarcodeRule)
   }
-  const payload = stripUndefinedDeep({
-    organizationId: orgId,
-    storeId: store.id,
-    ...sanitizedPatch,
-    updatedAt: serverTimestamp(),
-    updatedBy: actorUserId
-  }) as Record<string, unknown>
+  const payload = stripUndefinedDeep(
+    sanitizeFirestoreWriteData({
+      organizationId: orgId,
+      storeId: store.id,
+      ...normalizedPatch,
+      updatedAt: serverTimestamp(),
+      updatedBy: actorUserId
+    })
+  ) as Record<string, unknown>
   await setDoc(
     doc(
       db,

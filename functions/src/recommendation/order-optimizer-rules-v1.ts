@@ -90,6 +90,14 @@ export function runOrderOptimizerRulesV1(input: {
     const extraBeyondMinimum = Math.max(0, recommendedUnits - shortfallToMinimum)
     recommendedUnits = shortfallToMinimum + Math.min(extraBeyondMinimum, extraBufferCap)
 
+    // Final guardrail: do not exceed a conservative window based on observed weekly usage.
+    // This keeps recommendations practical when signals are noisy.
+    const usageWindowCap = item.weeklyUsage > 0
+      ? Math.max(item.weeklyUsage * 1.2, minimumQuantity + Math.max(1, item.qtyPerCase))
+      : Math.max(minimumQuantity + Math.max(1, item.qtyPerCase), Math.max(1, item.qtyPerCase) * 2)
+    const cappedUnits = Math.max(shortfallToMinimum, usageWindowCap)
+    recommendedUnits = Math.min(recommendedUnits, cappedUnits)
+
     const lbsDirect = item.unit === "lbs" && item.caseSize === 1
     const recommendedQuantity = lbsDirect
       ? Number(Math.max(0, recommendedUnits).toFixed(3))

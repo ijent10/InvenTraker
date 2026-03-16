@@ -19,7 +19,7 @@ import FirebaseMessaging
 @MainActor
 final class PushNotificationService: NSObject {
     static let shared = PushNotificationService()
-    private let notificationsEnabled = false
+    private let notificationsEnabled = true
 
     private let installIdKey = "push_install_installation_id"
     private var latestFCMToken: String?

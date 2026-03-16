@@ -9,17 +9,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
-        // Push notifications are intentionally disabled until Apple Push capability is enabled.
-        // Keep app launch path compiling/running without APNs provisioning.
+        PushNotificationService.shared.configure()
         return true
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // Push disabled.
+        PushNotificationService.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // Push disabled.
+        print("APNs registration failed: \(error.localizedDescription)")
     }
 }
 #endif

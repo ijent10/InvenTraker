@@ -10,8 +10,10 @@ import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
   fetchItem,
+  fetchStoreSettings,
   fetchVendors,
   updateItem,
+  updateStoreItemOverride,
   uploadMediaAsset,
   type ItemRecord
 } from "@/lib/data/firestore"
@@ -29,6 +31,10 @@ type FormState = {
   defaultPackedExpiration: string
   vendorId: string
   vendorName: string
+  departmentId: string
+  department: string
+  categoryId: string
+  storeDepartmentLocation: string
   tags: string
   packaging: PackagingMode
   imageUrl: string
@@ -53,6 +59,10 @@ function formFromItem(item: ItemRecord): FormState {
     defaultPackedExpiration: String(item.defaultPackedExpiration),
     vendorId: item.vendorId ?? "",
     vendorName: item.vendorName ?? "",
+    departmentId: item.departmentId ?? "",
+    department: item.department ?? "",
+    categoryId: item.categoryId ?? "",
+    storeDepartmentLocation: item.departmentLocation ?? "",
     tags: item.tags.join(", "),
     packaging,
     imageUrl: defaultImage,
@@ -79,6 +89,12 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
     enabled: Boolean(activeOrgId)
   })
 
+  const { data: storeSettings } = useQuery({
+    queryKey: ["item-detail-store-settings", activeOrgId, activeStore?.id],
+    queryFn: () => fetchStoreSettings(activeOrgId, activeStore!),
+    enabled: Boolean(activeOrgId && activeStore)
+  })
+
   useEffect(() => {
     if (!item) return
     setForm(formFromItem(item))
@@ -102,6 +118,18 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
     return { total, back, front }
   }, [item])
 
+  const departmentOptions = useMemo(() => storeSettings?.departmentConfigs ?? [], [storeSettings?.departmentConfigs])
+
+  const categoryOptions = useMemo(() => {
+    const departmentId = form?.departmentId ?? ""
+    return (storeSettings?.categoryConfigs ?? []).filter(
+      (category) =>
+        category.enabled &&
+        category.appliesTo.includes("inventory") &&
+        (category.departmentIds.length === 0 || !departmentId || category.departmentIds.includes(departmentId))
+    )
+  }, [form?.departmentId, storeSettings?.categoryConfigs])
+
   const save = async () => {
     if (!activeOrgId || !form || !item) return
     setStatusMessage(null)
@@ -124,6 +152,11 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
         defaultPackedExpiration: form.hasExpiration ? Math.max(1, Number(form.defaultPackedExpiration || form.defaultExpiration || "1")) : 0,
         vendorId: form.vendorId.trim() || undefined,
         vendorName: form.vendorName.trim() || undefined,
+        departmentId: form.departmentId.trim() || undefined,
+        department:
+          departmentOptions.find((department) => department.id === form.departmentId)?.name ??
+          (form.department.trim() || undefined),
+        categoryId: form.categoryId.trim() || undefined,
         tags: form.tags
           .split(",")
           .map((tag) => tag.trim())
@@ -136,8 +169,14 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
         patch.pictures = form.imageUrl ? [form.imageUrl] : []
       }
       await updateItem(activeOrgId, item.id, patch)
+      if (activeStoreId) {
+        await updateStoreItemOverride(activeOrgId, activeStoreId, item.id, {
+          departmentLocation: form.storeDepartmentLocation,
+          actorUid: user?.uid
+        })
+      }
       await refetch()
-      setStatusMessage("Organization inventory fields saved.")
+      setStatusMessage(activeStoreId ? "Organization and store inventory fields saved." : "Organization inventory fields saved.")
     } catch {
       setErrorMessage("Could not save item.")
     }
@@ -333,6 +372,45 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
                 disabled={!effectivePermissions.editOrgInventoryMeta}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <AppSelect
+                value={form.departmentId}
+                onChange={(event) => {
+                  const departmentId = event.target.value
+                  const departmentName = departmentOptions.find((department) => department.id === departmentId)?.name ?? ""
+                  setForm((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          departmentId,
+                          department: departmentName,
+                          categoryId: ""
+                        }
+                      : prev
+                  )
+                }}
+                disabled={!effectivePermissions.editOrgInventoryMeta}
+              >
+                <option value="">Select department</option>
+                {departmentOptions.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </AppSelect>
+              <AppSelect
+                value={form.categoryId}
+                onChange={(event) => setForm((prev) => (prev ? { ...prev, categoryId: event.target.value } : prev))}
+                disabled={!effectivePermissions.editOrgInventoryMeta}
+              >
+                <option value="">Select category</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </AppSelect>
+            </div>
             <AppInput
               placeholder="Tags (comma separated)"
               value={form.tags}
@@ -372,7 +450,7 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
         </AppCard>
 
         <AppCard>
-          <h2 className="card-title">Store-Controlled Fields (Read-Only Here)</h2>
+          <h2 className="card-title">Store-Controlled Fields</h2>
           <div className="mt-4 grid gap-3">
             <div className="rounded-xl border border-app-border bg-app-surface px-3 py-2">
               <p className="text-xs uppercase tracking-wide text-app-muted">Store</p>
@@ -393,15 +471,17 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
               placeholder="Min quantity (store controls)"
             />
             <AppInput
-              className="text-app-muted"
-              value={item.departmentLocation ?? ""}
-              disabled
+              value={form.storeDepartmentLocation}
+              onChange={(event) =>
+                setForm((prev) => (prev ? { ...prev, storeDepartmentLocation: event.target.value } : prev))
+              }
+              disabled={!activeStoreId || !effectivePermissions.editStoreInventory}
               placeholder="Location in store (store controls)"
             />
             <div className="rounded-2xl border border-app-border bg-app-surface p-4">
               <p className="text-sm font-semibold">Store-Level Editing</p>
               <p className="secondary-text mt-1 text-xs">
-                Use Store Inventory to edit min quantity and location. Organization updates still flow to all stores.
+                You can edit this item location for the active store here. Organization updates still flow to all stores.
               </p>
             </div>
           </div>

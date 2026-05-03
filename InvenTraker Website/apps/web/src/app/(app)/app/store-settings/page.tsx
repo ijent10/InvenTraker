@@ -73,6 +73,16 @@ function cleanText(value: string): string {
   return value.trim()
 }
 
+function slugifyFieldPath(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+([a-z0-9])/g, (_, char: string) => char.toUpperCase())
+  return slug || "customField"
+}
+
 function normalizeDepartmentConfigs(configs: DepartmentConfigRecord[]): DepartmentConfigRecord[] {
   const seen = new Set<string>()
   const rows: DepartmentConfigRecord[] = []
@@ -117,6 +127,7 @@ function normalizeCategoryConfigs(configs: CategoryConfigRecord[]): CategoryConf
       id: cleanText(config.id) || makeId("category"),
       name,
       description: cleanText(config.description ?? "") || undefined,
+      departmentIds: Array.from(new Set((config.departmentIds ?? []).map(cleanText).filter(Boolean))),
       appliesTo: appliesTo.length > 0 ? appliesTo : ["inventory", "orders", "waste"],
       custom: config.custom !== false,
       enabled: config.enabled !== false
@@ -264,7 +275,7 @@ export default function StoreSettingsPage() {
   const [categoryConfigs, setCategoryConfigs] = useState<CategoryConfigRecord[]>([])
   const [newCategoryName, setNewCategoryName] = useState("")
   const [newCategoryDescription, setNewCategoryDescription] = useState("")
-  const [newCategoryDataset, setNewCategoryDataset] = useState<ExportDataset>("inventory")
+  const [newCategoryDepartmentId, setNewCategoryDepartmentId] = useState("")
   const [selectedExportDataset, setSelectedExportDataset] = useState<ExportDataset>("inventory")
   const [exportPreferences, setExportPreferences] = useState<SpreadsheetExportPreferenceRecord[]>([])
   const [newCustomColumnLabel, setNewCustomColumnLabel] = useState("")
@@ -483,7 +494,8 @@ export default function StoreSettingsPage() {
           id: makeId("category"),
           name,
           description: cleanText(newCategoryDescription) || undefined,
-          appliesTo: [newCategoryDataset],
+          departmentIds: newCategoryDepartmentId ? [newCategoryDepartmentId] : [],
+          appliesTo: ["inventory"],
           custom: true,
           enabled: true
         }
@@ -491,6 +503,7 @@ export default function StoreSettingsPage() {
     )
     setNewCategoryName("")
     setNewCategoryDescription("")
+    setNewCategoryDepartmentId("")
   }
 
   const updateExportPreference = (
@@ -547,7 +560,7 @@ export default function StoreSettingsPage() {
 
   const addCustomExportColumn = () => {
     const label = cleanText(newCustomColumnLabel)
-    const path = cleanText(newCustomColumnPath)
+    const path = cleanText(newCustomColumnPath) || `companyFields.${slugifyFieldPath(label)}`
     if (!label || !path) return
     updateActiveExportColumns([
       ...activeExportColumns,
@@ -1036,21 +1049,22 @@ export default function StoreSettingsPage() {
         </AppCard>
 
         <AppCard>
-          <h2 className="card-title">Categories</h2>
+          <h2 className="card-title">Department Categories</h2>
           <div className="mt-4 grid gap-3">
             <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
               <AppInput
                 value={newCategoryName}
                 onChange={(event) => setNewCategoryName(event.target.value)}
-                placeholder="Custom category name"
+                placeholder="Category name (example: Bread)"
               />
               <AppSelect
-                value={newCategoryDataset}
-                onChange={(event) => setNewCategoryDataset(event.target.value as ExportDataset)}
+                value={newCategoryDepartmentId}
+                onChange={(event) => setNewCategoryDepartmentId(event.target.value)}
               >
-                {exportDatasetOptions.map((dataset) => (
-                  <option key={dataset} value={dataset}>
-                    {exportDatasetLabels[dataset]}
+                <option value="">All departments</option>
+                {departmentConfigs.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
                   </option>
                 ))}
               </AppSelect>
@@ -1065,7 +1079,7 @@ export default function StoreSettingsPage() {
             />
             {categoryConfigs.length === 0 ? (
               <p className="secondary-text rounded-xl border border-app-border px-3 py-2 text-xs">
-                No custom categories yet.
+                No department categories yet. Add the categories you use inside each department.
               </p>
             ) : null}
             <div className="space-y-2">
@@ -1125,25 +1139,47 @@ export default function StoreSettingsPage() {
                       }
                       label="Enabled"
                     />
-                    {exportDatasetOptions.map((dataset) => (
+                    <AppCheckbox
+                      checked={category.departmentIds.length === 0}
+                      onChange={(event) =>
+                        setCategoryConfigs((prev) =>
+                          prev.map((entry) =>
+                            entry.id === category.id
+                              ? {
+                                  ...entry,
+                                  departmentIds: event.target.checked
+                                    ? []
+                                    : (departmentConfigs[0]?.id ? [departmentConfigs[0].id] : [])
+                                }
+                              : entry
+                          )
+                        )
+                      }
+                      label="All departments"
+                    />
+                    {departmentConfigs.length === 0 ? (
+                      <span className="secondary-text text-xs">Add departments above to scope this category.</span>
+                    ) : null}
+                    {departmentConfigs.map((department) => (
                       <AppCheckbox
-                        key={`${category.id}-${dataset}`}
-                        checked={category.appliesTo.includes(dataset)}
+                        key={`${category.id}-${department.id}`}
+                        checked={category.departmentIds.includes(department.id)}
+                        disabled={category.departmentIds.length === 0}
                         onChange={(event) =>
                           setCategoryConfigs((prev) =>
                             prev.map((entry) =>
                               entry.id === category.id
                                 ? {
                                     ...entry,
-                                    appliesTo: event.target.checked
-                                      ? Array.from(new Set([...entry.appliesTo, dataset]))
-                                      : entry.appliesTo.filter((value) => value !== dataset)
+                                    departmentIds: event.target.checked
+                                      ? Array.from(new Set([...entry.departmentIds, department.id]))
+                                      : entry.departmentIds.filter((value) => value !== department.id)
                                   }
                                 : entry
                             )
                           )
                         }
-                        label={exportDatasetLabels[dataset]}
+                        label={department.name}
                       />
                     ))}
                   </div>
@@ -1286,7 +1322,7 @@ export default function StoreSettingsPage() {
             <AppInput
               value={newCustomColumnPath}
               onChange={(event) => setNewCustomColumnPath(event.target.value)}
-              placeholder="Data path (example: vendorName)"
+              placeholder="Data path (auto: companyFields.fieldName)"
             />
             <AppButton variant="secondary" onClick={addCustomExportColumn}>
               Add Column

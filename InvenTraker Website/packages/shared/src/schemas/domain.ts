@@ -71,6 +71,7 @@ export const categoryConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  departmentIds: z.array(z.string()).default([]),
   appliesTo: z.array(z.enum(exportDatasets)).default(["inventory", "orders", "waste"]),
   custom: z.boolean().default(true),
   enabled: z.boolean().default(true)
@@ -117,6 +118,7 @@ export const itemSchema = z.object({
   vendorId: z.string().optional(),
   departmentId: z.string().optional(),
   locationId: z.string().optional(),
+  categoryId: z.string().optional(),
   tags: z.array(z.string()).default([]),
   archived: z.boolean().default(false),
   weeklyUsage: z.number().min(0).optional(),

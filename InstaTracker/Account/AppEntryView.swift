@@ -27,6 +27,8 @@ struct AppEntryView: View {
                 NavigationStack {
                     AccountRootView()
                 }
+            } else if session.isResolvingStores || (session.isLoading && settings.normalizedActiveStoreID.isEmpty) {
+                loadingView
             } else if session.needsTutorial {
                 QuickStartTutorialView()
             } else if settings.normalizedActiveStoreID.isEmpty || session.stores.isEmpty {

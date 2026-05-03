@@ -79,6 +79,7 @@ export type ItemRecord = {
   departmentId?: string
   department?: string
   locationId?: string
+  categoryId?: string
   departmentLocation?: string
   tags: string[]
   archived: boolean
@@ -468,6 +469,7 @@ export type CategoryConfigRecord = {
   id: string
   name: string
   description?: string
+  departmentIds: string[]
   appliesTo: ExportDataset[]
   custom: boolean
   enabled: boolean
@@ -1055,6 +1057,7 @@ function normalizeCategoryConfigs(raw: unknown): CategoryConfigRecord[] {
       id: asString(record.id) ?? `category_${index + 1}`,
       name,
       description: asString(record.description),
+      departmentIds: asStringArray(record.departmentIds),
       appliesTo: normalizeExportDatasets(record.appliesTo),
       custom: record.custom === undefined ? true : Boolean(record.custom),
       enabled: record.enabled === undefined ? true : Boolean(record.enabled)
@@ -1626,6 +1629,7 @@ function normalizeItemRecord(
     departmentId: asString(data.departmentId),
     department: asString(data.department),
     locationId: asString(data.locationId),
+    categoryId: asString(data.categoryId),
     departmentLocation,
     tags: asStringArray(data.tags),
     archived: Boolean(data.archived ?? data.isArchived),
@@ -1767,6 +1771,7 @@ function organizationItemPatch(patch: Partial<ItemRecord>): Record<string, unkno
   if (patch.vendorName !== undefined) record.vendorName = patch.vendorName?.trim() || null
   if (patch.department !== undefined) record.department = patch.department?.trim() || null
   if (patch.departmentId !== undefined) record.departmentId = patch.departmentId?.trim() || null
+  if (patch.categoryId !== undefined) record.categoryId = patch.categoryId?.trim() || null
   if (patch.tags !== undefined) record.tags = asStringArray(patch.tags)
   if (patch.rewrapsWithUniqueBarcode !== undefined) record.rewrapsWithUniqueBarcode = Boolean(patch.rewrapsWithUniqueBarcode)
   if (patch.isPrepackaged !== undefined) record.isPrepackaged = Boolean(patch.isPrepackaged)

@@ -15,6 +15,7 @@ final class AccountSessionStore: ObservableObject {
     @Published var activeMembership: OrgMembership?
     @Published var organizations: [OrganizationSummary] = []
     @Published var stores: [StoreLocationRef] = []
+    @Published var isResolvingStores = false
     @Published var needsTutorial = false
     @Published var isLoading = false
     @Published var didInitialize = false
@@ -196,6 +197,7 @@ final class AccountSessionStore: ObservableObject {
             firebaseUser = nil
             organizations = []
             stores = []
+            isResolvingStores = false
             activeOrganizationId = nil
             activeMembership = nil
             AppSettings.shared.activeStoreID = ""
@@ -417,6 +419,7 @@ final class AccountSessionStore: ObservableObject {
             errorMessage = error.localizedDescription
             activeMembership = nil
             stores = []
+            isResolvingStores = false
             needsTutorial = false
             rbacService.updateMembership(role: nil, permissionOverride: nil)
         }
@@ -502,9 +505,13 @@ final class AccountSessionStore: ObservableObject {
     private func refreshStoresForActiveOrganization() async {
         guard let organizationId = activeOrganizationId else {
             stores = []
+            isResolvingStores = false
             AppSettings.shared.activeStoreID = ""
             return
         }
+
+        isResolvingStores = true
+        defer { isResolvingStores = false }
 
         do {
             let fetchedStores = try await organizationService.stores(for: organizationId)

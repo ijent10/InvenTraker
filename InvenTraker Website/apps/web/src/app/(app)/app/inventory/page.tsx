@@ -6,6 +6,7 @@ import {
   AppButton,
   AppCard,
   AppCheckbox,
+  AppInput,
   DataTable,
   SearchInput,
   SegmentedControl,
@@ -400,7 +401,7 @@ export default function InventoryPage() {
             </div>
             <label className="inline-flex cursor-pointer items-center rounded-2xl border border-app-border bg-app-surface-soft px-4 py-2 text-sm font-semibold text-app-text">
               Choose File
-              <input
+              <AppInput
                 className="sr-only"
                 type="file"
                 accept=".xlsx,.csv,.tsv,.txt,.pdf,application/pdf"

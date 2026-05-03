@@ -45,6 +45,7 @@ type Match = {
 
 const searchRoots = [
   "apps/web/src",
+  "../InstaTracker",
   "InstaTracker",
   "functions/src",
   "packages/shared/src",
@@ -67,6 +68,14 @@ function hasRipgrep(): boolean {
 
 function shouldSkipPath(absolutePath: string): boolean {
   return excludedPathFragments.some((fragment) => absolutePath.includes(fragment))
+}
+
+function existingSearchRoots(): string[] {
+  return searchRoots.filter((root) => statSync(path.resolve(root), { throwIfNoEntry: false })?.isDirectory())
+}
+
+function normalizeMatchFile(file: string): string {
+  return file.replaceAll("\\", "/").replace(/^\.\.\//, "")
 }
 
 function collectFiles(root: string): string[] {
@@ -96,7 +105,7 @@ function collectFiles(root: string): string[] {
 
 function runFilesystemScan(pattern: string): Match[] {
   const expression = new RegExp(pattern)
-  const files = searchRoots.flatMap((root) => collectFiles(root))
+  const files = existingSearchRoots().flatMap((root) => collectFiles(root))
   const matches: Match[] = []
 
   for (const absoluteFilePath of files) {
@@ -112,7 +121,7 @@ function runFilesystemScan(pattern: string): Match[] {
       const line = lines[index] ?? ""
       if (!expression.test(line)) continue
       matches.push({
-        file: path.relative(process.cwd(), absoluteFilePath).replaceAll(path.sep, "/"),
+        file: normalizeMatchFile(path.relative(process.cwd(), absoluteFilePath)),
         line: String(index + 1),
         content: line.trim()
       })
@@ -134,7 +143,7 @@ function runRipgrep(pattern: string): Match[] {
     "--glob",
     "!**/functions/lib/**",
     pattern,
-    ...searchRoots
+    ...existingSearchRoots()
   ]
 
   try {
@@ -150,7 +159,7 @@ function runRipgrep(pattern: string): Match[] {
         const second = line.indexOf(":", first + 1)
         if (first <= 0 || second <= first + 1) return null
         return {
-          file: line.slice(0, first),
+          file: normalizeMatchFile(line.slice(0, first)),
           line: line.slice(first + 1, second),
           content: line.slice(second + 1).trim()
         } satisfies Match

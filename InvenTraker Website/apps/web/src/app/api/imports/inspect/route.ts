@@ -74,7 +74,7 @@ function parseKeyValueRows(text: string): string[][] {
 
 function parseTextRows(text: string, fileName: string): { rows: string[][]; warnings: string[] } {
   const warnings: string[] = []
-  const normalized = text.replace(/\u0000/g, "").trim()
+  const normalized = text.split(String.fromCharCode(0)).join("").trim()
   if (!normalized) return { rows: [], warnings: ["No readable text was found in this file."] }
   const lowerName = fileName.toLowerCase()
   const rows = lowerName.endsWith(".tsv")

@@ -542,6 +542,8 @@ export type PublicWebsiteConfigRecord = {
   questions: PublicWebsiteQuestionRecord[]
   feedbackEnabled: boolean
   ratingsEnabled: boolean
+  publishedAt?: unknown
+  unpublishedAt?: unknown
   createdAt?: unknown
   updatedAt?: unknown
   updatedBy?: string
@@ -4626,7 +4628,7 @@ function defaultPublicWebsiteConfig(orgId: string, orgName = "Customer Website")
   return {
     id: "config",
     organizationId: orgId,
-    slug: "",
+    slug: normalizeWebsiteSlug(orgName),
     published: false,
     siteName: orgName,
     tagline: "",
@@ -4673,7 +4675,9 @@ function defaultPublicWebsiteConfig(orgId: string, orgName = "Customer Website")
     menuItems: [],
     questions: [],
     feedbackEnabled: true,
-    ratingsEnabled: true
+    ratingsEnabled: true,
+    publishedAt: undefined,
+    unpublishedAt: undefined
   }
 }
 
@@ -4773,6 +4777,8 @@ function normalizePublicWebsiteConfig(
       : [],
     feedbackEnabled: data.feedbackEnabled === undefined ? true : Boolean(data.feedbackEnabled),
     ratingsEnabled: data.ratingsEnabled === undefined ? true : Boolean(data.ratingsEnabled),
+    publishedAt: data.publishedAt,
+    unpublishedAt: data.unpublishedAt,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
     updatedBy: asString(data.updatedBy)
@@ -4964,16 +4970,27 @@ export async function fetchOrganizationWebsiteConfig(
 export async function saveOrganizationWebsiteConfig(
   orgId: string,
   config: PublicWebsiteConfigRecord,
-  actorUserId?: string
+  actorUserId?: string,
+  mode: "draft" | "publish" | "unpublish" = "draft"
 ): Promise<PublicWebsiteConfigRecord> {
   if (!db || !orgId) return config
   const previous = await fetchOrganizationWebsiteConfig(orgId, config.siteName).catch(() => defaultPublicWebsiteConfig(orgId, config.siteName))
-  const normalized = normalizePublicWebsiteConfig({ ...config, organizationId: orgId }, "config", orgId, config.siteName)
-  if (normalized.published && !normalized.slug) {
-    throw new Error("A public website path is required before publishing.")
+  const normalized = normalizePublicWebsiteConfig(
+    {
+      ...config,
+      organizationId: orgId,
+      slug: config.slug || normalizeWebsiteSlug(config.siteName) || normalizeWebsiteSlug(previous.siteName) || orgId.slice(0, 8),
+      published: mode === "publish" ? true : mode === "unpublish" ? false : config.published
+    },
+    "config",
+    orgId,
+    config.siteName
+  )
+  if (mode === "publish" && !normalized.slug) {
+    throw new Error("Add a public website path before publishing.")
   }
 
-  if (normalized.slug) {
+  if ((mode === "publish" || normalized.published) && normalized.slug) {
     const existingPublicSnap = await getDoc(doc(db, "publicSites", normalized.slug)).catch(() => null)
     const existingOrgId = existingPublicSnap?.exists() ? asString(existingPublicSnap.data().organizationId) : undefined
     if (existingOrgId && existingOrgId !== orgId) {
@@ -4981,10 +4998,16 @@ export async function saveOrganizationWebsiteConfig(
     }
   }
 
+  const now = new Date()
+  const isFreshPublish = mode === "publish" && !previous.published
+  const nextPublishedAt = isFreshPublish ? now : normalized.publishedAt ?? previous.publishedAt
+  const nextUnpublishedAt = mode === "unpublish" ? now : normalized.unpublishedAt ?? previous.unpublishedAt
   const payload = stripUndefinedDeep(
     sanitizeFirestoreWriteData({
       ...normalized,
       organizationId: orgId,
+      publishedAt: isFreshPublish ? serverTimestamp() : nextPublishedAt,
+      unpublishedAt: mode === "unpublish" ? serverTimestamp() : normalized.unpublishedAt,
       updatedAt: serverTimestamp(),
       updatedBy: actorUserId
     })
@@ -5003,6 +5026,7 @@ export async function saveOrganizationWebsiteConfig(
         sanitizeFirestoreWriteData({
           ...normalized,
           organizationId: orgId,
+          publishedAt: isFreshPublish ? serverTimestamp() : nextPublishedAt,
           updatedAt: serverTimestamp()
         })
       ) as Record<string, unknown>,
@@ -5012,7 +5036,11 @@ export async function saveOrganizationWebsiteConfig(
     await deleteDoc(doc(db, "publicSites", normalized.slug)).catch(() => undefined)
   }
 
-  return normalized
+  return {
+    ...normalized,
+    publishedAt: nextPublishedAt,
+    unpublishedAt: nextUnpublishedAt
+  }
 }
 
 export async function fetchPublicWebsiteBySlug(slug: string): Promise<PublicWebsiteConfigRecord | null> {

@@ -204,6 +204,11 @@ const fallbackPlans: PublicPlan[] = [
   }
 ]
 
+const brandNavy = "#1d3f7d"
+const brandBlue = "#2f67b7"
+const brandGreen = "#0f9f7a"
+const brandAmber = "#f2b84b"
+
 function formatPlanPrice(unitAmount: number, currency: string, interval: string) {
   const amount = Number.isFinite(unitAmount) ? unitAmount / 100 : 0
   const formatted = new Intl.NumberFormat("en-US", {
@@ -260,50 +265,74 @@ export default function LandingPage() {
   }, [expandedImage])
 
   return (
-    <div className="public-landing min-h-screen bg-white text-slate-900">
-      <div className="relative mx-auto max-w-6xl px-6 py-16">
-        <header className="mb-14 text-center">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
-            <Shield className="h-3.5 w-3.5" />
-            Built for fast-moving store teams
-          </p>
-          <h1 className="text-5xl font-bold tracking-tight text-slate-900 md:text-6xl">InvenTraker</h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg text-slate-600">
-            Keep inventory accurate, reduce waste, and make daily operations easier across every store.
-            Barcode-first workflows, clean accountability, and better decisions without extra complexity.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/signin" className={appButtonClass("primary")} style={{ background: "#2563EB" }}>
-              Sign in
+    <div className="public-landing min-h-screen bg-[#f7faff] text-slate-900">
+      <section className="relative min-h-[78vh] overflow-hidden text-white" style={{ backgroundColor: brandNavy }}>
+        <img
+          src="/inventracker-logo.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover opacity-35"
+        />
+        <div className="absolute inset-0 bg-[#102a61]/70" />
+        <div className="relative z-10 mx-auto flex min-h-[78vh] max-w-6xl flex-col px-6 py-5">
+          <nav className="flex items-center justify-between gap-4">
+            <Link href="/" className="inline-flex items-center gap-3 text-base font-semibold text-white">
+              <img src="/inventracker-logo.png" alt="" className="h-10 w-10 rounded-xl border border-white/20 object-cover" />
+              InvenTraker
             </Link>
-            <Link href="/signup" className={appButtonClass("secondary")} style={{ borderColor: "#2563EB", color: "#2563EB" }}>
-              Create account
-            </Link>
-            <Link href="/pricing" className={appButtonClass("secondary")} style={{ borderColor: "#93C5FD", color: "#1D4ED8" }}>
-              View pricing
-            </Link>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Link href="/signin" className="rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+                Sign in
+              </Link>
+              <Link href="/signup" className="rounded-full bg-white px-4 py-2 text-sm font-semibold transition hover:bg-blue-50" style={{ color: brandNavy }}>
+                Create account
+              </Link>
+            </div>
+          </nav>
+
+          <div className="flex flex-1 flex-col justify-center py-12">
+            <p className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-blue-50 backdrop-blur">
+              <Shield className="h-3.5 w-3.5" />
+              Built for fast-moving store teams
+            </p>
+            <h1 className="max-w-3xl text-5xl font-bold leading-[1.04] md:text-7xl">InvenTraker</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-blue-50 md:text-xl">
+              Keep inventory accurate, reduce waste, and make daily operations easier across every store.
+              Barcode-first workflows, clean accountability, and better decisions without extra complexity.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/signup" className="rounded-full bg-white px-5 py-3 text-sm font-semibold transition hover:bg-blue-50" style={{ color: brandNavy }}>
+                Create account
+              </Link>
+              <Link href="/pricing" className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/15">
+                View pricing
+              </Link>
+            </div>
+            <div className="mt-7 flex flex-wrap gap-4 text-sm text-blue-50">
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-[#9be6cf]" />
+                Fast team onboarding
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-[#9be6cf]" />
+                Multi-store ready
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-[#9be6cf]" />
+                Role-based control
+              </span>
+            </div>
           </div>
-          <div className="mt-6 flex flex-wrap justify-center gap-5 text-sm text-slate-600">
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-blue-600" />
-              Fast team onboarding
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-blue-600" />
-              Multi-store ready
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-blue-600" />
-              Role-based control
-            </span>
-          </div>
-        </header>
+        </div>
+      </section>
+
+      <div className="relative mx-auto max-w-6xl px-6 py-14">
 
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <AppCard key={feature.title} className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
               <div className="mb-3 flex items-center gap-3">
-                <IconTile icon={feature.icon} color="#2563EB" />
+                <IconTile icon={feature.icon} color={brandBlue} />
                 <h2 className="card-title text-slate-900">{feature.title}</h2>
               </div>
               <p className="secondary-text text-slate-600">{feature.desc}</p>
@@ -327,8 +356,8 @@ export default function LandingPage() {
             </div>
           </AppCard>
           <AppCard className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Estimated impact</p>
-            <p className="mt-3 text-4xl font-semibold text-slate-900">12% - 28%</p>
+            <p className="text-xs font-semibold uppercase" style={{ color: brandGreen }}>Estimated impact</p>
+            <p className="mt-3 text-4xl font-semibold" style={{ color: brandAmber }}>12% - 28%</p>
             <p className="mt-1 text-sm font-semibold text-slate-900">Potential waste reduction</p>
             <p className="secondary-text mt-3 text-slate-600">
               Teams that consistently run spot checks, expiration reviews, and guided ordering can typically reduce avoidable
@@ -364,7 +393,7 @@ export default function LandingPage() {
                 </AppButton>
                 <h3 className="mt-3 text-lg font-semibold text-slate-900">{screen.title}</h3>
                 <p className="secondary-text mt-1 text-slate-600">{screen.description}</p>
-                <p className="mt-2 text-xs font-medium text-blue-700">Click image to expand</p>
+                <p className="mt-2 text-xs font-medium" style={{ color: brandBlue }}>Click image to expand</p>
               </AppCard>
             ))}
           </div>
@@ -394,7 +423,7 @@ export default function LandingPage() {
                 </AppButton>
               ))}
             </div>
-            <p className="mt-3 text-xs font-medium text-blue-700">Click any screenshot to expand</p>
+            <p className="mt-3 text-xs font-medium" style={{ color: brandBlue }}>Click any screenshot to expand</p>
           </div>
         </section>
 
@@ -437,13 +466,13 @@ export default function LandingPage() {
         <section className="mt-14 grid gap-4 md:grid-cols-2">
           <AppCard className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
             <div className="mb-2 flex items-center gap-2">
-              <IconTile icon={ClipboardCheck} color="#2563EB" />
+              <IconTile icon={ClipboardCheck} color={brandGreen} />
               <h3 className="card-title text-slate-900">What you can launch in week one</h3>
             </div>
             <ul className="mt-3 space-y-2">
               {firstWeekChecklist.map((row) => (
                 <li key={row} className="secondary-text flex items-start gap-2 text-slate-600">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: brandGreen }} />
                   <span>{row}</span>
                 </li>
               ))}
@@ -451,13 +480,13 @@ export default function LandingPage() {
           </AppCard>
           <AppCard className="bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
             <div className="mb-2 flex items-center gap-2">
-              <IconTile icon={Store} color="#2563EB" />
+              <IconTile icon={Store} color={brandBlue} />
               <h3 className="card-title text-slate-900">Made for organizations and stores</h3>
             </div>
             <p className="secondary-text mt-2 text-slate-600">
               Organization leaders set standards once. Store teams execute cleanly with the right permissions and local accountability.
             </p>
-            <Link href="/signup" className={appButtonClass("primary", "mt-5")} style={{ background: "#2563EB" }}>
+            <Link href="/signup" className={appButtonClass("primary", "mt-5")} style={{ background: brandBlue }}>
               Create account
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -472,10 +501,10 @@ export default function LandingPage() {
               <AppCard key={plan.productId} className="flex min-h-[236px] flex-col bg-white !shadow-[0_10px_30px_rgba(2,6,23,0.08)]">
                 <h3 className="card-title text-slate-900">{plan.name}</h3>
                 <p className="secondary-text mt-2 line-clamp-3 text-slate-600">{plan.description || "Subscription plan"}</p>
-                <p className="mt-6 text-3xl font-semibold text-blue-700">
+                <p className="mt-6 text-3xl font-semibold" style={{ color: brandBlue }}>
                   {formatPlanPrice(primaryPrice.unitAmount, primaryPrice.currency, primaryPrice.interval)}
                 </p>
-                <Link href="/signup" className={appButtonClass("primary", "mt-auto")} style={{ background: "#2563EB" }}>
+                <Link href="/signup" className={appButtonClass("primary", "mt-auto")} style={{ background: brandBlue }}>
                   Start with {plan.name}
                 </Link>
               </AppCard>
@@ -496,15 +525,15 @@ export default function LandingPage() {
         </section>
 
         <section className="mt-14 rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Run a cleaner operation with less guesswork</h2>
+          <h2 className="text-3xl font-semibold text-slate-900">Run a cleaner operation with less guesswork</h2>
           <p className="mx-auto mt-3 max-w-2xl text-slate-600">
             Set your standards, launch your workflows, and give every team member clear daily actions.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href="/signup" className={appButtonClass("primary")} style={{ background: "#2563EB" }}>
+            <Link href="/signup" className={appButtonClass("primary")} style={{ background: brandBlue }}>
               Start now
             </Link>
-            <Link href="/pricing" className={appButtonClass("secondary")} style={{ borderColor: "#2563EB", color: "#2563EB" }}>
+            <Link href="/pricing" className={appButtonClass("secondary")} style={{ borderColor: brandBlue, color: brandBlue }}>
               Compare plans
             </Link>
           </div>

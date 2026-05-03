@@ -6,11 +6,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowDown,
   ArrowUp,
+  Clock3,
   ExternalLink,
   Eye,
   GripVertical,
   MessageSquare,
   Plus,
+  Power,
+  Rocket,
   Save,
   Star,
   Trash2,
@@ -81,6 +84,32 @@ function formatDate(value: unknown): string {
   return Number.isNaN(parsed.getTime()) ? "Submitted" : parsed.toLocaleString()
 }
 
+function timestampToDate(value: unknown): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value === "object" && "toDate" in value && typeof (value as { toDate?: unknown }).toDate === "function") {
+    try {
+      return (value as { toDate: () => Date }).toDate()
+    } catch {
+      return null
+    }
+  }
+  const parsed = new Date(String(value))
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatLiveDuration(value: unknown, now: Date): string {
+  const publishedAt = timestampToDate(value)
+  if (!publishedAt) return "Live"
+  const totalMinutes = Math.max(0, Math.floor((now.getTime() - publishedAt.getTime()) / 60000))
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return `Live for ${days}d ${hours}h`
+  if (hours > 0) return `Live for ${hours}h ${minutes}m`
+  return `Live for ${minutes}m`
+}
+
 function moveInArray<T>(rows: T[], fromIndex: number, toIndex: number): T[] {
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return rows
   const next = [...rows]
@@ -100,6 +129,7 @@ export default function WebsiteBuilderPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingHero, setUploadingHero] = useState(false)
+  const [now, setNow] = useState(() => new Date())
 
   const { data: websiteConfig, isLoading } = useQuery({
     queryKey: ["organization-website-config", activeOrgId],
@@ -119,12 +149,26 @@ export default function WebsiteBuilderPage() {
     setConfig(websiteConfig)
   }, [websiteConfig])
 
+  useEffect(() => {
+    if (!config?.published) return
+    const interval = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [config?.published])
+
   const saveMutation = useMutation({
-    mutationFn: async (nextConfig: PublicWebsiteConfigRecord) =>
-      saveOrganizationWebsiteConfig(activeOrgId, nextConfig, user?.uid),
-    onSuccess: (saved) => {
+    mutationFn: async (input: { nextConfig: PublicWebsiteConfigRecord; mode: "draft" | "publish" | "unpublish" }) =>
+      saveOrganizationWebsiteConfig(activeOrgId, input.nextConfig, user?.uid, input.mode),
+    onSuccess: (saved, input) => {
       setConfig(saved)
-      setStatusMessage(saved.published ? "Website saved and published." : "Website draft saved.")
+      setStatusMessage(
+        input.mode === "publish"
+          ? "Website is live."
+          : input.mode === "unpublish"
+            ? "Website unpublished."
+            : saved.published
+              ? "Draft saved and live site updated."
+              : "Draft saved."
+      )
       setErrorMessage(null)
       void queryClient.invalidateQueries({ queryKey: ["organization-website-config", activeOrgId] })
       void queryClient.invalidateQueries({ queryKey: ["organization-website-submissions", activeOrgId] })
@@ -142,6 +186,17 @@ export default function WebsiteBuilderPage() {
       : config?.slug
         ? `/${config.slug}`
         : ""
+  const previewUrl = "/app/website/preview"
+  const liveStatus = config?.published ? formatLiveDuration(config.publishedAt, now) : "Draft"
+
+  const saveConfig = (mode: "draft" | "publish" | "unpublish") => {
+    if (!config) return
+    const nextConfig =
+      mode === "publish" && !config.slug
+        ? { ...config, slug: slugify(config.siteName || activeOrg?.organizationName || "site") }
+        : config
+    saveMutation.mutate({ nextConfig, mode })
+  }
 
   const updateConfig = (patch: Partial<PublicWebsiteConfigRecord>) => {
     setConfig((current) => (current ? { ...current, ...patch } : current))
@@ -265,16 +320,31 @@ export default function WebsiteBuilderPage() {
         subtitle="Customer-facing site, form builder, menu, and feedback inbox."
         actions={
           <div className="flex flex-wrap gap-2">
-            {publicUrl ? (
+            <Link href={previewUrl} target="_blank" rel="noreferrer" className={appButtonClass("secondary", "gap-2")}>
+              <Eye className="h-4 w-4" />
+              Preview Draft
+            </Link>
+            {config.published && publicUrl ? (
               <Link href={publicUrl} target="_blank" rel="noreferrer" className={appButtonClass("secondary", "gap-2")}>
-                <Eye className="h-4 w-4" />
-                View Site
+                <ExternalLink className="h-4 w-4" />
+                Live Site
               </Link>
             ) : null}
-            <AppButton onClick={() => saveMutation.mutate(config)} disabled={saveMutation.isPending}>
+            <AppButton variant="secondary" onClick={() => saveConfig("draft")} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4" />
-              {saveMutation.isPending ? "Saving..." : "Save Website"}
+              {saveMutation.isPending ? "Saving..." : "Save Draft"}
             </AppButton>
+            {config.published ? (
+              <AppButton onClick={() => saveConfig("unpublish")} disabled={saveMutation.isPending} className="gap-2 !bg-red-600 hover:!brightness-110">
+                <Power className="h-4 w-4" />
+                Unpublish
+              </AppButton>
+            ) : (
+              <AppButton onClick={() => saveConfig("publish")} disabled={saveMutation.isPending} className="gap-2">
+                <Rocket className="h-4 w-4" />
+                Publish
+              </AppButton>
+            )}
           </div>
         }
       />
@@ -288,13 +358,29 @@ export default function WebsiteBuilderPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="card-title">Publishing</h2>
-                <p className="secondary-text mt-1">{publicUrl || "Choose a path before publishing."}</p>
+                <p className="secondary-text mt-1">
+                  Preview works any time. Publishing makes the site public at the path below.
+                </p>
               </div>
-              <AppCheckbox
-                checked={config.published}
-                onChange={(event) => updateConfig({ published: event.target.checked })}
-                label="Published"
-              />
+              <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${config.published ? "bg-emerald-500/15 text-emerald-700" : "bg-slate-500/10 text-app-muted"}`}>
+                <Clock3 className="h-3.5 w-3.5" />
+                {liveStatus}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-2xl border border-app-border bg-app-surface-soft p-4 md:grid-cols-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-app-muted">Status</p>
+                <p className="mt-1 text-sm font-semibold">{config.published ? "Public website is live" : "Draft only"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-app-muted">Public URL</p>
+                <p className="mt-1 truncate text-sm font-semibold">{publicUrl || "Add a path to publish"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-app-muted">Last published</p>
+                <p className="mt-1 text-sm font-semibold">{config.publishedAt ? formatDate(config.publishedAt) : "Not published yet"}</p>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -331,7 +417,11 @@ export default function WebsiteBuilderPage() {
                 onChange={(event) => updateConfig({ logoUrl: event.target.value })}
                 placeholder="Logo URL"
               />
-              <div className="flex gap-2">
+              <div className="grid gap-1">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase text-app-muted">
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingLogo ? "Uploading logo..." : "Upload logo"}
+                </p>
                 <AppInput
                   type="file"
                   accept="image/*"
@@ -340,16 +430,17 @@ export default function WebsiteBuilderPage() {
                     if (file) void uploadImage(file, "logo")
                   }}
                 />
-                <AppButton variant="secondary" disabled={uploadingLogo}>
-                  <Upload className="h-4 w-4" />
-                </AppButton>
               </div>
               <AppInput
                 value={config.heroImageUrl ?? ""}
                 onChange={(event) => updateConfig({ heroImageUrl: event.target.value })}
                 placeholder="Hero image URL"
               />
-              <div className="flex gap-2">
+              <div className="grid gap-1">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase text-app-muted">
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingHero ? "Uploading hero..." : "Upload hero image"}
+                </p>
                 <AppInput
                   type="file"
                   accept="image/*"
@@ -358,19 +449,16 @@ export default function WebsiteBuilderPage() {
                     if (file) void uploadImage(file, "hero")
                   }}
                 />
-                <AppButton variant="secondary" disabled={uploadingHero}>
-                  <Upload className="h-4 w-4" />
-                </AppButton>
               </div>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-app-muted">
+              <label className="grid gap-1 text-xs font-semibold uppercase text-app-muted">
                 Accent
                 <AppInput type="color" value={config.accentColor} onChange={(event) => updateConfig({ accentColor: event.target.value })} />
               </label>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-app-muted">
+              <label className="grid gap-1 text-xs font-semibold uppercase text-app-muted">
                 Background
                 <AppInput type="color" value={config.backgroundColor} onChange={(event) => updateConfig({ backgroundColor: event.target.value })} />
               </label>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-app-muted">
+              <label className="grid gap-1 text-xs font-semibold uppercase text-app-muted">
                 Text
                 <AppInput type="color" value={config.textColor} onChange={(event) => updateConfig({ textColor: event.target.value })} />
               </label>
@@ -621,7 +709,7 @@ export default function WebsiteBuilderPage() {
             </div>
           </AppCard>
 
-          {publicUrl ? (
+          {config.published && publicUrl ? (
             <Link href={publicUrl} target="_blank" rel="noreferrer" className={appButtonClass("secondary", "w-full gap-2")}>
               <ExternalLink className="h-4 w-4" />
               Open Customer Site

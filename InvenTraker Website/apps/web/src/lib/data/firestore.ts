@@ -493,6 +493,72 @@ export type SpreadsheetExportPreferenceRecord = {
   fileNameTemplate?: string
 }
 
+export type PublicWebsiteSectionType = "hero" | "menu" | "questionnaire" | "feedback" | "content"
+
+export type PublicWebsiteSectionRecord = {
+  id: string
+  type: PublicWebsiteSectionType
+  title: string
+  body?: string
+  enabled: boolean
+  order: number
+}
+
+export type PublicWebsiteMenuItemRecord = {
+  id: string
+  name: string
+  description?: string
+  price?: string
+  category?: string
+  enabled: boolean
+}
+
+export type PublicWebsiteQuestionType = "short_text" | "long_text" | "email" | "phone" | "select" | "rating"
+
+export type PublicWebsiteQuestionRecord = {
+  id: string
+  label: string
+  type: PublicWebsiteQuestionType
+  required: boolean
+  options: string[]
+  enabled: boolean
+}
+
+export type PublicWebsiteConfigRecord = {
+  id: string
+  organizationId: string
+  slug: string
+  published: boolean
+  siteName: string
+  tagline?: string
+  logoUrl?: string
+  heroImageUrl?: string
+  fontFamily: string
+  accentColor: string
+  backgroundColor: string
+  textColor: string
+  sections: PublicWebsiteSectionRecord[]
+  menuItems: PublicWebsiteMenuItemRecord[]
+  questions: PublicWebsiteQuestionRecord[]
+  feedbackEnabled: boolean
+  ratingsEnabled: boolean
+  createdAt?: unknown
+  updatedAt?: unknown
+  updatedBy?: string
+}
+
+export type PublicWebsiteSubmissionRecord = {
+  id: string
+  organizationId: string
+  siteSlug: string
+  customerName?: string
+  customerEmail?: string
+  answers: Record<string, string>
+  rating?: number
+  feedback?: string
+  createdAt?: unknown
+}
+
 export type ReworkedBarcodeSectionType = "price" | "weight" | "other"
 export type ReworkedBarcodeWeightUnit = "lbs" | "oz" | "kg" | "g" | "each"
 
@@ -834,6 +900,7 @@ export const permissionCatalog: Array<{
   { key: "viewOrganizationInventory", label: "View Organization Inventory", description: "Open org-wide inventory metadata across stores.", section: "web" },
   { key: "editOrgInventoryMeta", label: "Edit Org Inventory Fields", description: "Edit org-level item fields.", section: "web" },
   { key: "editStoreInventory", label: "Edit Store Inventory Fields", description: "Edit store-level overrides and stock.", section: "web" },
+  { key: "manageWebsite", label: "Manage Website", description: "Build the customer-facing website and review submissions.", section: "web" },
   { key: "manageVendors", label: "Manage Vendors", description: "Create and edit vendor schedules.", section: "web" },
   { key: "manageJobTitles", label: "Manage Roles", description: "Create/edit role templates.", section: "web" },
   { key: "manageCentralCatalog", label: "Manage Central Catalog", description: "Edit central database catalog.", section: "web" },
@@ -1303,6 +1370,7 @@ export function permissionDefaultsForRole(role: MemberRole): Record<string, bool
       exportAuditLogs: true,
       manageFeatureRequests: false,
       manageContactInbox: false,
+      manageWebsite: true,
       managePublicContent: false,
       managePrivacyContent: false,
       manageTermsContent: false,
@@ -4539,6 +4607,199 @@ const defaultStoreSettings: Omit<StoreSettingsRecord, "id" | "organizationId" | 
   reworkedBarcodeRule: { ...defaultReworkedBarcodeRule }
 }
 
+function normalizeWebsiteSlug(value: unknown): string {
+  if (typeof value !== "string") return ""
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48)
+}
+
+function makeWebsiteId(prefix: string): string {
+  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
+}
+
+function defaultPublicWebsiteConfig(orgId: string, orgName = "Customer Website"): PublicWebsiteConfigRecord {
+  return {
+    id: "config",
+    organizationId: orgId,
+    slug: "",
+    published: false,
+    siteName: orgName,
+    tagline: "",
+    logoUrl: "",
+    heroImageUrl: "",
+    fontFamily: "Inter",
+    accentColor: "#16A34A",
+    backgroundColor: "#F8FAFC",
+    textColor: "#111827",
+    sections: [
+      {
+        id: "section_hero",
+        type: "hero",
+        title: orgName,
+        body: "Fresh, local, and ready for your guests.",
+        enabled: true,
+        order: 0
+      },
+      {
+        id: "section_menu",
+        type: "menu",
+        title: "Menu",
+        body: "",
+        enabled: true,
+        order: 1
+      },
+      {
+        id: "section_questionnaire",
+        type: "questionnaire",
+        title: "Request Information",
+        body: "",
+        enabled: true,
+        order: 2
+      },
+      {
+        id: "section_feedback",
+        type: "feedback",
+        title: "Feedback",
+        body: "",
+        enabled: true,
+        order: 3
+      }
+    ],
+    menuItems: [],
+    questions: [],
+    feedbackEnabled: true,
+    ratingsEnabled: true
+  }
+}
+
+function normalizePublicWebsiteSection(value: unknown, index: number): PublicWebsiteSectionRecord | null {
+  if (!value || typeof value !== "object") return null
+  const record = value as Record<string, unknown>
+  const rawType = asString(record.type)
+  const type: PublicWebsiteSectionType =
+    rawType === "menu" || rawType === "questionnaire" || rawType === "feedback" || rawType === "content"
+      ? rawType
+      : "hero"
+  const title = asString(record.title) ?? (type === "hero" ? "Welcome" : "Section")
+  return {
+    id: asString(record.id) ?? makeWebsiteId("section"),
+    type,
+    title,
+    body: asString(record.body) ?? "",
+    enabled: record.enabled === undefined ? true : Boolean(record.enabled),
+    order: Math.max(0, Math.floor(asNumber(record.order, index)))
+  }
+}
+
+function normalizePublicWebsiteMenuItem(value: unknown): PublicWebsiteMenuItemRecord | null {
+  if (!value || typeof value !== "object") return null
+  const record = value as Record<string, unknown>
+  const name = asString(record.name)
+  if (!name) return null
+  return {
+    id: asString(record.id) ?? makeWebsiteId("menu"),
+    name,
+    description: asString(record.description) ?? "",
+    price: asString(record.price) ?? "",
+    category: asString(record.category) ?? "",
+    enabled: record.enabled === undefined ? true : Boolean(record.enabled)
+  }
+}
+
+function normalizePublicWebsiteQuestion(value: unknown): PublicWebsiteQuestionRecord | null {
+  if (!value || typeof value !== "object") return null
+  const record = value as Record<string, unknown>
+  const label = asString(record.label)
+  if (!label) return null
+  const rawType = asString(record.type)
+  const type: PublicWebsiteQuestionType =
+    rawType === "long_text" || rawType === "email" || rawType === "phone" || rawType === "select" || rawType === "rating"
+      ? rawType
+      : "short_text"
+  return {
+    id: asString(record.id) ?? makeWebsiteId("question"),
+    label,
+    type,
+    required: Boolean(record.required),
+    options: asStringArray(record.options),
+    enabled: record.enabled === undefined ? true : Boolean(record.enabled)
+  }
+}
+
+function normalizePublicWebsiteConfig(
+  raw: unknown,
+  id: string,
+  orgId: string,
+  orgName = "Customer Website"
+): PublicWebsiteConfigRecord {
+  const defaults = defaultPublicWebsiteConfig(orgId, orgName)
+  const data = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const sections = Array.isArray(data.sections)
+    ? data.sections
+        .map((section, index) => normalizePublicWebsiteSection(section, index))
+        .filter((section): section is PublicWebsiteSectionRecord => Boolean(section))
+        .sort((left, right) => left.order - right.order)
+        .map((section, index) => ({ ...section, order: index }))
+    : []
+
+  return {
+    id,
+    organizationId: asString(data.organizationId) ?? orgId,
+    slug: normalizeWebsiteSlug(data.slug),
+    published: Boolean(data.published),
+    siteName: asString(data.siteName) ?? orgName,
+    tagline: asString(data.tagline) ?? "",
+    logoUrl: asString(data.logoUrl) ?? "",
+    heroImageUrl: asString(data.heroImageUrl) ?? "",
+    fontFamily: asString(data.fontFamily) ?? defaults.fontFamily,
+    accentColor: asString(data.accentColor) ?? defaults.accentColor,
+    backgroundColor: asString(data.backgroundColor) ?? defaults.backgroundColor,
+    textColor: asString(data.textColor) ?? defaults.textColor,
+    sections: sections.length > 0 ? sections : defaults.sections,
+    menuItems: Array.isArray(data.menuItems)
+      ? data.menuItems
+          .map(normalizePublicWebsiteMenuItem)
+          .filter((item): item is PublicWebsiteMenuItemRecord => Boolean(item))
+      : [],
+    questions: Array.isArray(data.questions)
+      ? data.questions
+          .map(normalizePublicWebsiteQuestion)
+          .filter((question): question is PublicWebsiteQuestionRecord => Boolean(question))
+      : [],
+    feedbackEnabled: data.feedbackEnabled === undefined ? true : Boolean(data.feedbackEnabled),
+    ratingsEnabled: data.ratingsEnabled === undefined ? true : Boolean(data.ratingsEnabled),
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    updatedBy: asString(data.updatedBy)
+  }
+}
+
+function normalizePublicWebsiteSubmission(docId: string, data: Record<string, unknown>): PublicWebsiteSubmissionRecord {
+  const rawAnswers = data.answers && typeof data.answers === "object" ? (data.answers as Record<string, unknown>) : {}
+  const answers = Object.fromEntries(
+    Object.entries(rawAnswers)
+      .map(([key, value]) => [key, typeof value === "string" ? value.trim() : String(value ?? "").trim()] as const)
+      .filter(([, value]) => value.length > 0)
+  )
+  const rating = asNumber(data.rating, Number.NaN)
+  return {
+    id: docId,
+    organizationId: asString(data.organizationId) ?? "",
+    siteSlug: normalizeWebsiteSlug(data.siteSlug),
+    customerName: asString(data.customerName),
+    customerEmail: asString(data.customerEmail),
+    answers,
+    rating: Number.isFinite(rating) ? Math.max(1, Math.min(5, Math.round(rating))) : undefined,
+    feedback: asString(data.feedback),
+    createdAt: data.createdAt
+  }
+}
+
 export async function fetchOrgSettings(orgId: string): Promise<OrgSettingsRecord> {
   if (!db || !orgId) {
     return { id: "default", organizationId: orgId, ...defaultOrgSettings }
@@ -4688,6 +4949,127 @@ export async function saveOrgSettings(
     cleanedPayload,
     { merge: true }
   )
+}
+
+export async function fetchOrganizationWebsiteConfig(
+  orgId: string,
+  orgName = "Customer Website"
+): Promise<PublicWebsiteConfigRecord> {
+  if (!db || !orgId) return defaultPublicWebsiteConfig(orgId, orgName)
+  const snap = await getDoc(doc(db, "organizations", orgId, "website", "config")).catch(() => null)
+  if (!snap?.exists()) return defaultPublicWebsiteConfig(orgId, orgName)
+  return normalizePublicWebsiteConfig(snap.data(), snap.id, orgId, orgName)
+}
+
+export async function saveOrganizationWebsiteConfig(
+  orgId: string,
+  config: PublicWebsiteConfigRecord,
+  actorUserId?: string
+): Promise<PublicWebsiteConfigRecord> {
+  if (!db || !orgId) return config
+  const previous = await fetchOrganizationWebsiteConfig(orgId, config.siteName).catch(() => defaultPublicWebsiteConfig(orgId, config.siteName))
+  const normalized = normalizePublicWebsiteConfig({ ...config, organizationId: orgId }, "config", orgId, config.siteName)
+  if (normalized.published && !normalized.slug) {
+    throw new Error("A public website path is required before publishing.")
+  }
+
+  if (normalized.slug) {
+    const existingPublicSnap = await getDoc(doc(db, "publicSites", normalized.slug)).catch(() => null)
+    const existingOrgId = existingPublicSnap?.exists() ? asString(existingPublicSnap.data().organizationId) : undefined
+    if (existingOrgId && existingOrgId !== orgId) {
+      throw new Error("That website path is already in use.")
+    }
+  }
+
+  const payload = stripUndefinedDeep(
+    sanitizeFirestoreWriteData({
+      ...normalized,
+      organizationId: orgId,
+      updatedAt: serverTimestamp(),
+      updatedBy: actorUserId
+    })
+  ) as Record<string, unknown>
+
+  await setDoc(doc(db, "organizations", orgId, "website", "config"), payload, { merge: true })
+
+  if (previous.slug && previous.slug !== normalized.slug) {
+    await deleteDoc(doc(db, "publicSites", previous.slug)).catch(() => undefined)
+  }
+
+  if (normalized.published && normalized.slug) {
+    await setDoc(
+      doc(db, "publicSites", normalized.slug),
+      stripUndefinedDeep(
+        sanitizeFirestoreWriteData({
+          ...normalized,
+          organizationId: orgId,
+          updatedAt: serverTimestamp()
+        })
+      ) as Record<string, unknown>,
+      { merge: true }
+    )
+  } else if (normalized.slug) {
+    await deleteDoc(doc(db, "publicSites", normalized.slug)).catch(() => undefined)
+  }
+
+  return normalized
+}
+
+export async function fetchPublicWebsiteBySlug(slug: string): Promise<PublicWebsiteConfigRecord | null> {
+  if (!db) return null
+  const normalizedSlug = normalizeWebsiteSlug(slug)
+  if (!normalizedSlug) return null
+  const snap = await getDoc(doc(db, "publicSites", normalizedSlug)).catch(() => null)
+  if (!snap?.exists()) return null
+  const data = snap.data() as Record<string, unknown>
+  if (!data.published) return null
+  return normalizePublicWebsiteConfig(data, snap.id, asString(data.organizationId) ?? "", asString(data.siteName) ?? "Customer Website")
+}
+
+export async function submitPublicWebsiteForm(input: {
+  organizationId: string
+  siteSlug: string
+  customerName?: string
+  customerEmail?: string
+  answers: Record<string, string>
+  rating?: number
+  feedback?: string
+}): Promise<void> {
+  if (!db) return
+  const siteSlug = normalizeWebsiteSlug(input.siteSlug)
+  const organizationId = input.organizationId.trim()
+  if (!siteSlug || !organizationId) return
+  const rating = input.rating === undefined ? undefined : Math.max(1, Math.min(5, Math.round(input.rating)))
+  const answers = Object.fromEntries(
+    Object.entries(input.answers)
+      .map(([key, value]) => [key, String(value ?? "").trim()] as const)
+      .filter(([, value]) => value.length > 0)
+  )
+  await setDoc(doc(collection(db, "publicWebsiteSubmissions")), {
+    organizationId,
+    siteSlug,
+    customerName: input.customerName?.trim() || null,
+    customerEmail: input.customerEmail?.trim() || null,
+    answers,
+    rating: rating ?? null,
+    feedback: input.feedback?.trim() || null,
+    createdAt: serverTimestamp()
+  })
+}
+
+export async function fetchWebsiteSubmissions(orgId: string): Promise<PublicWebsiteSubmissionRecord[]> {
+  if (!db || !orgId) return []
+  const snap = await getDocs(
+    query(collection(db, "publicWebsiteSubmissions"), where("organizationId", "==", orgId), limit(250))
+  ).catch(() => null)
+  if (!snap) return []
+  return snap.docs
+    .map((entry) => normalizePublicWebsiteSubmission(entry.id, entry.data() as Record<string, unknown>))
+    .sort((left, right) => {
+      const leftTime = asTimestampDate(left.createdAt)?.getTime() ?? 0
+      const rightTime = asTimestampDate(right.createdAt)?.getTime() ?? 0
+      return rightTime - leftTime
+    })
 }
 
 export async function fetchStoreSettings(orgId: string, store: StoreWithPath): Promise<StoreSettingsRecord> {
@@ -5723,6 +6105,7 @@ export const modulePathMap: Record<AppModule, string> = {
   insights: "/app/insights",
   production: "/app/production",
   howtos: "/app/howtos",
+  website: "/app/website",
   stores: "/app/stores",
   users: "/app/users",
   orgSettings: "/app/org-settings",

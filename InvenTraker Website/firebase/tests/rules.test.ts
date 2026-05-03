@@ -7,7 +7,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment
 } from "@firebase/rules-unit-testing"
-import { doc, getDoc, setDoc } from "firebase/firestore"
+import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore"
 
 let testEnv: RulesTestEnvironment | undefined
 
@@ -77,5 +77,32 @@ describe("RBAC and tenant isolation", () => {
   it("blocks non-platform-admin from reading audit logs globally", async () => {
     const ctx = testEnv.authenticatedContext("staff-1")
     await assertFails(getDoc(doc(ctx.firestore(), "auditLogs/log-1")))
+  })
+
+  it("allows public read and submissions for published customer websites", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "publicSites/tfm"), {
+        organizationId: "org-a",
+        slug: "tfm",
+        published: true,
+        siteName: "The Fresh Market",
+        sections: [],
+        menuItems: [],
+        questions: []
+      })
+    })
+
+    const visitor = testEnv.unauthenticatedContext()
+    await assertSucceeds(getDoc(doc(visitor.firestore(), "publicSites/tfm")))
+    await assertSucceeds(
+      addDoc(collection(visitor.firestore(), "publicWebsiteSubmissions"), {
+        organizationId: "org-a",
+        siteSlug: "tfm",
+        answers: {
+          name: "Ian"
+        },
+        createdAt: new Date()
+      })
+    )
   })
 })

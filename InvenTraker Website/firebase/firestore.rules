@@ -229,6 +229,45 @@ service cloud.firestore {
       allow update, delete: if isPlatformAdmin();
     }
 
+    match /publicSites/{siteSlug} {
+      allow read: if resource.data.published == true;
+      allow create: if signedIn()
+        && request.resource.data.organizationId is string
+        && (
+          managerPlus(request.resource.data.organizationId)
+          || hasPermissionFlag(request.resource.data.organizationId, "manageWebsite")
+        );
+      allow update: if signedIn()
+        && resource.data.organizationId is string
+        && request.resource.data.organizationId == resource.data.organizationId
+        && (
+          managerPlus(resource.data.organizationId)
+          || hasPermissionFlag(resource.data.organizationId, "manageWebsite")
+        );
+      allow delete: if signedIn()
+        && resource.data.organizationId is string
+        && (
+          managerPlus(resource.data.organizationId)
+          || hasPermissionFlag(resource.data.organizationId, "manageWebsite")
+        );
+    }
+
+    match /publicWebsiteSubmissions/{submissionId} {
+      allow read: if resource.data.organizationId is string
+        && inOrg(resource.data.organizationId)
+        && (
+          managerPlus(resource.data.organizationId)
+          || hasPermissionFlag(resource.data.organizationId, "manageWebsite")
+        );
+      allow create: if request.resource.data.organizationId is string
+        && request.resource.data.siteSlug is string
+        && exists(/databases/$(database)/documents/publicSites/$(request.resource.data.siteSlug))
+        && get(/databases/$(database)/documents/publicSites/$(request.resource.data.siteSlug)).data.published == true
+        && get(/databases/$(database)/documents/publicSites/$(request.resource.data.siteSlug)).data.organizationId == request.resource.data.organizationId
+        && request.resource.data.answers is map;
+      allow update, delete: if false;
+    }
+
     match /organizations/{orgId} {
       allow read: if inOrg(orgId);
       allow create: if signedIn() && (
@@ -259,6 +298,11 @@ service cloud.firestore {
       match /settings/{settingId} {
         allow read: if inOrg(orgId);
         allow create, update, delete: if managerPlus(orgId) || hasPermissionFlag(orgId, "manageOrgSettings");
+      }
+
+      match /website/{websiteId} {
+        allow read: if inOrg(orgId);
+        allow create, update, delete: if managerPlus(orgId) || hasPermissionFlag(orgId, "manageWebsite");
       }
 
       match /billing/{billingId} {

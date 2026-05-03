@@ -10,6 +10,7 @@ export type AppModule =
   | "insights"
   | "production"
   | "howtos"
+  | "website"
   | "stores"
   | "users"
   | "orgSettings"
@@ -33,6 +34,7 @@ export const roleModules: Record<MemberRole, AppModule[]> = {
     "insights",
     "production",
     "howtos",
+    "website",
     "stores",
     "users",
     "orgSettings",
@@ -52,6 +54,7 @@ export const roleModules: Record<MemberRole, AppModule[]> = {
     "insights",
     "production",
     "howtos",
+    "website",
     "stores",
     "users",
     "storeSettings",

@@ -21,7 +21,8 @@ import {
   ChevronDown,
   Bell,
   ClipboardList,
-  ScanLine
+  ScanLine,
+  Globe2
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -57,6 +58,7 @@ const nav: Array<{ href: string; label: string; icon: (typeof Home); module: App
   { href: "/app/insights", label: "Insights", icon: ChartColumn, module: "insights" },
   { href: "/app/production", label: "Production", icon: Factory, module: "production" },
   { href: "/app/howtos", label: "How-To Library", icon: BookOpenText, module: "howtos" },
+  { href: "/app/website", label: "Website", icon: Globe2, module: "website" },
   { href: "/app/stores", label: "Stores", icon: Store, module: "stores" },
   { href: "/app/users", label: "Users", icon: Users, module: "users" },
   { href: "/app/org-settings", label: "Organization Settings", icon: Building2, module: "orgSettings" },
@@ -105,6 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (item.module === "insights") return effectivePermissions.viewInsights
     if (item.module === "production") return effectivePermissions.viewProduction
     if (item.module === "howtos") return effectivePermissions.viewHowTos
+    if (item.module === "website") return effectivePermissions.manageWebsite
     if (item.module === "stores") return effectivePermissions.viewStores
     if (item.module === "users") return effectivePermissions.viewUsers
     if (item.module === "orgSettings") return effectivePermissions.manageOrgSettings

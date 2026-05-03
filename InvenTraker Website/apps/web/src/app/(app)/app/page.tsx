@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Clock3,
   Factory,
+  Globe2,
   ListTodo,
   ScanLine,
   Settings,
@@ -32,7 +33,7 @@ type DashboardCard = {
   title: string
   subtitle: string
   metric: string
-  module: "expiration" | "waste" | "inventory" | "healthChecks" | "orders" | "todo" | "insights" | "production" | "howtos" | "stores" | "users" | "storeSettings" | "orgSettings"
+  module: "expiration" | "waste" | "inventory" | "healthChecks" | "orders" | "todo" | "insights" | "production" | "howtos" | "website" | "stores" | "users" | "storeSettings" | "orgSettings"
   icon: typeof Clock3
 }
 
@@ -57,6 +58,7 @@ const cardCatalog: DashboardCard[] = [
   { id: "insights", href: "/app/insights", icon: ChartColumn, title: "Insights", subtitle: "Financial health metrics", metric: "Weekly", module: "insights" },
   { id: "production", href: "/app/production", icon: Factory, title: "Production", subtitle: "Make recommendations", metric: "Trend", module: "production" },
   { id: "howtos", href: "/app/howtos", icon: BookOpenText, title: "How-To Library", subtitle: "Guides and SOPs", metric: "Guides", module: "howtos" },
+  { id: "website", href: "/app/website", icon: Globe2, title: "Website", subtitle: "Public site builder and inbox", metric: "Live", module: "website" },
   { id: "stores", href: "/app/stores", icon: Store, title: "Stores", subtitle: "Store setup and status", metric: "Network", module: "stores" },
   { id: "users", href: "/app/users", icon: Users, title: "Users", subtitle: "Roles and permissions", metric: "Access", module: "users" },
   { id: "orgSettings", href: "/app/org-settings", icon: Building2, title: "Organization Settings", subtitle: "Org-level controls", metric: "Policy", module: "orgSettings" },
@@ -82,6 +84,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!activeOrgId) return
+    const allCardIds = cardCatalog.map((card) => card.id)
     const selectedKey = `dashboard_cards_selected_${activeOrgId}`
     const orderKey = `dashboard_cards_order_${activeOrgId}`
     const savedSelected = localStorage.getItem(selectedKey)
@@ -89,11 +92,23 @@ export default function DashboardPage() {
     try {
       if (savedSelected) {
         const parsed = JSON.parse(savedSelected) as string[]
-        if (Array.isArray(parsed) && parsed.length) setSelectedCardIds(parsed)
+        if (Array.isArray(parsed) && parsed.length) {
+          const nextSelected = [
+            ...parsed.filter((id) => allCardIds.includes(id)),
+            ...allCardIds.filter((id) => !parsed.includes(id))
+          ]
+          setSelectedCardIds(nextSelected)
+        }
       }
       if (savedOrder) {
         const parsed = JSON.parse(savedOrder) as string[]
-        if (Array.isArray(parsed) && parsed.length) setOrderedCardIds(parsed)
+        if (Array.isArray(parsed) && parsed.length) {
+          const nextOrder = [
+            ...parsed.filter((id) => allCardIds.includes(id)),
+            ...allCardIds.filter((id) => !parsed.includes(id))
+          ]
+          setOrderedCardIds(nextOrder)
+        }
       }
     } catch {
       // Ignore malformed local state.
@@ -145,11 +160,12 @@ export default function DashboardPage() {
         if (card.id === "spotCheck") return effectivePermissions.appSpotCheck
         if (card.id === "stores") return effectivePermissions.manageStores
         if (card.id === "users") return effectivePermissions.manageUsers
+        if (card.id === "website") return effectivePermissions.manageWebsite
         if (card.id === "orgSettings") return effectivePermissions.manageOrgSettings
         if (card.id === "storeSettings") return effectivePermissions.manageStoreSettings
         return true
       })
-  }, [effectivePermissions.appSpotCheck, effectivePermissions.manageOrgSettings, effectivePermissions.manageStoreSettings, effectivePermissions.manageStores, effectivePermissions.manageUsers, orderedCardIds, selectedCardIds])
+  }, [effectivePermissions.appSpotCheck, effectivePermissions.manageOrgSettings, effectivePermissions.manageStoreSettings, effectivePermissions.manageStores, effectivePermissions.manageUsers, effectivePermissions.manageWebsite, orderedCardIds, selectedCardIds])
 
   const flowSteps = useMemo<FlowStep[]>(() => {
     const steps: FlowStep[] = [

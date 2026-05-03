@@ -29,6 +29,7 @@ struct ItemDetailView: View {
     @State private var draftMinimumQuantity = ""
     @State private var draftQuantityPerBox = ""
     @State private var draftPrice = ""
+    @State private var draftHasExpiration = true
     @State private var draftDefaultExpiration = ""
     @State private var draftDefaultPackedExpiration = ""
     @State private var draftUnit: MeasurementUnit = .pieces
@@ -651,6 +652,22 @@ struct ItemDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Toggle("Item has an expiration", isOn: $draftHasExpiration)
+                    .tint(settings.accentColor)
+                    .onChange(of: draftHasExpiration) { _, expires in
+                        if expires {
+                            if (Int(draftDefaultExpiration) ?? 0) <= 0 {
+                                draftDefaultExpiration = "7"
+                            }
+                            if (Int(draftDefaultPackedExpiration) ?? 0) <= 0 {
+                                draftDefaultPackedExpiration = draftDefaultExpiration
+                            }
+                        } else {
+                            draftDefaultExpiration = "0"
+                            draftDefaultPackedExpiration = "0"
+                        }
+                    }
                 
                 HStack {
                     Text("Default Expiration (Source)")
@@ -660,6 +677,7 @@ struct ItemDetailView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 90)
                         .roundedInputField(tint: settings.accentColor)
+                        .disabled(!draftHasExpiration)
                 }
 
                 if selectedPackagingMode == .rewrapped {
@@ -671,6 +689,7 @@ struct ItemDetailView: View {
                             .multilineTextAlignment(.trailing)
                             .frame(width: 90)
                             .roundedInputField(tint: settings.accentColor)
+                            .disabled(!draftHasExpiration)
                     }
                 }
             } else {
@@ -679,9 +698,15 @@ struct ItemDetailView: View {
                 InfoRow(label: "Min Quantity", value: "\(item.minimumQuantity.formattedQuantity()) \(item.unit.rawValue)")
                 InfoRow(label: "Qty per Box", value: "\(item.quantityPerBox)")
                 InfoRow(label: displayPriceLabel, value: "$\(String(format: "%.2f", item.price))")
-                InfoRow(label: "Default Expiration (Source)", value: "\(item.effectiveDefaultExpiration) days")
+                InfoRow(
+                    label: "Default Expiration (Source)",
+                    value: item.hasExpiration ? "\(item.effectiveDefaultExpiration) days" : "No expiration"
+                )
                 if item.rewrapsWithUniqueBarcode {
-                    InfoRow(label: "Default Expiration (Packed)", value: "\(item.effectiveDefaultPackedExpiration) days")
+                    InfoRow(
+                        label: "Default Expiration (Packed)",
+                        value: item.hasExpiration ? "\(item.effectiveDefaultPackedExpiration) days" : "No expiration"
+                    )
                 }
             }
         }
@@ -816,6 +841,7 @@ struct ItemDetailView: View {
         draftMinimumQuantity = item.minimumQuantity.formattedQuantity()
         draftQuantityPerBox = "\(item.quantityPerBox)"
         draftPrice = String(format: "%.2f", item.price)
+        draftHasExpiration = item.hasExpiration
         draftDefaultExpiration = "\(item.defaultExpiration)"
         draftDefaultPackedExpiration = "\(item.effectiveDefaultPackedExpiration)"
         draftUnit = item.unit
@@ -862,13 +888,16 @@ struct ItemDetailView: View {
         if let value = Double(draftPrice) {
             item.price = max(0, value)
         }
+        item.hasExpiration = draftHasExpiration
         if let value = Int(draftDefaultExpiration) {
-            item.defaultExpiration = max(1, value)
+            item.defaultExpiration = draftHasExpiration ? max(1, value) : 0
+        } else if !draftHasExpiration {
+            item.defaultExpiration = 0
         }
         if let value = Int(draftDefaultPackedExpiration) {
-            item.defaultPackedExpiration = max(1, value)
+            item.defaultPackedExpiration = draftHasExpiration ? max(1, value) : 0
         } else {
-            item.defaultPackedExpiration = item.effectiveDefaultExpiration
+            item.defaultPackedExpiration = draftHasExpiration ? item.effectiveDefaultExpiration : 0
         }
 
         let cleanedDepartment = draftDepartment.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -959,6 +988,7 @@ struct ItemDetailView: View {
                     tags: item.tags,
                     price: item.price,
                     casePack: item.quantityPerBox,
+                    hasExpiration: item.hasExpiration,
                     defaultExpiration: item.defaultExpiration,
                     defaultPackedExpiration: item.effectiveDefaultPackedExpiration,
                     vendorName: item.vendor?.name,
@@ -988,6 +1018,7 @@ struct ItemDetailView: View {
                     editorUid: session.firebaseUser?.id,
                     editorOrganizationId: item.organizationId,
                     hasPermission: session.canPerform(.manageCatalog),
+                    hasExpiration: item.hasExpiration,
                     defaultExpiration: item.defaultExpiration,
                     defaultPackedExpiration: item.effectiveDefaultPackedExpiration,
                     vendorName: item.vendor?.name,
@@ -1058,6 +1089,7 @@ struct ItemDetailView: View {
             editorUid: session.firebaseUser?.id,
             editorOrganizationId: item.organizationId,
             hasPermission: session.canPerform(.manageCatalog),
+            hasExpiration: item.hasExpiration,
             defaultExpiration: item.defaultExpiration,
             defaultPackedExpiration: item.effectiveDefaultPackedExpiration,
             vendorName: item.vendor?.name,

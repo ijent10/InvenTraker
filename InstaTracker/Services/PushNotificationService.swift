@@ -143,15 +143,19 @@ final class PushNotificationService: NSObject {
         let normalizedOrg = currentOrganizationID?.isEmpty == false ? currentOrganizationID : nil
         let normalizedStore = currentStoreID?.isEmpty == false ? currentStoreID : nil
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "fcmToken": token,
             "platform": "ios",
             "bundleId": Bundle.main.bundleIdentifier ?? "",
-            "organizationId": normalizedOrg as Any,
-            "storeId": normalizedStore as Any,
             "updatedAt": FieldValue.serverTimestamp(),
             "createdAt": FieldValue.serverTimestamp()
         ]
+        if let normalizedOrg, !normalizedOrg.isEmpty {
+            payload["organizationId"] = normalizedOrg
+        }
+        if let normalizedStore, !normalizedStore.isEmpty {
+            payload["storeId"] = normalizedStore
+        }
 
         do {
             try await Firestore.firestore()

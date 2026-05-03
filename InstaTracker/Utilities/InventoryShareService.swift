@@ -15,6 +15,7 @@ struct InventoryShareItem: Codable {
     var upc: String?
     var tags: [String]
     var pictures: [Data]?
+    var hasExpiration: Bool?
     var defaultExpiration: Int
     var defaultPackedExpiration: Int?
     var vendorName: String?
@@ -57,6 +58,7 @@ enum InventoryShareService {
     private static let importHost = "import"
     private static let payloadQueryKey = "data"
     
+    @MainActor
     static func shareURL(for items: [InventoryItem]) -> URL? {
         let payloadItems = items.map { item in
             InventoryShareItem(
@@ -64,6 +66,7 @@ enum InventoryShareService {
                 upc: item.upc,
                 tags: item.tags,
                 pictures: optimizedPictures(from: item.pictures),
+                hasExpiration: item.hasExpiration,
                 defaultExpiration: item.defaultExpiration,
                 defaultPackedExpiration: item.effectiveDefaultPackedExpiration,
                 vendorName: item.vendor?.name,
@@ -234,8 +237,10 @@ enum InventoryShareService {
         item.upc = cleanedUPC.isEmpty ? nil : cleanedUPC
         item.tags = shared.tags
         item.pictures = shared.pictures ?? []
-        item.defaultExpiration = max(1, shared.defaultExpiration)
-        item.defaultPackedExpiration = max(1, shared.defaultPackedExpiration ?? shared.defaultExpiration)
+        let hasExpiration = shared.hasExpiration ?? (shared.defaultExpiration > 0)
+        item.hasExpiration = hasExpiration
+        item.defaultExpiration = hasExpiration ? max(1, shared.defaultExpiration) : 0
+        item.defaultPackedExpiration = hasExpiration ? max(1, shared.defaultPackedExpiration ?? shared.defaultExpiration) : 0
         item.vendor = vendor
         item.minimumQuantity = max(0, shared.minimumQuantity)
         item.quantityPerBox = max(1, shared.quantityPerBox)
@@ -277,6 +282,7 @@ enum InventoryShareService {
         vendor: Vendor?,
         organizationId: String
     ) -> InventoryItem {
+        let hasExpiration = shared.hasExpiration ?? (shared.defaultExpiration > 0)
         let batches = shared.batches
             .filter { $0.quantity > 0 }
             .map {
@@ -299,8 +305,9 @@ enum InventoryShareService {
             upc: shared.upc,
             tags: shared.tags,
             pictures: shared.pictures ?? [],
-            defaultExpiration: max(1, shared.defaultExpiration),
-            defaultPackedExpiration: max(1, shared.defaultPackedExpiration ?? shared.defaultExpiration),
+            hasExpiration: hasExpiration,
+            defaultExpiration: hasExpiration ? max(1, shared.defaultExpiration) : 0,
+            defaultPackedExpiration: hasExpiration ? max(1, shared.defaultPackedExpiration ?? shared.defaultExpiration) : 0,
             vendor: vendor,
             minimumQuantity: max(0, shared.minimumQuantity),
             quantityPerBox: max(1, shared.quantityPerBox),
@@ -331,10 +338,12 @@ enum InventoryShareService {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    @MainActor
     private static func optimizedPictures(from pictures: [Data]) -> [Data] {
         pictures.compactMap(optimizedImageData(from:))
     }
 
+    @MainActor
     private static func optimizedImageData(from data: Data) -> Data? {
         #if canImport(UIKit)
         guard let image = UIImage(data: data) else { return data }

@@ -288,6 +288,9 @@ struct InventoryItemRow: View {
         }
         guard !item.batches.isEmpty else { return nil }
         let batchCount = item.batches.count
+        guard item.hasExpiration else {
+            return "\(batchCount) batch\(batchCount == 1 ? "" : "es") • No expiration"
+        }
         let nextDate = item.batches.map(\.expirationDate).min()
         if let nextDate {
             return "\(batchCount) batch\(batchCount == 1 ? "" : "es") • Next exp \(Self.summaryDateFormatter.string(from: nextDate))"

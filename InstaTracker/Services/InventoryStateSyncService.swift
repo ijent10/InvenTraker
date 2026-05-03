@@ -612,13 +612,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         guard remoteSyncAvailable else { return false }
         let db = Firestore.firestore()
         let orgRef = db.collection("organizations").document(organizationId)
-        // Store-scoped canonical model is now the default runtime path.
-        // Legacy inventory reads remain migration-time only and are disabled in app runtime.
-        let allowLegacyInventoryReads = false
-
         var didMerge = false
-        var consumedLegacyUnscopedQuantities = false
-        let normalizedRequestedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let vendorSnapshot = try? await orgRef.collection("vendors").getDocuments()
         let itemSnapshot = try? await orgRef.collection("items").getDocuments()
@@ -712,29 +706,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         }
 
         if let itemSnapshot {
-            var organizationDefaultStoreID = ""
-            if let orgDoc = try? await orgRef.getDocument(),
-               let raw = (orgDoc.data()?["defaultStoreId"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !raw.isEmpty {
-                organizationDefaultStoreID = raw
-            }
             let normalizedStoreID = sanitizeStoreIdentifier(storeId)
-            let legacyPrimaryStoreKey = "legacy_primary_store_\(organizationId)"
-            let storedLegacyPrimaryStoreID = UserDefaults.standard
-                .string(forKey: legacyPrimaryStoreKey)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let hasStoredLegacyPrimaryStore = !storedLegacyPrimaryStoreID.isEmpty
-            var canUseLegacyUnscopedItemsForStore = false
-            if allowLegacyInventoryReads {
-                if !organizationDefaultStoreID.isEmpty,
-                   organizationDefaultStoreID == normalizedStoreID {
-                    canUseLegacyUnscopedItemsForStore = true
-                } else if hasStoredLegacyPrimaryStore,
-                          storedLegacyPrimaryStoreID == normalizedStoreID {
-                    canUseLegacyUnscopedItemsForStore = true
-                }
-            }
             var itemAliasToBackendID: [String: String] = [:]
             for doc in itemSnapshot.documents {
                 let itemData = doc.data()
@@ -810,29 +782,6 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 mergeBatchDocuments(storeBatchSnapshot.documents)
             }
 
-            // One-release compatibility path: legacy stores/{storeId}/inventoryBatches
-            if allowLegacyInventoryReads,
-               !hasAnyBatchRows,
-               let legacyStoreBatchSnapshot = try? await db.collection("organizations")
-                .document(organizationId)
-                .collection("stores")
-                .document(storeId)
-                .collection("inventoryBatches")
-                .getDocuments() {
-                mergeBatchDocuments(legacyStoreBatchSnapshot.documents, defaultNested: false)
-            }
-
-            // One-release compatibility path: legacy org-level inventoryBatches filtered by storeId
-            if allowLegacyInventoryReads,
-               !hasAnyBatchRows,
-               let legacyOrgBatchSnapshot = try? await db.collection("organizations")
-                .document(organizationId)
-                .collection("inventoryBatches")
-                .whereField("storeId", isEqualTo: storeId)
-                .getDocuments() {
-                mergeBatchDocuments(legacyOrgBatchSnapshot.documents, defaultNested: false)
-            }
-
             let existingItems = (try? modelContext.fetch(FetchDescriptor<InventoryItem>())) ?? []
             var itemByBackendID: [String: InventoryItem] = [:]
             var itemByUUID: [UUID: InventoryItem] = [:]
@@ -872,7 +821,6 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                         let resolvedStoreForBatch: String = {
                             if !batchStore.isEmpty { return batchStore }
                             if !remoteStoreRaw.isEmpty { return remoteStoreRaw }
-                            if canUseLegacyUnscopedItemsForStore { return storeId }
                             return ""
                         }()
                         guard !resolvedStoreForBatch.isEmpty, resolvedStoreForBatch == storeId else {
@@ -896,34 +844,13 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     }
                 }
 
-                if canonicalBatches.isEmpty,
-                   canUseLegacyUnscopedItemsForStore,
-                   remoteStoreRaw.isEmpty,
-                   legacyTotalQuantity > 0 {
-                    let legacyExpiration = Calendar.current.date(
-                        byAdding: .day,
-                        value: max(1, data["defaultExpiration"] as? Int ?? 7),
-                        to: Date()
-                    ) ?? Date()
-                    canonicalBatches = [[
-                        "id": "legacy-total-\(backendId)",
-                        "backendId": "legacy-total-\(backendId)",
-                        "quantity": legacyTotalQuantity,
-                        "expirationDate": legacyExpiration,
-                        "receivedDate": dateValue(data["lastModified"]),
-                        "storeId": normalizedStoreID,
-                        "organizationId": organizationId
-                    ]]
-                    consumedLegacyUnscopedQuantities = true
-                }
-
                 let hasStoreScopedQuantity = !canonicalBatches.isEmpty
                 if !remoteStoreRaw.isEmpty, remoteStoreRaw != storeId {
                     continue
                 }
                 // Org metadata items (storeId empty) should only materialize locally for this store
                 // when they actually have quantity records for this store.
-                if remoteStoreRaw.isEmpty && !hasStoreScopedQuantity && !canUseLegacyUnscopedItemsForStore {
+                if remoteStoreRaw.isEmpty && !hasStoreScopedQuantity {          
                     continue
                 }
                 let resolvedRemoteStore = remoteStoreRaw.isEmpty ? storeId : remoteStoreRaw
@@ -1008,16 +935,24 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 let remoteTags = data["tags"] as? [String] ?? item.tags
                 if item.tags != remoteTags { item.tags = remoteTags; itemChanged = true }
 
-                let remoteDefaultExpiration = max(1, data["defaultExpiration"] as? Int ?? item.defaultExpiration)
+                let rawRemoteDefaultExpiration =
+                    data["defaultExpiration"] as? Int ??
+                    data["defaultExpirationDays"] as? Int ??
+                    item.defaultExpiration
+                let remoteHasExpiration = data["hasExpiration"] as? Bool ?? rawRemoteDefaultExpiration > 0
+                if item.hasExpiration != remoteHasExpiration {
+                    item.hasExpiration = remoteHasExpiration
+                    itemChanged = true
+                }
+
+                let remoteDefaultExpiration = remoteHasExpiration ? max(1, rawRemoteDefaultExpiration) : 0
                 if item.defaultExpiration != remoteDefaultExpiration {
                     item.defaultExpiration = remoteDefaultExpiration
                     itemChanged = true
                 }
 
-                let remotePackedExpiration = max(
-                    1,
-                    data["defaultPackedExpiration"] as? Int ?? item.defaultPackedExpiration
-                )
+                let rawRemotePackedExpiration = data["defaultPackedExpiration"] as? Int ?? item.defaultPackedExpiration
+                let remotePackedExpiration = remoteHasExpiration ? max(1, rawRemotePackedExpiration) : 0
                 if item.defaultPackedExpiration != remotePackedExpiration {
                     item.defaultPackedExpiration = remotePackedExpiration
                     itemChanged = true
@@ -1203,53 +1138,40 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 itemByBackendID["\(backendId)|\(resolvedRemoteStore)"] = item
             }
 
-            if !allowLegacyInventoryReads {
-                let remoteBackendIDs = Set(itemSnapshot.documents.map(\.documentID))
-                let storeBackendsWithQuantity = Set(
-                    canonicalBatchesByBackendID.compactMap { backendId, rows in
-                        let hasPositiveQuantity = rows.values.contains { row in
-                            doubleValue(row.data["quantity"]) > 0
-                        }
-                        return hasPositiveQuantity ? backendId : nil
+            let remoteBackendIDs = Set(itemSnapshot.documents.map(\.documentID))
+            let storeBackendsWithQuantity = Set(
+                canonicalBatchesByBackendID.compactMap { backendId, rows in
+                    let hasPositiveQuantity = rows.values.contains { row in
+                        doubleValue(row.data["quantity"]) > 0
                     }
-                )
-                let scopedExistingItems = existingItems.filter { item in
-                    item.organizationId == organizationId &&
-                    item.storeId.trimmingCharacters(in: .whitespacesAndNewlines) == storeId
+                    return hasPositiveQuantity ? backendId : nil
                 }
-                for item in scopedExistingItems {
-                    let backendId = (item.backendId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    let hasQuantity = item.batches.contains { $0.quantity > 0 }
-                    if !backendId.isEmpty {
-                        if !remoteBackendIDs.contains(backendId) {
-                            modelContext.delete(item)
-                            didMerge = true
-                            continue
-                        }
-                        // If metadata exists but no quantity rows for this store, remove stale local materialization.
-                        if !storeBackendsWithQuantity.contains(backendId), item.lastSyncedAt != nil {
-                            modelContext.delete(item)
-                            didMerge = true
-                            continue
-                        }
-                        continue
-                    }
-                    if !hasQuantity && item.totalQuantity <= 0 {
+            )
+            let scopedExistingItems = existingItems.filter { item in
+                item.organizationId == organizationId &&
+                item.storeId.trimmingCharacters(in: .whitespacesAndNewlines) == storeId
+            }
+            for item in scopedExistingItems {
+                let backendId = (item.backendId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let hasQuantity = item.batches.contains { $0.quantity > 0 }
+                if !backendId.isEmpty {
+                    if !remoteBackendIDs.contains(backendId) {
                         modelContext.delete(item)
                         didMerge = true
+                        continue
                     }
+                    // If metadata exists but no quantity rows for this store, remove stale local materialization.
+                    if !storeBackendsWithQuantity.contains(backendId), item.lastSyncedAt != nil {
+                        modelContext.delete(item)
+                        didMerge = true
+                        continue
+                    }
+                    continue
                 }
-            }
-        }
-
-        if !normalizedRequestedStoreID.isEmpty,
-           consumedLegacyUnscopedQuantities {
-            let legacyPrimaryStoreKey = "legacy_primary_store_\(organizationId)"
-            let storedLegacyPrimaryStoreID = UserDefaults.standard
-                .string(forKey: legacyPrimaryStoreKey)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if storedLegacyPrimaryStoreID.isEmpty {
-                UserDefaults.standard.set(normalizedRequestedStoreID, forKey: legacyPrimaryStoreKey)
+                if !hasQuantity && item.totalQuantity <= 0 {
+                    modelContext.delete(item)
+                    didMerge = true
+                }
             }
         }
 
@@ -1276,8 +1198,6 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         let normalizedStoreId = sanitizeStoreIdentifier(storeId)
         let normalizedScopedStoreId = normalizedStoreId
         guard !normalizedScopedStoreId.isEmpty else { return false }
-        let allowLegacyInventoryReads = false
-
         var mergedBatchDocs: [QueryDocumentSnapshot] = []
 
         if let scopedBatches = try? await db.collectionGroup("inventoryBatches")
@@ -1297,27 +1217,6 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             .collection("inventoryBatches")
             .getDocuments() {
             mergedBatchDocs.append(contentsOf: nestedStoreBatches.documents)
-        }
-
-        if allowLegacyInventoryReads,
-           mergedBatchDocs.isEmpty,
-           let legacyStoreBatches = try? await db.collection("organizations")
-            .document(organizationId)
-            .collection("stores")
-            .document(normalizedScopedStoreId)
-            .collection("inventoryBatches")
-            .getDocuments() {
-            mergedBatchDocs.append(contentsOf: legacyStoreBatches.documents)
-        }
-
-        if allowLegacyInventoryReads,
-           mergedBatchDocs.isEmpty,
-           let legacyOrgBatches = try? await db.collection("organizations")
-            .document(organizationId)
-            .collection("inventoryBatches")
-            .whereField("storeId", isEqualTo: normalizedScopedStoreId)
-            .getDocuments() {
-            mergedBatchDocs.append(contentsOf: legacyOrgBatches.documents)
         }
 
         guard !mergedBatchDocs.isEmpty else { return false }
@@ -1899,7 +1798,9 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             "organizationId": item.organizationId,
             "name": item.name,
             "tags": item.tags,
+            "hasExpiration": item.hasExpiration,
             "defaultExpiration": item.defaultExpiration,
+            "defaultExpirationDays": item.defaultExpiration,
             "defaultPackedExpiration": item.defaultPackedExpiration,
             "minimumQuantity": item.minimumQuantity,
             "quantityPerBox": item.quantityPerBox,

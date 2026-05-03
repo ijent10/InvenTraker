@@ -2,6 +2,21 @@ import Foundation
 import SwiftData
 
 enum CatalogInventoryImporter {
+    private static func cleanedString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func normalizedStoreID(_ storeId: String) -> String {
+        storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func matchesUPC(_ lhs: String?, _ rhs: String) -> Bool {
+        guard let lhs else { return false }
+        return lhs.caseInsensitiveCompare(rhs) == .orderedSame
+    }
+
     @MainActor
     static func importOrGetLocalItem(
         from record: CatalogProductRecord,
@@ -11,38 +26,74 @@ enum CatalogInventoryImporter {
         existingItems: [InventoryItem]
     ) -> InventoryItem {
         let normalizedUPC = CentralCatalogService.shared.normalizeUPC(record.upc)
-        let resolvedStoreId = record.storeId.isEmpty ? storeId : record.storeId
+        let resolvedStoreId = normalizedStoreID(record.storeId.isEmpty ? storeId : record.storeId)
 
         if let existing = existingItems.first(where: {
             $0.organizationId == organizationId &&
-            $0.storeId == resolvedStoreId &&
-            (($0.upc ?? "").caseInsensitiveCompare(normalizedUPC) == .orderedSame)
+            normalizedStoreID($0.storeId) == resolvedStoreId &&
+            matchesUPC($0.upc, normalizedUPC)
         }) {
             return existing
         }
 
+        let orgTemplate = existingItems.first(where: {
+            $0.organizationId == organizationId &&
+            normalizedStoreID($0.storeId).isEmpty &&
+            matchesUPC($0.upc, normalizedUPC)
+        })
+
+        let resolvedName = cleanedString(orgTemplate?.name) ?? cleanedString(record.title) ?? "Catalog Item"
+        let resolvedPictures = orgTemplate?.pictures.isEmpty == false
+            ? (orgTemplate?.pictures ?? [])
+            : (record.thumbnailData.map { [$0] } ?? [])
+        let resolvedUnitRaw = cleanedString(orgTemplate?.unit.rawValue) ?? cleanedString(record.unitRaw) ?? MeasurementUnit.pieces.rawValue
+        let resolvedUnit = MeasurementUnit(rawValue: resolvedUnitRaw) ?? .pieces
+        let resolvedMinimumQuantity = orgTemplate?.minimumQuantity ?? max(0, record.minimumQuantity)
+        let resolvedQuantityPerBox = orgTemplate?.quantityPerBox ?? max(1, record.casePack)
+        let resolvedHasExpiration = orgTemplate?.hasExpiration ?? record.hasExpiration
+        let resolvedDefaultExpiration = resolvedHasExpiration
+            ? (orgTemplate?.effectiveDefaultExpiration ?? max(1, record.defaultExpiration))
+            : 0
+        let resolvedDefaultPackedExpiration = resolvedHasExpiration
+            ? (orgTemplate?.effectiveDefaultPackedExpiration ?? max(1, record.defaultPackedExpiration))
+            : 0
+        let resolvedCanBeReworked = orgTemplate?.canBeReworked ?? record.canBeReworked
+        let resolvedReworkShelfLife = orgTemplate?.effectiveReworkShelfLifeDays ?? max(1, record.reworkShelfLifeDays)
+        let resolvedMaxReworkCount = orgTemplate?.effectiveMaxReworkCount ?? max(1, record.maxReworkCount)
+        let resolvedRewrapsWithUniqueBarcode = orgTemplate?.rewrapsWithUniqueBarcode ?? record.rewrapsWithUniqueBarcode
+        let resolvedReworkItemCode = cleanedString(orgTemplate?.reworkItemCode)
+
         let item = InventoryItem(
-            name: record.title,
-            upc: normalizedUPC.isEmpty ? nil : normalizedUPC,
-            tags: record.tags,
-            pictures: record.thumbnailData.map { [$0] } ?? [],
-            defaultExpiration: max(1, record.defaultExpiration),
-            defaultPackedExpiration: max(1, record.defaultPackedExpiration),
-            vendor: nil,
-            minimumQuantity: max(0, record.minimumQuantity),
-            quantityPerBox: max(1, record.casePack),
-            department: record.department,
-            departmentLocation: record.departmentLocation,
-            isPrepackaged: record.isPrepackaged,
-            rewrapsWithUniqueBarcode: record.rewrapsWithUniqueBarcode,
-            canBeReworked: record.canBeReworked,
-            reworkShelfLifeDays: record.reworkShelfLifeDays,
-            maxReworkCount: record.maxReworkCount,
-            price: max(0, record.price),
-            unit: MeasurementUnit(rawValue: record.unitRaw) ?? .pieces,
+            name: resolvedName,
+            upc: normalizedUPC.isEmpty ? cleanedString(orgTemplate?.upc) : normalizedUPC,
+            tags: orgTemplate?.tags ?? record.tags,
+            pictures: resolvedPictures,
+            hasExpiration: resolvedHasExpiration,
+            defaultExpiration: resolvedDefaultExpiration,
+            defaultPackedExpiration: resolvedDefaultPackedExpiration,
+            vendor: orgTemplate?.vendor,
+            minimumQuantity: resolvedMinimumQuantity,
+            quantityPerBox: resolvedQuantityPerBox,
+            department: cleanedString(orgTemplate?.department) ?? cleanedString(record.department),
+            departmentLocation: cleanedString(orgTemplate?.departmentLocation) ?? cleanedString(record.departmentLocation),
+            isPrepackaged: orgTemplate?.isPrepackaged ?? record.isPrepackaged,
+            rewrapsWithUniqueBarcode: resolvedRewrapsWithUniqueBarcode,
+            reworkItemCode: resolvedReworkItemCode,
+            canBeReworked: resolvedCanBeReworked,
+            reworkShelfLifeDays: resolvedReworkShelfLife,
+            maxReworkCount: resolvedMaxReworkCount,
+            price: orgTemplate?.price ?? max(0, record.price),
+            unit: resolvedUnit,
             organizationId: organizationId,
+            backendId: orgTemplate?.backendId,
             storeId: resolvedStoreId
         )
+        item.includeInInsights = orgTemplate?.includeInInsights ?? true
+        item.isOnSale = orgTemplate?.isOnSale ?? false
+        item.salePercentage = max(0, min(100, orgTemplate?.salePercentage ?? 0))
+        item.revision = max(item.revision, orgTemplate?.revision ?? 0)
+        item.updatedByUid = orgTemplate?.updatedByUid
+        item.lastSyncedAt = orgTemplate?.lastSyncedAt
 
         modelContext.insert(item)
         try? modelContext.save()
@@ -58,11 +109,11 @@ enum CatalogInventoryImporter {
         existingItems: [InventoryItem]
     ) -> InventoryItem {
         let normalizedUPC = CentralCatalogService.shared.normalizeUPC(rawUPC)
-        let trimmedStoreID = storeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedStoreID = normalizedStoreID(storeId)
         if let existing = existingItems.first(where: {
             $0.organizationId == organizationId &&
-            $0.storeId == trimmedStoreID &&
-            (($0.upc ?? "").caseInsensitiveCompare(normalizedUPC) == .orderedSame)
+            normalizedStoreID($0.storeId) == trimmedStoreID &&
+            matchesUPC($0.upc, normalizedUPC)
         }) {
             return existing
         }
@@ -80,6 +131,7 @@ enum CatalogInventoryImporter {
             upc: normalizedUPC.isEmpty ? nil : normalizedUPC,
             tags: ["pending-review"],
             pictures: [],
+            hasExpiration: true,
             defaultExpiration: 7,
             defaultPackedExpiration: 7,
             vendor: nil,
@@ -105,5 +157,34 @@ enum CatalogInventoryImporter {
         modelContext.insert(item)
         try? modelContext.save()
         return item
+    }
+
+    @MainActor
+    static func submissionDraftPayload(from item: InventoryItem?) -> ItemSubmissionDraftPayload? {
+        guard let item else { return nil }
+        return ItemSubmissionDraftPayload(
+            backendItemId: item.backendId,
+            name: item.name,
+            upc: item.upc,
+            unitRaw: item.unit.rawValue,
+            price: item.price,
+            hasExpiration: item.hasExpiration,
+            defaultExpirationDays: item.effectiveDefaultExpiration,
+            defaultPackedExpiration: item.effectiveDefaultPackedExpiration,
+            minQuantity: item.minimumQuantity,
+            qtyPerCase: item.quantityPerBox,
+            caseSize: max(1, Double(item.quantityPerBox)),
+            vendorId: item.vendor?.backendId,
+            vendorName: item.vendor?.name,
+            department: item.department,
+            departmentLocation: item.departmentLocation,
+            tags: item.tags,
+            isPrepackaged: item.isPrepackaged,
+            rewrapsWithUniqueBarcode: item.rewrapsWithUniqueBarcode,
+            reworkItemCode: item.reworkItemCode,
+            canBeReworked: item.canBeReworked,
+            reworkShelfLifeDays: item.effectiveReworkShelfLifeDays,
+            maxReworkCount: item.effectiveMaxReworkCount
+        )
     }
 }

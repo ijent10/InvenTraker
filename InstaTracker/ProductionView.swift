@@ -1054,7 +1054,13 @@ private struct ProductionRunSheet: View {
                 TextField("Barcode (optional)", text: $packageBarcode)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                if outputItem?.hasExpiration ?? true {
+                    DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                } else {
+                    Text("This item does not expire.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let validationMessage {
@@ -1078,11 +1084,15 @@ private struct ProductionRunSheet: View {
         .onAppear {
             quantityToMakeText = suggestion.recommendedMakeQuantity.formattedQuantity()
             if let item = outputItem {
-                let days = (item.isPrepackaged || item.rewrapsWithUniqueBarcode)
-                    ? item.effectiveDefaultPackedExpiration
-                    : item.effectiveDefaultExpiration
-                if let suggestedDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) {
-                    expirationDate = suggestedDate
+                if item.hasExpiration {
+                    let days = (item.isPrepackaged || item.rewrapsWithUniqueBarcode)
+                        ? item.effectiveDefaultPackedExpiration
+                        : item.effectiveDefaultExpiration
+                    if let suggestedDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) {
+                        expirationDate = suggestedDate
+                    }
+                } else {
+                    expirationDate = .distantFuture
                 }
             } else if let suggestedDate = Calendar.current.date(byAdding: .day, value: 7, to: Date()) {
                 expirationDate = suggestedDate
@@ -1106,9 +1116,10 @@ private struct ProductionRunSheet: View {
         }
 
         let trimmedBarcode = packageBarcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedExpirationDate = resolvedOutputItem.hasExpiration ? expirationDate : Date.distantFuture
         let batch = Batch(
             quantity: quantity,
-            expirationDate: expirationDate,
+            expirationDate: resolvedExpirationDate,
             receivedDate: Date(),
             packageBarcode: trimmedBarcode.isEmpty ? nil : trimmedBarcode,
             organizationId: organizationId,
@@ -1125,7 +1136,7 @@ private struct ProductionRunSheet: View {
             outputBatchID: batch.id,
             quantityMade: quantity,
             packageBarcode: trimmedBarcode,
-            expirationDate: expirationDate,
+            expirationDate: resolvedExpirationDate,
             madeAt: Date(),
             organizationId: organizationId,
             storeId: storeId

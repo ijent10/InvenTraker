@@ -351,50 +351,49 @@ struct SpotCheckView: View {
         }
 
         Task {
-            do {
-                if let record = try await catalogService.product(
-                    forUPC: normalized,
-                    organizationId: activeOrganizationId,
-                    storeId: settings.normalizedActiveStoreID
-                ) {
-                    await MainActor.run {
-                        catalogImportRecord = record
-                        showingCatalogImportPrompt = true
-                    }
-                } else {
-                    let draftItem = await MainActor.run {
-                        CatalogInventoryImporter.createStoreDraftForUnknownUPC(
-                            scannedUPC: normalized,
-                            organizationId: activeOrganizationId,
-                            storeId: settings.normalizedActiveStoreID,
-                            modelContext: modelContext,
-                            existingItems: scopedItems
-                        )
-                    }
-                    let submissionId = await catalogService.submitItemDraftForVerification(
-                        organizationId: activeOrganizationId,
-                        storeId: settings.normalizedActiveStoreID,
-                        submittedByUid: session.firebaseUser?.id ?? "",
-                        scannedUPC: normalized,
-                        draftItem: draftItem,
-                        note: "Created from Spot Check unknown scan."
-                    )
-                    await MainActor.run {
-                        scannerService.stopScanning()
-                        showingScanner = false
-                        catalogLookupMessage = submissionId == nil
-                            ? "Created a store draft item. Review submission could not be sent right now."
-                            : "Created a store draft and sent it for organization review."
-                        showingCatalogLookupMessage = true
-                        presentSpotCheck(item: draftItem, prefilledBatches: [])
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    catalogLookupMessage = "Could not check the central catalog right now."
-                    showingCatalogLookupMessage = true
-                }
+            await handleUnknownScanLookup(normalizedUPC: normalized)
+        }
+    }
+
+    @MainActor
+    private func handleUnknownScanLookup(normalizedUPC: String) async {
+        do {
+            if let record = try await catalogService.product(
+                forUPC: normalizedUPC,
+                organizationId: activeOrganizationId,
+                storeId: settings.normalizedActiveStoreID
+            ) {
+                catalogImportRecord = record
+                showingCatalogImportPrompt = true
+                return
             }
+
+            let draftItem = CatalogInventoryImporter.createStoreDraftForUnknownUPC(
+                scannedUPC: normalizedUPC,
+                organizationId: activeOrganizationId,
+                storeId: settings.normalizedActiveStoreID,
+                modelContext: modelContext,
+                existingItems: items
+            )
+            let draftPayload = CatalogInventoryImporter.submissionDraftPayload(from: draftItem)
+            let submissionId = await catalogService.submitItemDraftForVerification(
+                organizationId: activeOrganizationId,
+                storeId: settings.normalizedActiveStoreID,
+                submittedByUid: session.firebaseUser?.id ?? "",
+                scannedUPC: normalizedUPC,
+                draftPayload: draftPayload,
+                note: "Created from Spot Check unknown scan."
+            )
+            scannerService.stopScanning()
+            showingScanner = false
+            catalogLookupMessage = submissionId == nil
+                ? "Created a store draft item. Review submission could not be sent right now."
+                : "Created a store draft and sent it for organization review."
+            showingCatalogLookupMessage = true
+            presentSpotCheck(item: draftItem, prefilledBatches: [])
+        } catch {
+            catalogLookupMessage = "Could not check the central catalog right now."
+            showingCatalogLookupMessage = true
         }
     }
 
@@ -404,7 +403,7 @@ struct SpotCheckView: View {
             organizationId: activeOrganizationId,
             storeId: settings.normalizedActiveStoreID,
             modelContext: modelContext,
-            existingItems: scopedItems
+            existingItems: items
         )
         scannerService.stopScanning()
         showingScanner = false
@@ -889,7 +888,13 @@ struct SpotCheckCountView: View {
                                 .foregroundStyle(.secondary)
                         }
                         
-                        DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                        if item.hasExpiration {
+                            DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                        } else {
+                            Text("This item does not expire.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         
                         Button(action: addCurrentBatch) {
                             Text("Add Batch")
@@ -914,7 +919,7 @@ struct SpotCheckCountView: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(draft.quantity.formattedQuantity()) \(item.unit.rawValue)")
-                                        Text(draft.expirationDate.formatted(date: .abbreviated, time: .omitted))
+                                        Text(item.hasExpiration ? draft.expirationDate.formatted(date: .abbreviated, time: .omitted) : "No expiration")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -987,7 +992,7 @@ struct SpotCheckCountView: View {
         if !initialBatches.isEmpty {
             countedBatches = initialBatches
             quantityText = ""
-            expirationDate = initialBatches.first?.expirationDate ?? Date()
+            expirationDate = item.hasExpiration ? (initialBatches.first?.expirationDate ?? Date()) : .distantFuture
             return
         }
 
@@ -1007,7 +1012,7 @@ struct SpotCheckCountView: View {
                 )
             }
         countedBatches = existing
-        expirationDate = existing.first?.expirationDate ?? Date()
+        expirationDate = item.hasExpiration ? (existing.first?.expirationDate ?? Date()) : .distantFuture
     }
     
     private func addCurrentBatch() {
@@ -1015,12 +1020,12 @@ struct SpotCheckCountView: View {
         countedBatches.append(
             CountedBatchDraft(
                 quantity: quantity,
-                expirationDate: expirationDate,
+                expirationDate: item.hasExpiration ? expirationDate : .distantFuture,
                 stockArea: selectedStockArea
             )
         )
         quantityText = ""
-        expirationDate = Date()
+        expirationDate = item.hasExpiration ? Date() : .distantFuture
         isQuantityFocused = false
     }
     
@@ -1040,7 +1045,7 @@ struct SpotCheckCountView: View {
             countedBatches.append(
                 CountedBatchDraft(
                     quantity: quantity,
-                    expirationDate: expirationDate,
+                    expirationDate: item.hasExpiration ? expirationDate : .distantFuture,
                     stockArea: selectedStockArea
                 )
             )

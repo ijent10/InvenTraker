@@ -143,7 +143,7 @@ final class AuthService: ObservableObject {
         if firebaseEnabled {
             guard let user = Auth.auth().currentUser else { throw AuthServiceError.userUnavailable }
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                user.updateEmail(to: normalized) { error in
+                user.sendEmailVerification(beforeUpdatingEmail: normalized) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -151,7 +151,7 @@ final class AuthService: ObservableObject {
                     }
                 }
             }
-            currentUser = SessionUser(id: user.uid, email: normalized, displayName: user.displayName)
+            currentUser = SessionUser(id: user.uid, email: user.email, displayName: user.displayName)
             return
         }
 #endif

@@ -28,6 +28,7 @@ struct AddItemView: View {
     @State private var showingCustomUnit = false
     @State private var defaultExpiration = 7
     @State private var defaultPackedExpiration = 7
+    @State private var hasExpiration = true
     @State private var minimumQuantity = ""
     @State private var quantityPerBox = "1"
     @State private var price = ""
@@ -236,7 +237,7 @@ struct AddItemView: View {
                     showingShipmentTypePrompt = true
                 }
             } message: {
-                Text("If yes, we can launch Spot Check right now so on-hand quantity and expiration are accurate.")
+                Text("If yes, we can launch Spot Check right now so on-hand quantity and stock details are accurate.")
             }
             .alert("Stock setup", isPresented: $showingShipmentTypePrompt) {
                 Button("First Shipment") {
@@ -433,6 +434,18 @@ struct AddItemView: View {
             if unit == .custom {
                 TextField("Custom unit", text: $customUnit)
             }
+
+            Toggle("Item has an expiration", isOn: $hasExpiration)
+                .tint(settings.accentColor)
+                .onChange(of: hasExpiration) { _, expires in
+                    if expires {
+                        if defaultExpiration <= 0 { defaultExpiration = 7 }
+                        if defaultPackedExpiration <= 0 { defaultPackedExpiration = defaultExpiration }
+                    } else {
+                        defaultExpiration = 0
+                        defaultPackedExpiration = 0
+                    }
+                }
             
             HStack {
                 Text("Default Expiration (Source)")
@@ -442,6 +455,7 @@ struct AddItemView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(width: 60)
                     .roundedInputField(tint: settings.accentColor)
+                    .disabled(!hasExpiration)
                 Text("days").foregroundStyle(.secondary)
             }
 
@@ -454,6 +468,7 @@ struct AddItemView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 60)
                         .roundedInputField(tint: settings.accentColor)
+                        .disabled(!hasExpiration)
                     Text("days").foregroundStyle(.secondary)
                 }
             }
@@ -703,13 +718,17 @@ struct AddItemView: View {
             catalogMatch = existingCatalogProduct
         }
 
+        let resolvedDefaultExpiration = hasExpiration ? max(1, defaultExpiration) : 0
+        let resolvedDefaultPackedExpiration = hasExpiration ? max(1, defaultPackedExpiration) : 0
+
         let item = InventoryItem(
             name: cleanName,
             upc: normalizedUPC.isEmpty ? nil : normalizedUPC,
             tags: tags,
             pictures: loadedImages,
-            defaultExpiration: defaultExpiration,
-            defaultPackedExpiration: defaultPackedExpiration,
+            hasExpiration: hasExpiration,
+            defaultExpiration: resolvedDefaultExpiration,
+            defaultPackedExpiration: resolvedDefaultPackedExpiration,
             vendor: selectedVendor?.organizationId == activeOrganizationId ? selectedVendor : nil,
             minimumQuantity: Double(minimumQuantity) ?? 0,
             quantityPerBox: Int(quantityPerBox) ?? 1,
@@ -738,8 +757,9 @@ struct AddItemView: View {
                 tags: tags,
                 price: Double(price) ?? 0,
                 casePack: Int(quantityPerBox) ?? 1,
-                defaultExpiration: defaultExpiration,
-                defaultPackedExpiration: defaultPackedExpiration,
+                hasExpiration: hasExpiration,
+                defaultExpiration: resolvedDefaultExpiration,
+                defaultPackedExpiration: resolvedDefaultPackedExpiration,
                 vendorName: selectedVendor?.name,
                 department: selectedDepartment.isEmpty ? nil : selectedDepartment,
                 departmentLocation: selectedDepartmentLocation.isEmpty ? nil : selectedDepartmentLocation,
@@ -761,8 +781,9 @@ struct AddItemView: View {
                 tags: tags,
                 price: Double(price) ?? 0,
                 casePack: Int(quantityPerBox) ?? 1,
-                defaultExpiration: defaultExpiration,
-                defaultPackedExpiration: defaultPackedExpiration,
+                hasExpiration: hasExpiration,
+                defaultExpiration: resolvedDefaultExpiration,
+                defaultPackedExpiration: resolvedDefaultPackedExpiration,
                 vendorName: selectedVendor?.name,
                 department: selectedDepartment.isEmpty ? nil : selectedDepartment,
                 departmentLocation: selectedDepartmentLocation.isEmpty ? nil : selectedDepartmentLocation,
@@ -852,11 +873,12 @@ struct AddItemView: View {
         }
 
         if defaultExpiration <= 1 || defaultExpiration == 7 {
-            defaultExpiration = max(1, product.defaultExpiration)
+            defaultExpiration = product.hasExpiration ? max(1, product.defaultExpiration) : 0
         }
         if defaultPackedExpiration <= 1 || defaultPackedExpiration == 7 {
-            defaultPackedExpiration = max(1, product.defaultPackedExpiration)
+            defaultPackedExpiration = product.hasExpiration ? max(1, product.defaultPackedExpiration) : 0
         }
+        hasExpiration = product.hasExpiration
 
         if (Double(minimumQuantity) ?? 0) <= 0 {
             minimumQuantity = product.minimumQuantity.formattedQuantity(maximumFractionDigits: 3)
@@ -892,7 +914,7 @@ struct AddItemView: View {
         reworkShelfLifeDays = max(1, product.reworkShelfLifeDays)
         maxReworkCount = max(1, product.maxReworkCount)
         if reworkItemCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            reworkItemCode = product.upc ?? ""
+            reworkItemCode = product.upc
         }
 
         if loadedImages.isEmpty, let thumbnail = product.thumbnailData {
@@ -946,6 +968,7 @@ struct AddItemView: View {
                 editorUid: session.firebaseUser?.id,
                 editorOrganizationId: session.activeOrganizationId,
                 hasPermission: session.canPerform(.manageCatalog),
+                hasExpiration: draft.hasExpiration,
                 defaultExpiration: draft.defaultExpiration,
                 defaultPackedExpiration: draft.defaultPackedExpiration,
                 vendorName: draft.vendorName,
@@ -977,6 +1000,7 @@ struct AddItemView: View {
         tags: [String],
         price: Double,
         casePack: Int,
+        hasExpiration: Bool,
         defaultExpiration: Int,
         defaultPackedExpiration: Int,
         vendorName: String?,
@@ -996,6 +1020,7 @@ struct AddItemView: View {
             tags: tags,
             price: price,
             casePack: casePack,
+            hasExpiration: hasExpiration,
             defaultExpiration: defaultExpiration,
             defaultPackedExpiration: defaultPackedExpiration,
             vendorName: vendorName,
@@ -1038,6 +1063,7 @@ private struct PendingCatalogDraft {
     var tags: [String]
     var price: Double
     var casePack: Int
+    var hasExpiration: Bool
     var defaultExpiration: Int
     var defaultPackedExpiration: Int
     var vendorName: String?

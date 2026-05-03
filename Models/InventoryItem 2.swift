@@ -18,6 +18,7 @@ final class InventoryItem {
     var pictures: [Data]
     
     // Expiration settings
+    var hasExpiration: Bool = true
     var defaultExpiration: Int // days until expiration
     var defaultPackedExpiration: Int // days until expiration once wrapped/packed
     
@@ -41,7 +42,11 @@ final class InventoryItem {
     var price: Double // Price per unit
     
     // Measurement
-    var unit: MeasurementUnit // The unit of measurement for this item
+    // Keep legacy "unit" storage mapped as raw string so older/unknown enum
+    // values cannot crash decode when loading historical records.
+    @Attribute(originalName: "unit")
+    private var legacyStoredUnitRaw: String?
+    private var storedUnitRaw: String?
     
     // Status flags
     var isArchived: Bool
@@ -60,12 +65,35 @@ final class InventoryItem {
     var revision: Int = 0
     var updatedByUid: String?
     var lastSyncedAt: Date?
+
+    var unit: MeasurementUnit {
+        get {
+            if let raw = storedUnitRaw?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !raw.isEmpty,
+               let parsed = MeasurementUnit(rawValue: raw)
+            {
+                return parsed
+            }
+            if let legacyRaw = legacyStoredUnitRaw?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !legacyRaw.isEmpty,
+               let parsed = MeasurementUnit(rawValue: legacyRaw)
+            {
+                return parsed
+            }
+            return .pieces
+        }
+        set {
+            storedUnitRaw = newValue.rawValue
+            legacyStoredUnitRaw = newValue.rawValue
+        }
+    }
     
     init(
         name: String,
         upc: String? = nil,
         tags: [String] = [],
         pictures: [Data] = [],
+        hasExpiration: Bool = true,
         defaultExpiration: Int = 7,
         defaultPackedExpiration: Int? = nil,
         vendor: Vendor? = nil,
@@ -91,8 +119,9 @@ final class InventoryItem {
         self.upc = upc
         self.tags = tags
         self.pictures = pictures
-        self.defaultExpiration = max(1, defaultExpiration)
-        self.defaultPackedExpiration = max(1, defaultPackedExpiration ?? defaultExpiration)
+        self.hasExpiration = hasExpiration
+        self.defaultExpiration = hasExpiration ? max(1, defaultExpiration) : 0
+        self.defaultPackedExpiration = hasExpiration ? max(1, defaultPackedExpiration ?? defaultExpiration) : 0
         self.vendor = vendor
         self.minimumQuantity = minimumQuantity
         self.quantityPerBox = quantityPerBox
@@ -105,7 +134,8 @@ final class InventoryItem {
         self.reworkShelfLifeDays = max(1, reworkShelfLifeDays)
         self.maxReworkCount = max(1, maxReworkCount)
         self.price = price
-        self.unit = unit
+        self.storedUnitRaw = unit.rawValue
+        self.legacyStoredUnitRaw = unit.rawValue
         self.isArchived = false
         self.includeInInsights = true
         self.isOnSale = false
@@ -122,11 +152,11 @@ final class InventoryItem {
     }
 
     var effectiveDefaultExpiration: Int {
-        max(1, defaultExpiration)
+        hasExpiration ? max(1, defaultExpiration) : 0
     }
 
     var effectiveDefaultPackedExpiration: Int {
-        max(1, defaultPackedExpiration)
+        hasExpiration ? max(1, defaultPackedExpiration) : 0
     }
 
     var effectiveReworkShelfLifeDays: Int {

@@ -308,10 +308,6 @@ final class RealtimeNotificationFeedService: ObservableObject {
     }
 
     private func scheduleLocalAlertsIfNeeded(newRows: [RemoteOrgNotification], organizationId: String) {
-        // If remote push registration exists, let APNs/FCM delivery handle alerts to avoid duplicate banners.
-        if PushNotificationService.shared.hasRegisteredToken {
-            return
-        }
         guard let userId = listeningUserId else { return }
         var ids = deliveredIds
         for row in newRows.prefix(40) where !ids.contains(row.id) {
@@ -332,11 +328,6 @@ final class RealtimeNotificationFeedService: ObservableObject {
     }
 
     private func postLocalAlert(for row: RemoteOrgNotification) {
-        #if canImport(UIKit)
-        guard UIApplication.shared.applicationState == .active else {
-            return
-        }
-        #endif
         let content = UNMutableNotificationContent()
         content.title = row.title
         content.body = row.body

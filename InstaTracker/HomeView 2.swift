@@ -708,8 +708,9 @@ private struct NotificationBellButton: View {
             Image(systemName: "bell.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 42, height: 34, alignment: .center)
+                .frame(width: 40, height: 40, alignment: .center)
         }
+        .frame(width: 54, height: 48, alignment: .center)
         .overlay(alignment: .topTrailing) {
             if count > 0 {
                 Text(badgeText)
@@ -717,19 +718,20 @@ private struct NotificationBellButton: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .padding(.horizontal, badgeText.count >= 3 ? 6 : 5)
-                    .padding(.vertical, 2.5)
-                    .frame(minWidth: badgeText.count >= 3 ? 28 : 20)
+                    .padding(.horizontal, badgeText.count >= 3 ? 7 : 6)
+                    .padding(.vertical, 3)
+                    .frame(minWidth: badgeText.count >= 3 ? 30 : 22)
                     .background(Color.red, in: Capsule())
                     .overlay(
                         Capsule()
                             .stroke(Color(.systemBackground), lineWidth: 1.25)
                     )
-                    .offset(x: 5, y: -6)
+                    .padding(.trailing, 2)
+                    .padding(.top, 1)
                     .accessibilityLabel("\(count) unread notifications")
                     .allowsHitTesting(false)
             }
         }
-        .frame(width: 52, height: 44, alignment: .center)
+        .contentShape(Rectangle())
     }
 }

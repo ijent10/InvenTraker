@@ -167,7 +167,7 @@ final class FeatureRequestService {
     private func flushFallbackQueueIfPossible() async throws {
         guard firestoreEnabled else { return }
 
-        var queue = loadFallbackQueue()
+        let queue = loadFallbackQueue()
         guard !queue.isEmpty else { return }
 
         var remaining: [PendingFeatureRequest] = []

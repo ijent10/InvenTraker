@@ -382,7 +382,7 @@ struct ReceivedView: View {
         let normalized = catalogService.normalizeUPC(rawCode)
 
         if let item = scopedItems.first(where: { ($0.upc ?? "").caseInsensitiveCompare(normalized) == .orderedSame }) {
-            requiresMinimumSetupForScannedItem = false
+            requiresMinimumSetupForScannedItem = shouldPromptMinimumSetup(for: item)
             scannedItem = item
             return
         }
@@ -402,9 +402,9 @@ struct ReceivedView: View {
                             organizationId: activeOrganizationId,
                             storeId: settings.normalizedActiveStoreID,
                             modelContext: modelContext,
-                            existingItems: scopedItems
+                            existingItems: items
                         )
-                        requiresMinimumSetupForScannedItem = true
+                        requiresMinimumSetupForScannedItem = shouldPromptMinimumSetup(for: imported)
                         scannedItem = imported
                     }
                 } else {
@@ -428,9 +428,10 @@ struct ReceivedView: View {
             organizationId: activeOrganizationId,
             storeId: settings.normalizedActiveStoreID,
             modelContext: modelContext,
-            existingItems: scopedItems
+            existingItems: items
         )
-        requiresMinimumSetupForScannedItem = true
+        let draftPayload = CatalogInventoryImporter.submissionDraftPayload(from: draftItem)
+        requiresMinimumSetupForScannedItem = shouldPromptMinimumSetup(for: draftItem)
         scannedItem = draftItem
         Task {
             let submissionId = await catalogService.submitItemDraftForVerification(
@@ -438,7 +439,7 @@ struct ReceivedView: View {
                 storeId: settings.normalizedActiveStoreID,
                 submittedByUid: session.firebaseUser?.id ?? "",
                 scannedUPC: normalizedUPC,
-                draftItem: draftItem,
+                draftPayload: draftPayload,
                 note: "Created from Receiving unknown scan."
             )
             await MainActor.run {
@@ -448,6 +449,10 @@ struct ReceivedView: View {
                 showingCatalogLookupMessage = true
             }
         }
+    }
+
+    private func shouldPromptMinimumSetup(for item: InventoryItem) -> Bool {
+        item.batches.isEmpty
     }
 
     private func createFrontOfHouseSpotCheckTaskIfNeeded(for item: InventoryItem) {
@@ -574,6 +579,7 @@ struct ReceivedQuantityView: View {
     @State private var minimumQuantityText = ""
     
     var body: some View {
+        let unitLabel = item.unit.rawValue
         NavigationStack {
             VStack(spacing: 24) {
                 Text(item.name).font(.title2).fontWeight(.bold)
@@ -582,13 +588,19 @@ struct ReceivedQuantityView: View {
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .roundedInputField(tint: .green)
-                    Text(item.unit.rawValue)
+                    Text(unitLabel)
                         .foregroundStyle(.secondary)
                 }
-                Text("Current on hand: \(item.totalQuantity.formattedQuantity()) \(item.unit.rawValue)")
+                Text("Current on hand: \(item.totalQuantity.formattedQuantity()) \(unitLabel)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                if item.hasExpiration {
+                    DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+                } else {
+                    Text("This item does not expire.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if requiresMinimumSetup {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Set minimum quantity (first-time setup)")
@@ -611,7 +623,7 @@ struct ReceivedQuantityView: View {
 
                     let batch = Batch(
                         quantity: qty,
-                        expirationDate: expirationDate,
+                        expirationDate: item.hasExpiration ? expirationDate : .distantFuture,
                         stockArea: .backOfHouse,
                         organizationId: item.organizationId,
                         storeId: item.storeId
@@ -669,9 +681,11 @@ struct ReceivedQuantityView: View {
                     let suggested = item.minimumQuantity > 0 ? item.minimumQuantity : Double(max(1, item.quantityPerBox))
                     minimumQuantityText = suggested.formattedQuantity()
                 }
-                let days = item.effectiveDefaultExpiration
-                if let suggested = Calendar.current.date(byAdding: .day, value: days, to: Date()) {
-                    expirationDate = suggested
+                if item.hasExpiration {
+                    let days = item.effectiveDefaultExpiration
+                    if let suggested = Calendar.current.date(byAdding: .day, value: days, to: Date()) {
+                        expirationDate = suggested
+                    }
                 }
             }
         }

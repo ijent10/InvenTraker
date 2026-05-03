@@ -669,7 +669,7 @@ struct GenerateOrderView: View {
     
     private func startAnalyzing() {
         guard canGenerateOrders else { return }
-        guard let selectedVendorID else { return }
+        guard selectedVendorID != nil else { return }
         backendRunID = nil
         backendEngineVersion = nil
         backendFallbackReason = nil

@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules
+npm-debug.log*
+
+# Build artifacts
+.next
+dist
+coverage
+playwright-report
+test-results
+*.tsbuildinfo
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Firebase emulator
+.firebase-emulator-data
+firebase-debug*.log
+
+# Python
+__pycache__
+
+# Xcode local user data
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+InvenTraker.xcodeproj/project.xcworkspace/xcuserdata/
+.swiftpm-clones/
+
+# Local accidental files
+NEXT_DISABLE_WEBPACK_CACHE=1
+inventracker-monorepo@1.0.0
+npm

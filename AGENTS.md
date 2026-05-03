@@ -19,8 +19,8 @@ Web and iOS clients may only:
 Clients must not implement independent primary recommendation math.
 
 Allowed fallback-only modules:
-- `/Users/ianjent/Desktop/InvenTracker/InstaTracker/Services/RecommendationFallbackService.swift`
-- `/Users/ianjent/Desktop/InvenTracker/apps/web/src/lib/recommendations/fallback.ts`
+- `/Users/jenti/Desktop/InvenTracker/InstaTracker/Services/RecommendationFallbackService.swift`
+- `/Users/jenti/Desktop/InvenTracker/InvenTraker Website/apps/web/src/lib/recommendations/fallback.ts`
 
 Forbidden duplication patterns outside fallback modules:
 - `ProductionPlanningService.`
@@ -29,8 +29,8 @@ Forbidden duplication patterns outside fallback modules:
 - `OrderRecommendationEngine.calculate(`
 
 Enforcement script:
-- `npm run check:single-engine`
-- Implemented at `/Users/ianjent/Desktop/InvenTracker/scripts/check-single-engine-boundaries.ts`
+- Run `npm run check:single-engine` from `/Users/jenti/Desktop/InvenTracker/InvenTraker Website`
+- Implemented at `/Users/jenti/Desktop/InvenTracker/InvenTraker Website/scripts/check-single-engine-boundaries.ts`
 
 ## Engine Evolution
 Recommendation engines must be versioned.

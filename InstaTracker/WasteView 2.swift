@@ -229,7 +229,7 @@ struct WasteView: View {
             organizationId: activeOrganizationId,
             storeId: settings.normalizedActiveStoreID,
             modelContext: modelContext,
-            existingItems: scopedItems
+            existingItems: items
         )
         wasteSelection = WasteSelection(
             item: imported,

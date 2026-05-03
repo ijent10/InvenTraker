@@ -13,6 +13,7 @@ struct CatalogProductRecord: Identifiable, Codable, Hashable {
     var tags: [String]
     var price: Double
     var casePack: Int
+    var hasExpiration: Bool
     var defaultExpiration: Int
     var defaultPackedExpiration: Int
     var vendorName: String?
@@ -39,6 +40,31 @@ struct CatalogProductRecord: Identifiable, Codable, Hashable {
     }
 }
 
+struct ItemSubmissionDraftPayload: Codable, Hashable, Sendable {
+    var backendItemId: String?
+    var name: String?
+    var upc: String?
+    var unitRaw: String
+    var price: Double
+    var hasExpiration: Bool
+    var defaultExpirationDays: Int
+    var defaultPackedExpiration: Int
+    var minQuantity: Double
+    var qtyPerCase: Int
+    var caseSize: Double
+    var vendorId: String?
+    var vendorName: String?
+    var department: String?
+    var departmentLocation: String?
+    var tags: [String]
+    var isPrepackaged: Bool
+    var rewrapsWithUniqueBarcode: Bool
+    var reworkItemCode: String?
+    var canBeReworked: Bool
+    var reworkShelfLifeDays: Int
+    var maxReworkCount: Int
+}
+
 private struct GlobalCatalogDocument: Codable {
     var upc: String
     var title: String
@@ -55,6 +81,7 @@ private struct CompanyCatalogDocument: Codable {
     var tags: [String]
     var price: Double
     var casePack: Int
+    var hasExpiration: Bool?
     var defaultExpiration: Int
     var defaultPackedExpiration: Int?
     var vendorName: String?
@@ -86,6 +113,7 @@ private struct CompanyNoUPCCatalogDocument: Codable {
     var tags: [String]
     var price: Double
     var casePack: Int
+    var hasExpiration: Bool?
     var defaultExpiration: Int
     var defaultPackedExpiration: Int
     var vendorName: String?
@@ -223,7 +251,7 @@ final class CentralCatalogService {
         storeId: String,
         submittedByUid: String,
         scannedUPC: String,
-        draftItem: InventoryItem?,
+        draftPayload: ItemSubmissionDraftPayload?,
         note: String? = nil
     ) async -> String? {
 #if canImport(FirebaseFirestore)
@@ -235,39 +263,41 @@ final class CentralCatalogService {
 
         let normalizedUPC = normalizeUPC(scannedUPC)
         let submittedName: String = {
-            if let draftItem {
-                let trimmed = draftItem.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let draftPayload {
+                let trimmed = (draftPayload.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { return trimmed }
             }
             if !normalizedUPC.isEmpty { return "Draft Item \(String(normalizedUPC.suffix(6)))" }
             return "Draft Item"
         }()
 
-        let tags = draftItem?.tags ?? []
+        let tags = draftPayload?.tags ?? []
+        let payloadHasExpiration = draftPayload?.hasExpiration ?? true
         let payloadDraft: [String: Any] = [
-            "backendItemId": draftItem?.backendId as Any,
+            "backendItemId": draftPayload?.backendItemId as Any,
             "name": submittedName,
-            "upc": normalizedUPC.isEmpty ? (draftItem?.upc as Any) : normalizedUPC,
-            "unit": draftItem?.unit.rawValue ?? MeasurementUnit.pieces.rawValue,
-            "price": draftItem?.price ?? 0,
-            "defaultExpirationDays": draftItem?.effectiveDefaultExpiration ?? 7,
-            "defaultPackedExpiration": draftItem?.effectiveDefaultPackedExpiration ?? 7,
-            "minQuantity": draftItem?.minimumQuantity ?? 0,
-            "qtyPerCase": draftItem?.quantityPerBox ?? 1,
-            "caseSize": max(1, Double(draftItem?.quantityPerBox ?? 1)),
-            "vendorId": draftItem?.vendor?.backendId as Any,
-            "vendorName": draftItem?.vendor?.name as Any,
-            "department": draftItem?.department as Any,
-            "departmentLocation": draftItem?.departmentLocation as Any,
+            "upc": normalizedUPC.isEmpty ? (draftPayload?.upc as Any) : normalizedUPC,
+            "unit": draftPayload?.unitRaw ?? MeasurementUnit.pieces.rawValue,
+            "price": draftPayload?.price ?? 0,
+            "hasExpiration": payloadHasExpiration,
+            "defaultExpirationDays": payloadHasExpiration ? (draftPayload?.defaultExpirationDays ?? 7) : 0,
+            "defaultPackedExpiration": payloadHasExpiration ? (draftPayload?.defaultPackedExpiration ?? 7) : 0,
+            "minQuantity": draftPayload?.minQuantity ?? 0,
+            "qtyPerCase": draftPayload?.qtyPerCase ?? 1,
+            "caseSize": max(1, draftPayload?.caseSize ?? 1),
+            "vendorId": draftPayload?.vendorId as Any,
+            "vendorName": draftPayload?.vendorName as Any,
+            "department": draftPayload?.department as Any,
+            "departmentLocation": draftPayload?.departmentLocation as Any,
             "tags": tags,
             "photoUrl": NSNull(),
             "photoAssetId": NSNull(),
-            "isPrepackaged": draftItem?.isPrepackaged ?? false,
-            "rewrapsWithUniqueBarcode": draftItem?.rewrapsWithUniqueBarcode ?? false,
-            "reworkItemCode": draftItem?.reworkItemCode as Any,
-            "canBeReworked": draftItem?.canBeReworked ?? false,
-            "reworkShelfLifeDays": draftItem?.effectiveReworkShelfLifeDays ?? 1,
-            "maxReworkCount": draftItem?.effectiveMaxReworkCount ?? 1
+            "isPrepackaged": draftPayload?.isPrepackaged ?? false,
+            "rewrapsWithUniqueBarcode": draftPayload?.rewrapsWithUniqueBarcode ?? false,
+            "reworkItemCode": draftPayload?.reworkItemCode as Any,
+            "canBeReworked": draftPayload?.canBeReworked ?? false,
+            "reworkShelfLifeDays": draftPayload?.reworkShelfLifeDays ?? 1,
+            "maxReworkCount": draftPayload?.maxReworkCount ?? 1
         ]
 
         let db = Firestore.firestore()
@@ -299,7 +329,7 @@ final class CentralCatalogService {
         _ = storeId
         _ = submittedByUid
         _ = scannedUPC
-        _ = draftItem
+        _ = draftPayload
         _ = note
         return nil
 #endif
@@ -311,6 +341,7 @@ final class CentralCatalogService {
         tags rawTags: [String],
         price: Double,
         casePack: Int,
+        hasExpiration: Bool = true,
         defaultExpiration: Int,
         defaultPackedExpiration: Int,
         vendorName: String?,
@@ -350,8 +381,9 @@ final class CentralCatalogService {
             tags: normalizedTags,
             price: max(0, price),
             casePack: max(1, casePack),
-            defaultExpiration: max(1, defaultExpiration),
-            defaultPackedExpiration: max(1, defaultPackedExpiration),
+            hasExpiration: hasExpiration,
+            defaultExpiration: hasExpiration ? max(1, defaultExpiration) : 0,
+            defaultPackedExpiration: hasExpiration ? max(1, defaultPackedExpiration) : 0,
             vendorName: cleaned(vendorName),
             department: cleaned(department),
             departmentLocation: cleaned(departmentLocation),
@@ -398,6 +430,7 @@ final class CentralCatalogService {
         editorUid: String?,
         editorOrganizationId: String?,
         hasPermission: Bool,
+        hasExpiration: Bool = true,
         defaultExpiration: Int = 7,
         defaultPackedExpiration: Int? = nil,
         vendorName: String? = nil,
@@ -456,8 +489,9 @@ final class CentralCatalogService {
             tags: normalizedTags.isEmpty ? (existing?.tags ?? []) : normalizedTags,
             price: max(0, price),
             casePack: max(1, casePack),
-            defaultExpiration: max(1, defaultExpiration),
-            defaultPackedExpiration: max(1, defaultPackedExpiration ?? defaultExpiration),
+            hasExpiration: hasExpiration,
+            defaultExpiration: hasExpiration ? max(1, defaultExpiration) : 0,
+            defaultPackedExpiration: hasExpiration ? max(1, defaultPackedExpiration ?? defaultExpiration) : 0,
             vendorName: cleaned(vendorName),
             department: cleaned(department),
             departmentLocation: cleaned(departmentLocation),
@@ -555,6 +589,7 @@ final class CentralCatalogService {
 
         let createdBy = global?.createdByUid ?? company?.updatedByUid ?? store?.updatedByUid ?? ""
         let updatedBy = store?.updatedByUid ?? company?.updatedByUid ?? global?.updatedByUid ?? ""
+        let hasExpiration = company?.hasExpiration ?? ((company?.defaultExpiration ?? 7) > 0)
 
         return CatalogProductRecord(
             upc: upc,
@@ -562,8 +597,9 @@ final class CentralCatalogService {
             tags: company?.tags ?? [],
             price: max(0, company?.price ?? 0),
             casePack: max(1, company?.casePack ?? 1),
-            defaultExpiration: max(1, company?.defaultExpiration ?? 7),
-            defaultPackedExpiration: max(1, company?.defaultPackedExpiration ?? company?.defaultExpiration ?? 7),
+            hasExpiration: hasExpiration,
+            defaultExpiration: hasExpiration ? max(1, company?.defaultExpiration ?? 7) : 0,
+            defaultPackedExpiration: hasExpiration ? max(1, company?.defaultPackedExpiration ?? company?.defaultExpiration ?? 7) : 0,
             vendorName: company?.vendorName,
             department: store?.department ?? company?.department,
             departmentLocation: store?.departmentLocation ?? company?.departmentLocation,
@@ -722,6 +758,7 @@ final class CentralCatalogService {
             tags: data["tags"] as? [String] ?? [],
             price: data["price"] as? Double ?? 0,
             casePack: data["casePack"] as? Int ?? 1,
+            hasExpiration: data["hasExpiration"] as? Bool,
             defaultExpiration: data["defaultExpiration"] as? Int ?? 7,
             defaultPackedExpiration: data["defaultPackedExpiration"] as? Int,
             vendorName: data["vendorName"] as? String,

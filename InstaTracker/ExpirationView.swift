@@ -36,7 +36,7 @@ struct ExpirationView: View {
     var expiringItems: [(item: InventoryItem, batch: Batch, daysUntil: Int)] {
         var results: [(item: InventoryItem, batch: Batch, daysUntil: Int)] = []
         
-        for item in scopedItems where !item.isArchived {
+        for item in scopedItems where !item.isArchived && item.hasExpiration {
             for batch in item.batches {
                 let days = batch.daysUntilExpiration
                 if days <= 7 && days >= 0 {
@@ -236,7 +236,7 @@ struct ExpirationView: View {
             organizationId: activeOrganizationId,
             storeId: settings.normalizedActiveStoreID,
             modelContext: modelContext,
-            existingItems: scopedItems
+            existingItems: allItems
         )
         if imported.batches.isEmpty {
             catalogLookupMessage = "Added to inventory with catalog photo. No batches yet, so there is nothing to check in Expiration until stock is received."

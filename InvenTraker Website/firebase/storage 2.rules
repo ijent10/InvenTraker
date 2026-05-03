@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(orgId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function ownerByArray(orgId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/organizations/$(orgId))
+        && (
+          (
+            firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.ownerUserIds is list
+            && firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.ownerUserIds.hasAny([request.auth.uid])
+          )
+          || firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.ownerUid == request.auth.uid
+        );
+    }
+
+    function isMember(orgId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && memberDoc(orgId).data.role in ["Owner", "Manager", "Staff", "owner", "manager", "staff"];
+    }
+
+    function inOrg(orgId) {
+      return isMember(orgId) || ownerByArray(orgId);
+    }
+
+    match /orgs/{orgId}/assets/{fileName} {
+      allow read: if inOrg(orgId);
+      allow write: if inOrg(orgId);
+    }
+  }
+}

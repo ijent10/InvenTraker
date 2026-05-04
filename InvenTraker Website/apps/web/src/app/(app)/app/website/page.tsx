@@ -129,6 +129,7 @@ export default function WebsiteBuilderPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingHero, setUploadingHero] = useState(false)
+  const [uploadingFont, setUploadingFont] = useState(false)
   const [now, setNow] = useState(() => new Date())
 
   const { data: websiteConfig, isLoading } = useQuery({
@@ -305,6 +306,31 @@ export default function WebsiteBuilderPage() {
     }
   }
 
+  const uploadFont = async (file: File) => {
+    if (!activeOrgId || !user) return
+    setUploadingFont(true)
+    try {
+      const uploaded = await uploadMediaAsset({ file, orgId: activeOrgId, userId: user.uid, type: "file" })
+      if (!uploaded?.downloadUrl) throw new Error("Upload failed.")
+      const family = file.name
+        .replace(/\.(woff2?|ttf|otf)$/i, "")
+        .replace(/[_-]+/g, " ")
+        .trim() || "Custom Font"
+      updateConfig({
+        fontFamily: family,
+        fontAssetId: uploaded.id,
+        fontFileUrl: uploaded.downloadUrl,
+        fontFileName: file.name
+      })
+      setStatusMessage("Font uploaded. Save draft to apply it to the website.")
+      setErrorMessage(null)
+    } catch {
+      setErrorMessage("Could not upload font.")
+    } finally {
+      setUploadingFont(false)
+    }
+  }
+
   if (!effectivePermissions.manageWebsite) {
     return <PageHead title="Website" subtitle="You do not have access to manage the customer website." />
   }
@@ -405,13 +431,43 @@ export default function WebsiteBuilderPage() {
                 onChange={(event) => updateConfig({ tagline: event.target.value })}
                 placeholder="Tagline"
               />
-              <AppSelect value={config.fontFamily} onChange={(event) => updateConfig({ fontFamily: event.target.value })}>
+              <AppSelect
+                value={config.fontFamily}
+                onChange={(event) =>
+                  updateConfig({
+                    fontFamily: event.target.value,
+                    fontAssetId: fontOptions.includes(event.target.value) ? "" : config.fontAssetId,
+                    fontFileUrl: fontOptions.includes(event.target.value) ? "" : config.fontFileUrl,
+                    fontFileName: fontOptions.includes(event.target.value) ? "" : config.fontFileName
+                  })
+                }
+              >
+                {!fontOptions.includes(config.fontFamily) ? (
+                  <option value={config.fontFamily}>{config.fontFamily}</option>
+                ) : null}
                 {fontOptions.map((font) => (
                   <option key={font} value={font}>
                     {font}
                   </option>
                 ))}
               </AppSelect>
+              <div className="grid gap-1">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase text-app-muted">
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploadingFont ? "Uploading font..." : "Upload custom font"}
+                </p>
+                <AppInput
+                  type="file"
+                  accept=".woff,.woff2,.ttf,.otf,font/woff,font/woff2,font/ttf,font/otf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) void uploadFont(file)
+                  }}
+                />
+                {config.fontFileName ? (
+                  <p className="secondary-text text-xs">Using {config.fontFileName}</p>
+                ) : null}
+              </div>
               <AppInput
                 value={config.logoUrl ?? ""}
                 onChange={(event) => updateConfig({ logoUrl: event.target.value })}
@@ -639,6 +695,9 @@ export default function WebsiteBuilderPage() {
         <div className="space-y-4">
           <AppCard>
             <h2 className="card-title">Preview</h2>
+            {config.fontFileUrl ? (
+              <style>{`@font-face{font-family:${JSON.stringify(config.fontFamily)};src:url(${JSON.stringify(config.fontFileUrl)});font-display:swap;}`}</style>
+            ) : null}
             <div
               className="mt-4 overflow-hidden rounded-2xl border border-app-border"
               style={{ backgroundColor: config.backgroundColor, color: config.textColor, fontFamily: config.fontFamily }}

@@ -90,7 +90,8 @@ function permissionDefaultsForRole(role: "Owner" | "Manager" | "Staff"): Record<
     "manageTermsContent",
     "manageFaqContent",
     "manageIntegrations",
-    "manageSecuritySettings"
+    "manageSecuritySettings",
+    "manageWebsite"
   ] as const
   const none = Object.fromEntries(permissionKeys.map((key) => [key, false])) as Record<string, boolean>
   if (role === "Owner") {
@@ -112,6 +113,7 @@ function permissionDefaultsForRole(role: "Owner" | "Manager" | "Staff"): Record<
       viewNotifications: true,
       viewStores: true,
       viewUsers: true,
+      manageWebsite: true,
       manageInventory: true,
       manageSales: true,
       manageOrders: true,

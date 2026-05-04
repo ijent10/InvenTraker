@@ -21,6 +21,7 @@ import {
   requestStoreAccess as requestStoreAccessCallable,
   reviewStoreAccessRequest as reviewStoreAccessCallable,
   reviewItemSubmission as reviewItemSubmissionCallable,
+  saveOrganizationWebsiteConfigByCallable,
   savePublicSiteContentByCallable
 } from "@/lib/firebase/functions"
 import type { MemberRole, AppModule } from "@/lib/rbac/modules"
@@ -534,6 +535,9 @@ export type PublicWebsiteConfigRecord = {
   logoUrl?: string
   heroImageUrl?: string
   fontFamily: string
+  fontAssetId?: string
+  fontFileUrl?: string
+  fontFileName?: string
   accentColor: string
   backgroundColor: string
   textColor: string
@@ -4635,6 +4639,9 @@ function defaultPublicWebsiteConfig(orgId: string, orgName = "Customer Website")
     logoUrl: "",
     heroImageUrl: "",
     fontFamily: "Inter",
+    fontAssetId: "",
+    fontFileUrl: "",
+    fontFileName: "",
     accentColor: "#16A34A",
     backgroundColor: "#F8FAFC",
     textColor: "#111827",
@@ -4761,6 +4768,9 @@ function normalizePublicWebsiteConfig(
     logoUrl: asString(data.logoUrl) ?? "",
     heroImageUrl: asString(data.heroImageUrl) ?? "",
     fontFamily: asString(data.fontFamily) ?? defaults.fontFamily,
+    fontAssetId: asString(data.fontAssetId) ?? "",
+    fontFileUrl: asString(data.fontFileUrl) ?? "",
+    fontFileName: asString(data.fontFileName) ?? "",
     accentColor: asString(data.accentColor) ?? defaults.accentColor,
     backgroundColor: asString(data.backgroundColor) ?? defaults.backgroundColor,
     textColor: asString(data.textColor) ?? defaults.textColor,
@@ -4974,6 +4984,14 @@ export async function saveOrganizationWebsiteConfig(
   mode: "draft" | "publish" | "unpublish" = "draft"
 ): Promise<PublicWebsiteConfigRecord> {
   if (!db || !orgId) return config
+  const saved = await saveOrganizationWebsiteConfigByCallable({
+    orgId,
+    config: config as unknown as Record<string, unknown>,
+    mode
+  })
+  if (saved) {
+    return normalizePublicWebsiteConfig(saved, "config", orgId, config.siteName)
+  }
   const previous = await fetchOrganizationWebsiteConfig(orgId, config.siteName).catch(() => defaultPublicWebsiteConfig(orgId, config.siteName))
   const normalized = normalizePublicWebsiteConfig(
     {

@@ -204,23 +204,24 @@ private struct LiquidGlassBottomBar: View {
             Button(action: quickActionTrigger) {
                 VStack(spacing: 4) {
                     ZStack {
-                        Image("AppLogo")
-                            .resizable()
-                            .scaledToFill()
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [accentColor.opacity(0.92), accentColor.opacity(0.62)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .frame(width: 54, height: 54)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                Circle()
                                     .stroke(.white.opacity(0.55), lineWidth: 1)
                             )
                             .shadow(color: accentColor.opacity(0.28), radius: 16, y: 8)
 
                         Image(systemName: quickAction.iconName)
-                            .font(.system(size: 17, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(8)
-                            .background(accentColor.opacity(0.88), in: Circle())
-                            .offset(x: 20, y: 20)
                     }
                     Text(quickAction.rawValue)
                         .font(.caption2.weight(.semibold))

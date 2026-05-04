@@ -195,9 +195,9 @@ struct HomeView: View {
                                         .resizable()
                                         .scaledToFit()
                                 case .failure:
-                                    Image("AppLogo")
-                                        .resizable()
-                                        .scaledToFit()
+                                    Text(settings.brandedAppName)
+                                        .font(.title3.weight(.semibold))
+                                        .lineLimit(1)
                                 default:
                                     ProgressView()
                                         .controlSize(.small)
@@ -208,13 +208,7 @@ struct HomeView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     } else if appHeaderStyle != .iconOnly {
-                        HStack(spacing: 12) {
-                            Image("AppLogo")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 48, height: 48)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .shadow(color: settings.accentColor.opacity(0.12), radius: 10, y: 5)
+                        HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(settings.brandedAppName)
                                     .font(.headline.weight(.semibold))
@@ -304,20 +298,18 @@ struct HomeView: View {
                                         .scaledToFit()
                                         .frame(height: 26)
                                 case .failure:
-                                    Image("AppLogo")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(height: 26)
+                                    Text(settings.brandedAppName)
+                                        .font(.headline.weight(.semibold))
+                                        .lineLimit(1)
                                 default:
                                     ProgressView()
                                         .controlSize(.small)
                                 }
                             }
                         } else {
-                            Image("AppLogo")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 26)
+                            Text(settings.brandedAppName)
+                                .font(.headline.weight(.semibold))
+                                .lineLimit(1)
                         }
                     }
                 }

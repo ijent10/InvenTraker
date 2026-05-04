@@ -83,7 +83,8 @@ function permissionDefaultsForRole(role) {
         "manageTermsContent",
         "manageFaqContent",
         "manageIntegrations",
-        "manageSecuritySettings"
+        "manageSecuritySettings",
+        "manageWebsite"
     ];
     const none = Object.fromEntries(permissionKeys.map((key) => [key, false]));
     if (role === "Owner") {
@@ -105,6 +106,7 @@ function permissionDefaultsForRole(role) {
             viewNotifications: true,
             viewStores: true,
             viewUsers: true,
+            manageWebsite: true,
             manageInventory: true,
             manageSales: true,
             manageOrders: true,

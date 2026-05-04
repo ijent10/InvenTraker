@@ -12,6 +12,7 @@ import { buildStoreRecommendations } from "./recommendation/engine.js";
 import { readRecommendationRun } from "./recommendation/persistence.js";
 export { sendOrgNotification, removeOrgNotification, sendPlatformNotification } from "./notifications.js";
 export { requestStoreAccess, reviewStoreAccessRequest } from "./store-access.js";
+export { saveOrganizationWebsiteConfig } from "./website.js";
 export { submitItemForVerification, reviewItemSubmission } from "./item-submissions.js";
 export { createStripeCheckoutSession, createStripeEmbeddedCheckoutSession, createStripePortalSession, getStripeCheckoutSessionStatus, reconcileOrganizationBilling, listPublicStripePlans, syncOrgBillingFromStripeSubscription } from "./stripe.js";
 function profileId(userId, orgId, platform) {
@@ -95,7 +96,8 @@ const permissionKeys = [
     "manageTermsContent",
     "manageFaqContent",
     "manageIntegrations",
-    "manageSecuritySettings"
+    "manageSecuritySettings",
+    "manageWebsite"
 ];
 function permissionDefaultsForRole(role) {
     const none = Object.fromEntries(permissionKeys.map((key) => [key, false]));
@@ -118,6 +120,7 @@ function permissionDefaultsForRole(role) {
             viewNotifications: true,
             viewStores: true,
             viewUsers: true,
+            manageWebsite: true,
             manageInventory: true,
             manageSales: true,
             manageOrders: true,

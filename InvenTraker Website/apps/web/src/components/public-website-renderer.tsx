@@ -80,6 +80,9 @@ export function PublicWebsiteRenderer({
         fontFamily: site.fontFamily
       }}
     >
+      {site.fontFileUrl ? (
+        <style>{`@font-face{font-family:${JSON.stringify(site.fontFamily)};src:url(${JSON.stringify(site.fontFileUrl)});font-display:swap;}`}</style>
+      ) : null}
       {previewMode ? (
         <div className="sticky top-0 z-30 border-b border-black/10 bg-white/90 px-4 py-2 text-center text-sm font-semibold text-slate-700 backdrop-blur">
           Draft preview. This page is visible only inside InvenTraker until you publish it.

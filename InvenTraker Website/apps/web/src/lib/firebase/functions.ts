@@ -98,6 +98,20 @@ export async function computeFinancialHealth(input: ComputeFinancialHealthReques
   return result.data
 }
 
+export async function saveOrganizationWebsiteConfigByCallable<TConfig extends Record<string, unknown>>(input: {
+  orgId: string
+  config: TConfig
+  mode: "draft" | "publish" | "unpublish"
+}): Promise<(TConfig & { id: string; updatedAt?: unknown; updatedBy?: string }) | null> {
+  if (!functions) return null
+  const callable = httpsCallable<
+    { orgId: string; config: TConfig; mode: "draft" | "publish" | "unpublish" },
+    TConfig & { id: string; updatedAt?: unknown; updatedBy?: string }
+  >(functions, "saveOrganizationWebsiteConfig")
+  const result = await callable(input)
+  return result.data
+}
+
 export async function adminSafeEdit(input: AdminSafeEditRequest): Promise<AdminSafeEditResponse | null> {
   if (!functions) return null
   const callable = httpsCallable<AdminSafeEditRequest, AdminSafeEditResponse>(functions, "adminSafeEdit")

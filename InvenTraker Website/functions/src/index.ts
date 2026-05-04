@@ -40,6 +40,9 @@ export {
   reviewStoreAccessRequest
 } from "./store-access.js"
 export {
+  saveOrganizationWebsiteConfig
+} from "./website.js"
+export {
   submitItemForVerification,
   reviewItemSubmission
 } from "./item-submissions.js"
@@ -133,7 +136,8 @@ const permissionKeys = [
   "manageTermsContent",
   "manageFaqContent",
   "manageIntegrations",
-  "manageSecuritySettings"
+  "manageSecuritySettings",
+  "manageWebsite"
 ] as const
 
 function permissionDefaultsForRole(role: "Owner" | "Manager" | "Staff"): Record<string, boolean> {
@@ -157,6 +161,7 @@ function permissionDefaultsForRole(role: "Owner" | "Manager" | "Staff"): Record<
       viewNotifications: true,
       viewStores: true,
       viewUsers: true,
+      manageWebsite: true,
       manageInventory: true,
       manageSales: true,
       manageOrders: true,

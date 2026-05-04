@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import SwiftData
 
 struct AppEntryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -27,7 +28,7 @@ struct AppEntryView: View {
                 NavigationStack {
                     AccountRootView()
                 }
-            } else if session.isResolvingStores || (session.isLoading && settings.normalizedActiveStoreID.isEmpty) {
+            } else if session.isResolvingStores || !session.didResolveStoreAccess || (session.isLoading && settings.normalizedActiveStoreID.isEmpty) {
                 loadingView
             } else if session.needsTutorial {
                 QuickStartTutorialView()
@@ -298,9 +299,12 @@ struct AppEntryView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 14) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 54, weight: .semibold))
-                    .foregroundStyle(.blue)
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .blue.opacity(0.18), radius: 18, y: 8)
                 Text("InvenTraker")
                     .font(.title.weight(.bold))
                 ProgressView()

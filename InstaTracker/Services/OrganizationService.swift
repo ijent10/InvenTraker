@@ -699,17 +699,6 @@ final class OrganizationService {
         if firestoreEnabled {
             let db = Firestore.firestore()
 
-            let orgDoc = try? await db.collection("organizations").document(organizationId).getDocument()
-            let orgData = orgDoc?.data() ?? [:]
-            let orgSubscription = (orgData["subscription"] as? [String: Any]) ?? [:]
-
-            let billingDoc = try? await db.collection("organizations")
-                .document(organizationId)
-                .collection("billing")
-                .document("default")
-                .getDocument()
-            let billingData = billingDoc?.data() ?? [:]
-
             let settingsDoc = try? await db.collection("organizations")
                 .document(organizationId)
                 .collection("settings")
@@ -722,49 +711,24 @@ final class OrganizationService {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             }
 
-            let status = asString(billingData["subscriptionStatus"]).isEmpty
-                ? asString(orgSubscription["status"])
-                : asString(billingData["subscriptionStatus"])
-            let normalizedStatus = status.lowercased()
-            let activeSubscription = normalizedStatus == "active" || normalizedStatus == "trialing"
-
-            let planName = asString(billingData["planName"]).isEmpty
-                ? asString(orgData["planName"])
-                : asString(billingData["planName"])
-            let planTier = asString(billingData["planTier"]).isEmpty
-                ? asString(orgData["planTier"])
-                : asString(billingData["planTier"])
-            let priceId = asString(billingData["priceId"]).isEmpty
-                ? asString(orgData["planId"])
-                : asString(billingData["priceId"])
-
-            let normalizedPlan = "\(planName.lowercased()) \(planTier.lowercased()) \(priceId.lowercased())"
-            let isProTier = normalizedPlan.contains("pro") || normalizedPlan.contains("plus") || planTier.lowercased() == "custom"
-
+            let brandDisplayName = asString(settingsData["brandDisplayName"])
+            let logoLightUrl = asString(settingsData["logoLightUrl"])
+            let logoDarkUrl = asString(settingsData["logoDarkUrl"])
+            let welcomeMessage = asString(settingsData["welcomeMessage"])
             let brandingEnabled = (settingsData["customBrandingEnabled"] as? Bool ?? false)
-                && activeSubscription
-                && isProTier
+                || !brandDisplayName.isEmpty
+                || !logoLightUrl.isEmpty
+                || !logoDarkUrl.isEmpty
+                || !welcomeMessage.isEmpty
 
             return OrganizationBrandingConfig(
                 enabled: brandingEnabled,
-                brandDisplayName: {
-                    let name = asString(settingsData["brandDisplayName"])
-                    return name.isEmpty ? nil : name
-                }(),
-                logoLightUrl: {
-                    let value = asString(settingsData["logoLightUrl"])
-                    return value.isEmpty ? nil : value
-                }(),
-                logoDarkUrl: {
-                    let value = asString(settingsData["logoDarkUrl"])
-                    return value.isEmpty ? nil : value
-                }(),
+                brandDisplayName: brandDisplayName.isEmpty ? nil : brandDisplayName,
+                logoLightUrl: logoLightUrl.isEmpty ? nil : logoLightUrl,
+                logoDarkUrl: logoDarkUrl.isEmpty ? nil : logoDarkUrl,
                 appHeaderStyle: asString(settingsData["appHeaderStyle"]) == "icon_only" ? .iconOnly : .iconName,
                 moduleIconStyle: asString(settingsData["moduleIconStyle"]) == "square" ? .square : .rounded,
-                welcomeMessage: {
-                    let value = asString(settingsData["welcomeMessage"])
-                    return value.isEmpty ? nil : value
-                }()
+                welcomeMessage: welcomeMessage.isEmpty ? nil : welcomeMessage
             )
         }
 #endif

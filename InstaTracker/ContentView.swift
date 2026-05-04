@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var quickActionSelection: HomeSection?
     @State private var showingAccountPanel = false
+    @State private var showingSettingsPanel = false
     @State private var pendingImportPayload: InventorySharePayload?
     @State private var showingImportPrompt = false
     @State private var importResultMessage = ""
@@ -59,71 +60,35 @@ struct ContentView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 
-                // Custom Liquid Glass Bottom Bar
-                if !showingAccountPanel {
-                    HStack(spacing: 0) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                showingAccountPanel = true
-                            }
-                        } label: {
-                            Image(systemName: "person.circle")
-                                .font(.system(size: 24))
-                                .foregroundStyle(settings.accentColor)
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                        
-                        // Configurable primary action button (center)
-                        Button(action: performQuickAction) {
-                            ZStack {
-                                Circle()
-                                    .fill(settings.accentColor.gradient)
-                                    .frame(width: 56, height: 56)
-                                    .shadow(color: settings.accentColor.opacity(0.3), radius: 8, y: 4)
-                                
-                                Image(systemName: quickAction.iconName)
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        // Settings
-                        NavigationLink(destination: SettingsView()) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 24))
-                                .foregroundStyle(settings.accentColor)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .disabled(!canViewSettings)
-                        .opacity(canViewSettings ? 1 : 0.5)
-                    }
-                    .padding(.horizontal, 30)
-                    .padding(.vertical, 12)
-                    .background(
-                        .regularMaterial,
-                        in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-                    .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
-                }
-
-                if showingAccountPanel {
-                    accountPanelOverlay
-                        .zIndex(10)
-                }
+                LiquidGlassBottomBar(
+                    accentColor: settings.accentColor,
+                    quickAction: quickAction,
+                    canViewSettings: canViewSettings,
+                    accountAction: { showingAccountPanel = true },
+                    quickActionTrigger: performQuickAction,
+                    settingsAction: { showingSettingsPanel = true }
+                )
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
             }
-            .animation(.easeInOut(duration: 0.22), value: showingAccountPanel)
             .sheet(item: $quickActionSelection) { section in
                 NavigationStack {
                     quickActionDestination(for: section)
                 }
+            }
+            .sheet(isPresented: $showingAccountPanel) {
+                NavigationStack {
+                    AccountRootView()
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingSettingsPanel) {
+                NavigationStack {
+                    SettingsView()
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .onOpenURL(perform: handleIncomingURL)
             .alert(
@@ -222,48 +187,99 @@ struct ContentView: View {
         showingImportResult = true
     }
 
-    private var accountPanelOverlay: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
+}
 
-                VStack(spacing: 0) {
-                    HStack {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                showingAccountPanel = false
-                            }
-                        } label: {
-                            Label("Back", systemImage: "chevron.left")
-                                .font(.headline.weight(.semibold))
-                        }
-                        .buttonStyle(.plain)
+private struct LiquidGlassBottomBar: View {
+    let accentColor: Color
+    let quickAction: HomeSection
+    let canViewSettings: Bool
+    let accountAction: () -> Void
+    let quickActionTrigger: () -> Void
+    let settingsAction: () -> Void
 
-                        Spacer()
+    var body: some View {
+        HStack(spacing: 18) {
+            barButton(systemImage: "person.crop.circle.fill", label: "Account", action: accountAction)
 
-                        Text("Account")
-                            .font(.headline.weight(.semibold))
+            Button(action: quickActionTrigger) {
+                VStack(spacing: 4) {
+                    ZStack {
+                        Image("AppLogo")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 54, height: 54)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(.white.opacity(0.55), lineWidth: 1)
+                            )
+                            .shadow(color: accentColor.opacity(0.28), radius: 16, y: 8)
 
-                        Spacer()
-
-                        Color.clear
-                            .frame(width: 64, height: 1)
+                        Image(systemName: quickAction.iconName)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(accentColor.opacity(0.88), in: Circle())
+                            .offset(x: 20, y: 20)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                    NavigationStack {
-                        AccountRootView()
-                            .toolbar(.hidden, for: .navigationBar)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Text(quickAction.rawValue)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(.primary)
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-                .transition(.move(edge: .leading))
+                .frame(maxWidth: .infinity)
             }
-            .ignoresSafeArea(edges: [.leading, .trailing, .bottom])
+            .buttonStyle(.plain)
+            .accessibilityLabel("Quick action: \(quickAction.rawValue)")
+
+            barButton(
+                systemImage: "gearshape.fill",
+                label: "Settings",
+                disabled: !canViewSettings,
+                action: settingsAction
+            )
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.62), accentColor.opacity(0.18), .white.opacity(0.16)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.16), radius: 22, y: 12)
+        .shadow(color: accentColor.opacity(0.12), radius: 24, y: 4)
+    }
+
+    private func barButton(
+        systemImage: String,
+        label: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 22, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+            }
+            .foregroundStyle(disabled ? .secondary : accentColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.48 : 1)
+        .accessibilityLabel(label)
     }
 }

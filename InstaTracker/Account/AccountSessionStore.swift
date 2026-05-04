@@ -16,6 +16,7 @@ final class AccountSessionStore: ObservableObject {
     @Published var organizations: [OrganizationSummary] = []
     @Published var stores: [StoreLocationRef] = []
     @Published var isResolvingStores = false
+    @Published private(set) var didResolveStoreAccess = false
     @Published var needsTutorial = false
     @Published var isLoading = false
     @Published var didInitialize = false
@@ -197,6 +198,7 @@ final class AccountSessionStore: ObservableObject {
             firebaseUser = nil
             organizations = []
             stores = []
+            didResolveStoreAccess = false
             isResolvingStores = false
             activeOrganizationId = nil
             activeMembership = nil
@@ -323,6 +325,7 @@ final class AccountSessionStore: ObservableObject {
 
     func switchOrganization(_ organizationId: String) async {
         guard let user = firebaseUser else { return }
+        didResolveStoreAccess = false
         activeOrganizationId = organizationId
         do {
             try await loadActiveMembership()
@@ -395,6 +398,7 @@ final class AccountSessionStore: ObservableObject {
 
         do {
             isLoading = true
+            didResolveStoreAccess = false
             organizations = try await organizationService.organizations(for: user.id)
             if let existing = activeOrganizationId,
                organizations.contains(where: { $0.id == existing }) {
@@ -419,6 +423,7 @@ final class AccountSessionStore: ObservableObject {
             errorMessage = error.localizedDescription
             activeMembership = nil
             stores = []
+            didResolveStoreAccess = true
             isResolvingStores = false
             needsTutorial = false
             rbacService.updateMembership(role: nil, permissionOverride: nil)
@@ -505,13 +510,18 @@ final class AccountSessionStore: ObservableObject {
     private func refreshStoresForActiveOrganization() async {
         guard let organizationId = activeOrganizationId else {
             stores = []
+            didResolveStoreAccess = true
             isResolvingStores = false
             AppSettings.shared.activeStoreID = ""
             return
         }
 
+        didResolveStoreAccess = false
         isResolvingStores = true
-        defer { isResolvingStores = false }
+        defer {
+            isResolvingStores = false
+            didResolveStoreAccess = true
+        }
 
         do {
             let fetchedStores = try await organizationService.stores(for: organizationId)

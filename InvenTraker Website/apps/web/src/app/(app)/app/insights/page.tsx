@@ -12,6 +12,7 @@ import {
   fetchStoreInventoryItems,
   fetchOrgWasteRecords
 } from "@/lib/data/firestore"
+import { computeFinancialHealth } from "@/lib/firebase/functions"
 
 type InsightSectionKey = "inventory" | "waste" | "expiring" | "mostWasted" | "overstocked"
 
@@ -76,8 +77,20 @@ export default function InsightsPage() {
     error: financialError,
     isFetching: financialLoading
   } = useQuery({
-    queryKey: ["financial-health-local", activeOrgId, scopedStoreId, expiringWindow],
-    queryFn: () => computeFinancialHealthFromOrgData(activeOrgId, scopedStoreId, Number(expiringWindow)),
+    queryKey: ["financial-health-engine", activeOrgId, scopedStoreId, expiringWindow],
+    queryFn: async () => {
+      try {
+        const remote = await computeFinancialHealth({
+          orgId: activeOrgId,
+          storeId: scopedStoreId,
+          expiringDays: Number(expiringWindow)
+        })
+        if (remote) return remote
+      } catch {
+        // Keep the dashboard usable if callable insights are temporarily unavailable.
+      }
+      return computeFinancialHealthFromOrgData(activeOrgId, scopedStoreId, Number(expiringWindow))
+    },
     retry: 1,
     enabled: Boolean(activeOrgId && effectivePermissions.viewInsights)
   })

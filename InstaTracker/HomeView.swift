@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var showingNotifications = false
     @State private var dismissedNotificationIDs: Set<String> = []
     @State private var lastNotificationFeedSignature = ""
+    @State private var hidesTopBar = false
 
     private var editableVisibleSectionOrder: [HomeSection] {
         sectionOrder.filter { session.canView($0.appModule) }
@@ -173,8 +174,15 @@ struct HomeView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ScrollView {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: HomeScrollOffsetKey.self,
+                    value: proxy.frame(in: .named("home-scroll")).minY
+                )
+            }
+            .frame(height: 0)
+
                 VStack(spacing: 16) {
                     if settings.organizationBranding.enabled,
                        appHeaderStyle != .iconOnly,
@@ -187,15 +195,33 @@ struct HomeView: View {
                                         .resizable()
                                         .scaledToFit()
                                 case .failure:
-                                    Image(systemName: "shippingbox.fill")
-                                        .font(.system(size: 24, weight: .semibold))
-                                        .foregroundStyle(settings.accentColor)
+                                    Image("AppLogo")
+                                        .resizable()
+                                        .scaledToFit()
                                 default:
                                     ProgressView()
                                         .controlSize(.small)
                                 }
                             }
                             .frame(maxWidth: 220, maxHeight: 54, alignment: .leading)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if appHeaderStyle != .iconOnly {
+                        HStack(spacing: 12) {
+                            Image("AppLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 48, height: 48)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shadow(color: settings.accentColor.opacity(0.12), radius: 10, y: 5)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(settings.brandedAppName)
+                                    .font(.headline.weight(.semibold))
+                                Text("Store operations")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -239,9 +265,11 @@ struct HomeView: View {
                 .padding()
                 .padding(.bottom, 100)
             }
+            .coordinateSpace(name: "home-scroll")
             .background(Color(.systemGroupedBackground))
             .navigationTitle(appHeaderStyle == .iconOnly ? "" : settings.brandedAppName)
             .navigationBarTitleDisplayMode(appHeaderStyle == .iconOnly ? .inline : .large)
+            .toolbar(hidesTopBar ? .hidden : .visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -276,19 +304,29 @@ struct HomeView: View {
                                         .scaledToFit()
                                         .frame(height: 26)
                                 case .failure:
-                                    Image(systemName: "shippingbox.fill")
-                                        .font(.system(size: 20, weight: .semibold))
-                                        .foregroundStyle(settings.accentColor)
+                                    Image("AppLogo")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(height: 26)
                                 default:
                                     ProgressView()
                                         .controlSize(.small)
                                 }
                             }
                         } else {
-                            Image(systemName: "shippingbox.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(settings.accentColor)
+                            Image("AppLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 26)
                         }
+                    }
+                }
+            }
+            .onPreferenceChange(HomeScrollOffsetKey.self) { value in
+                let shouldHide = value < -64
+                if shouldHide != hidesTopBar {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        hidesTopBar = shouldHide
                     }
                 }
             }
@@ -346,7 +384,6 @@ struct HomeView: View {
                     notificationFeed.markAllRead()
                 }
             }
-        }
     }
 
     private var dismissedNotificationStorageKey: String {
@@ -415,6 +452,14 @@ struct HomeView: View {
             role: role,
             roleTitle: session.activeMembership?.jobTitle
         )
+    }
+}
+
+private struct HomeScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

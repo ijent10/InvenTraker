@@ -12,6 +12,9 @@ struct InsightsView: View {
 
     @State private var showingLayoutEditor = false
     @State private var showingDataScopeEditor = false
+    @State private var backendSnapshot: BackendFinancialHealthSnapshot?
+    @State private var backendIsLoading = false
+    @State private var backendErrorMessage: String?
 
     private var activeOrganizationId: String {
         session.activeOrganizationId ?? "local-default"
@@ -138,7 +141,7 @@ struct InsightsView: View {
         return WeeklyFinancialSnapshot(
             weekLabel: weekLabel,
             projectedRevenue: projectedRevenue,
-            weeklyLoss: loss,
+            weeklyLoss: backendSnapshot?.wasteCostWeek ?? loss,
             topRevenueItem: topRevenue.map { (name: $0.key, value: $0.value) },
             topLossItem: topLoss.map { (name: $0.key, value: $0.value) }
         )
@@ -148,6 +151,7 @@ struct InsightsView: View {
         ScrollView {
             VStack(spacing: 16) {
                 ContextTipCard(context: .insights, accentColor: settings.accentColor)
+                backendStatusCard
 
                 if visibleCards.isEmpty {
                     ContentUnavailableView(
@@ -164,6 +168,9 @@ struct InsightsView: View {
             .padding()
         }
         .navigationTitle("Insights")
+        .task(id: "\(activeOrganizationId)|\(activeStoreId)") {
+            await refreshBackendInsights()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Data Scope") {
@@ -223,7 +230,10 @@ struct InsightsView: View {
             }
         case .expiringSoon:
             InsightCard(title: card.title, icon: card.iconName, color: .red) {
-                ExpiringSoonInsights(items: activeItems)
+                ExpiringSoonInsights(
+                    items: activeItems,
+                    backendExpiringSoonValue: backendSnapshot?.expiringSoonValue
+                )
             }
         case .mostWasted:
             InsightCard(title: card.title, icon: card.iconName, color: .red) {
@@ -239,11 +249,17 @@ struct InsightsView: View {
             }
         case .inventoryValue:
             InsightCard(title: card.title, icon: card.iconName, color: .green) {
-                InventoryValueView(items: activeItems)
+                InventoryValueView(
+                    items: activeItems,
+                    backendInventoryValue: backendSnapshot?.inventoryValue
+                )
             }
         case .overstocked:
             InsightCard(title: card.title, icon: card.iconName, color: .indigo) {
-                OverstockedView(items: activeItems)
+                OverstockedView(
+                    items: activeItems,
+                    backendItems: backendSnapshot?.overstocked
+                )
             }
         case .saleCoverage:
             InsightCard(title: card.title, icon: card.iconName, color: .orange) {
@@ -263,6 +279,61 @@ struct InsightsView: View {
     private func resolvedItemPrice(for id: UUID?) -> Double {
         guard let id else { return 0 }
         return max(0, itemPriceByID[id] ?? 0)
+    }
+
+    @ViewBuilder
+    private var backendStatusCard: some View {
+        if backendIsLoading {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Refreshing Firebase insights...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(12)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if let backendErrorMessage {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Using local insight cache")
+                    .font(.caption.weight(.semibold))
+                Text(backendErrorMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if backendSnapshot != nil {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(settings.accentColor)
+                Text("Firebase insights synced")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+            }
+            .padding(12)
+            .background(settings.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    private func refreshBackendInsights() async {
+        guard session.canView(.insights) else { return }
+        guard activeOrganizationId != "local-default", !activeOrganizationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        backendIsLoading = true
+        backendErrorMessage = nil
+        do {
+            let snapshot = try await InsightsEngineService.shared.computeFinancialHealth(
+                organizationId: activeOrganizationId,
+                storeId: activeStoreId.isEmpty ? nil : activeStoreId,
+                expiringDays: 7
+            )
+            backendSnapshot = snapshot
+        } catch {
+            backendErrorMessage = error.localizedDescription
+        }
+        backendIsLoading = false
     }
 }
 
@@ -626,6 +697,7 @@ struct LowStockView: View {
 
 struct ExpiringSoonInsights: View {
     let items: [InventoryItem]
+    let backendExpiringSoonValue: Double?
     
     private var expiring: [(name: String, days: Int, quantity: Double)] {
         var results: [(name: String, days: Int, quantity: Double)] = []
@@ -641,16 +713,26 @@ struct ExpiringSoonInsights: View {
     }
     
     var body: some View {
-        if expiring.isEmpty {
-            Text("No batches expiring in the next 7 days.")
-                .foregroundStyle(.secondary)
-        } else {
-            ForEach(Array(expiring.prefix(6).enumerated()), id: \.offset) { _, row in
-                HStack {
-                    Text(row.name)
-                    Spacer()
-                    Text("\(row.quantity.formattedQuantity()) • \(row.days)d")
-                        .foregroundStyle(row.days <= 2 ? .red : .orange)
+        VStack(alignment: .leading, spacing: 8) {
+            if let backendExpiringSoonValue {
+                Text(backendExpiringSoonValue.formatted(.currency(code: Locale.current.currency?.identifier ?? "USD")))
+                    .font(.title2.weight(.bold))
+                Text("At-risk value from Firebase insights")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if expiring.isEmpty {
+                Text("No batches expiring in the next 7 days.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(expiring.prefix(6).enumerated()), id: \.offset) { _, row in
+                    HStack {
+                        Text(row.name)
+                        Spacer()
+                        Text("\(row.quantity.formattedQuantity()) • \(row.days)d")
+                            .foregroundStyle(row.days <= 2 ? .red : .orange)
+                    }
                 }
             }
         }
@@ -743,6 +825,7 @@ struct MostOrderedItemsView: View {
 
 struct InventoryValueView: View {
     let items: [InventoryItem]
+    let backendInventoryValue: Double?
     
     private var totalValue: Double {
         items.reduce(0) { $0 + ($1.totalQuantity * $1.price) }
@@ -760,9 +843,14 @@ struct InventoryValueView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("$\(totalValue, specifier: "%.2f")")
+            Text((backendInventoryValue ?? totalValue).formatted(.currency(code: Locale.current.currency?.identifier ?? "USD")))
                 .font(.largeTitle)
                 .fontWeight(.bold)
+            if backendInventoryValue != nil {
+                Text("Synced from Firebase insights")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             
             ForEach(topValueItems, id: \.name) { row in
                 HStack {
@@ -778,6 +866,7 @@ struct InventoryValueView: View {
 
 struct OverstockedView: View {
     let items: [InventoryItem]
+    let backendItems: [BackendOverstockedItem]?
     
     private var overstocked: [InventoryItem] {
         items
@@ -786,7 +875,19 @@ struct OverstockedView: View {
     }
     
     var body: some View {
-        if overstocked.isEmpty {
+        if let backendItems, !backendItems.isEmpty {
+            ForEach(backendItems.prefix(5)) { item in
+                HStack {
+                    Text(item.itemName)
+                    Spacer()
+                    Text("\(item.onHand.formattedQuantity())")
+                        .foregroundStyle(.indigo)
+                }
+            }
+        } else if backendItems != nil {
+            Text("No overstocked items right now.")
+                .foregroundStyle(.secondary)
+        } else if overstocked.isEmpty {
             Text("No overstocked items right now.")
                 .foregroundStyle(.secondary)
         } else {

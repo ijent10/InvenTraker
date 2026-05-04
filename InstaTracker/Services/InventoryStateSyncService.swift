@@ -939,7 +939,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     data["defaultExpiration"] as? Int ??
                     data["defaultExpirationDays"] as? Int ??
                     item.defaultExpiration
-                let remoteHasExpiration = data["hasExpiration"] as? Bool ?? rawRemoteDefaultExpiration > 0
+                let remoteHasExpiration = (data["hasExpiration"] as? Bool) ?? (rawRemoteDefaultExpiration > 0)
                 if item.hasExpiration != remoteHasExpiration {
                     item.hasExpiration = remoteHasExpiration
                     itemChanged = true

@@ -5086,25 +5086,35 @@ export async function saveOrganizationWebsiteConfig(
     throw directWriteError ?? callableError ?? new Error("Could not save website.")
   }
 
-  if (previous.slug && previous.slug !== normalized.slug) {
-    await deleteDoc(doc(db, "publicSites", previous.slug)).catch(() => undefined)
-  }
+  const shouldSyncPublicSite = mode === "publish" || mode === "unpublish" || normalized.published
+  if (shouldSyncPublicSite) {
+    if (previous.slug && previous.slug !== normalized.slug) {
+      await deleteDoc(doc(db, "publicSites", previous.slug)).catch(() => undefined)
+    }
 
-  if (normalized.published && normalized.slug) {
-    await setDoc(
-      doc(db, "publicSites", normalized.slug),
-      stripUndefinedDeep(
-        sanitizeFirestoreWriteData({
-          ...normalized,
-          organizationId: orgId,
-          publishedAt: isFreshPublish ? serverTimestamp() : nextPublishedAt,
-          updatedAt: serverTimestamp()
-        })
-      ) as Record<string, unknown>,
-      { merge: true }
-    )
-  } else if (normalized.slug) {
-    await deleteDoc(doc(db, "publicSites", normalized.slug)).catch(() => undefined)
+    if (normalized.published && normalized.slug) {
+      try {
+        await setDoc(
+          doc(db, "publicSites", normalized.slug),
+          stripUndefinedDeep(
+            sanitizeFirestoreWriteData({
+              ...normalized,
+              organizationId: orgId,
+              publishedAt: isFreshPublish ? serverTimestamp() : nextPublishedAt,
+              updatedAt: serverTimestamp()
+            })
+          ) as Record<string, unknown>,
+          { merge: true }
+        )
+      } catch (publicSiteWriteError) {
+        // Keep draft saves resilient even when the fallback cannot mutate legacy public site docs.
+        if (mode !== "draft") {
+          throw publicSiteWriteError
+        }
+      }
+    } else if (mode === "unpublish" && normalized.slug) {
+      await deleteDoc(doc(db, "publicSites", normalized.slug)).catch(() => undefined)
+    }
   }
 
   return {

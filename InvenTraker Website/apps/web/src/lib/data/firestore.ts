@@ -5019,14 +5019,27 @@ export async function saveOrganizationWebsiteConfig(
   if (!db || !orgId) return config
   const callableConfig =
     (normalizeWebsiteConfigForCallable(config) as Record<string, unknown> | undefined) ?? {}
-
-  const saved = await saveOrganizationWebsiteConfigByCallable({
-    orgId,
-    config: callableConfig,
-    mode
-  })
-  if (saved) {
-    return normalizePublicWebsiteConfig(saved, "config", orgId, config.siteName)
+  let callableError: unknown = null
+  try {
+    const saved = await saveOrganizationWebsiteConfigByCallable({
+      orgId,
+      config: callableConfig,
+      mode
+    })
+    if (saved) {
+      return normalizePublicWebsiteConfig(saved, "config", orgId, config.siteName)
+    }
+  } catch (error) {
+    callableError = error
+    const code = typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
+    const isTransientCallableFailure =
+      code === "functions/internal" ||
+      code === "functions/unavailable" ||
+      code === "functions/deadline-exceeded" ||
+      code === "functions/cancelled"
+    if (!isTransientCallableFailure) {
+      throw error
+    }
   }
   const previous = await fetchOrganizationWebsiteConfig(orgId, config.siteName).catch(() => defaultPublicWebsiteConfig(orgId, config.siteName))
   const normalized = normalizePublicWebsiteConfig(
@@ -5067,7 +5080,11 @@ export async function saveOrganizationWebsiteConfig(
     })
   ) as Record<string, unknown>
 
-  await setDoc(doc(db, "organizations", orgId, "website", "config"), payload, { merge: true })
+  try {
+    await setDoc(doc(db, "organizations", orgId, "website", "config"), payload, { merge: true })
+  } catch (directWriteError) {
+    throw directWriteError ?? callableError ?? new Error("Could not save website.")
+  }
 
   if (previous.slug && previous.slug !== normalized.slug) {
     await deleteDoc(doc(db, "publicSites", previous.slug)).catch(() => undefined)

@@ -185,7 +185,7 @@ function stripUndefinedDeep(value) {
 }
 function timestampToResponse(value) {
     if (!value)
-        return undefined;
+        return null;
     if (value instanceof Date)
         return value.toISOString();
     if (typeof value === "string" || typeof value === "number")
@@ -195,10 +195,10 @@ function timestampToResponse(value) {
             return value.toDate().toISOString();
         }
         catch {
-            return undefined;
+            return null;
         }
     }
-    return undefined;
+    return null;
 }
 function canManageWebsite(member) {
     return (member.role === "Owner" ||
@@ -232,8 +232,8 @@ export const saveOrganizationWebsiteConfig = onCall(async (request) => {
     const previousSlug = normalizeWebsiteSlug(previous.slug);
     const now = new Date();
     const isFreshPublish = input.mode === "publish" && previous.published !== true;
-    const publishedAt = isFreshPublish ? now : timestampToResponse(previous.publishedAt ?? input.config.publishedAt);
-    const unpublishedAt = input.mode === "unpublish" ? now : timestampToResponse(input.config.unpublishedAt ?? previous.unpublishedAt);
+    const publishedAt = isFreshPublish ? now.toISOString() : timestampToResponse(previous.publishedAt ?? input.config.publishedAt);
+    const unpublishedAt = input.mode === "unpublish" ? now.toISOString() : timestampToResponse(input.config.unpublishedAt ?? previous.unpublishedAt);
     const payload = stripUndefinedDeep({
         ...normalized,
         createdAt: previous.createdAt ?? FieldValue.serverTimestamp(),
@@ -274,12 +274,12 @@ export const saveOrganizationWebsiteConfig = onCall(async (request) => {
         createdAt: FieldValue.serverTimestamp()
     });
     await batch.commit();
-    return {
+    return stripUndefinedDeep({
         ...normalized,
         publishedAt,
         unpublishedAt,
         createdAt: timestampToResponse(previous.createdAt),
         updatedAt: now.toISOString(),
         updatedBy: uid
-    };
+    });
 });

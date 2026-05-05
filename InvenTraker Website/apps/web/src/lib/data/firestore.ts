@@ -4977,6 +4977,39 @@ export async function fetchOrganizationWebsiteConfig(
   return normalizePublicWebsiteConfig(snap.data(), snap.id, orgId, orgName)
 }
 
+function normalizeWebsiteConfigForCallable(value: unknown): unknown {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeWebsiteConfigForCallable(entry))
+      .filter((entry) => entry !== undefined)
+  }
+  if (!value || typeof value !== "object") return undefined
+
+  const timestampLike = value as { toDate?: unknown }
+  if (typeof timestampLike.toDate === "function") {
+    try {
+      return (timestampLike.toDate as () => Date)().toISOString()
+    } catch {
+      return undefined
+    }
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  const isPlainObject = prototype === Object.prototype || prototype === null
+  if (!isPlainObject) return undefined
+
+  const cleaned: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const normalized = normalizeWebsiteConfigForCallable(entry)
+    if (normalized !== undefined) cleaned[key] = normalized
+  }
+  return cleaned
+}
+
 export async function saveOrganizationWebsiteConfig(
   orgId: string,
   config: PublicWebsiteConfigRecord,
@@ -4984,9 +5017,12 @@ export async function saveOrganizationWebsiteConfig(
   mode: "draft" | "publish" | "unpublish" = "draft"
 ): Promise<PublicWebsiteConfigRecord> {
   if (!db || !orgId) return config
+  const callableConfig =
+    (normalizeWebsiteConfigForCallable(config) as Record<string, unknown> | undefined) ?? {}
+
   const saved = await saveOrganizationWebsiteConfigByCallable({
     orgId,
-    config: config as unknown as Record<string, unknown>,
+    config: callableConfig,
     mode
   })
   if (saved) {

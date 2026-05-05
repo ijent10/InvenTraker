@@ -5083,7 +5083,8 @@ export async function saveOrganizationWebsiteConfig(
   try {
     await setDoc(doc(db, "organizations", orgId, "website", "config"), payload, { merge: true })
   } catch (directWriteError) {
-    throw directWriteError ?? callableError ?? new Error("Could not save website.")
+    // If callable failed first, surface callable failure details because they are usually more actionable.
+    throw callableError ?? directWriteError ?? new Error("Could not save website.")
   }
 
   const shouldSyncPublicSite = mode === "publish" || mode === "unpublish" || normalized.published
@@ -5109,7 +5110,11 @@ export async function saveOrganizationWebsiteConfig(
       } catch (publicSiteWriteError) {
         // Keep draft saves resilient even when the fallback cannot mutate legacy public site docs.
         if (mode !== "draft") {
-          throw publicSiteWriteError
+          const message =
+            publicSiteWriteError instanceof Error
+              ? publicSiteWriteError.message
+              : "Unknown public site write error."
+          throw new Error(`Failed while syncing public site (${mode}). ${message}`)
         }
       }
     } else if (mode === "unpublish" && normalized.slug) {

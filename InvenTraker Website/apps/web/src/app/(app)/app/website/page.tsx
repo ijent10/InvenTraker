@@ -175,7 +175,10 @@ export default function WebsiteBuilderPage() {
       void queryClient.invalidateQueries({ queryKey: ["organization-website-submissions", activeOrgId] })
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : "Could not save website.")
+      const errorCode =
+        typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
+      const errorMessage = error instanceof Error ? error.message : "Could not save website."
+      setErrorMessage(errorCode ? errorMessage + " (" + errorCode + ")" : errorMessage)
       setStatusMessage(null)
     }
   })

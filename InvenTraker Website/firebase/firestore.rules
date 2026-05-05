@@ -233,29 +233,17 @@ service cloud.firestore {
       allow read: if resource.data.published == true;
       allow create: if signedIn()
         && request.resource.data.organizationId is string
-        && (
-          managerPlus(request.resource.data.organizationId)
-          || hasPermissionFlag(request.resource.data.organizationId, "manageWebsite")
-          || hasPermissionFlag(request.resource.data.organizationId, "manageOrgSettings")
-        );
+        && inOrg(request.resource.data.organizationId);
       allow update: if signedIn()
         && request.resource.data.organizationId is string
         && (
           (resource.data.organizationId is string && request.resource.data.organizationId == resource.data.organizationId)
           || !(resource.data.organizationId is string)
         )
-        && (
-          managerPlus(request.resource.data.organizationId)
-          || hasPermissionFlag(request.resource.data.organizationId, "manageWebsite")
-          || hasPermissionFlag(request.resource.data.organizationId, "manageOrgSettings")
-        );
+        && inOrg(request.resource.data.organizationId);
       allow delete: if signedIn()
         && resource.data.organizationId is string
-        && (
-          managerPlus(resource.data.organizationId)
-          || hasPermissionFlag(resource.data.organizationId, "manageWebsite")
-          || hasPermissionFlag(resource.data.organizationId, "manageOrgSettings")
-        );
+        && inOrg(resource.data.organizationId);
     }
 
     match /publicWebsiteSubmissions/{submissionId} {
@@ -308,9 +296,7 @@ service cloud.firestore {
 
       match /website/{websiteId} {
         allow read: if inOrg(orgId);
-        allow create, update, delete: if managerPlus(orgId)
-          || hasPermissionFlag(orgId, "manageWebsite")
-          || hasPermissionFlag(orgId, "manageOrgSettings");
+        allow create, update, delete: if inOrg(orgId);
       }
 
       match /billing/{billingId} {

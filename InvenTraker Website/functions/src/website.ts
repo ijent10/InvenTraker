@@ -221,12 +221,8 @@ function timestampToResponse(value: unknown): unknown {
 }
 
 function canManageWebsite(member: Awaited<ReturnType<typeof requireOrgMembership>>): boolean {
-  return (
-    member.role === "Owner" ||
-    member.role === "Manager" ||
-    member.permissionFlags?.manageWebsite === true ||
-    member.permissionFlags?.manageOrgSettings === true
-  )
+  // Membership is already enforced by requireOrgMembership; website editing is available to org members.
+  return Boolean(member)
 }
 
 export const saveOrganizationWebsiteConfig = onCall(async (request) => {

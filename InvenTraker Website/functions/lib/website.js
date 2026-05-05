@@ -201,10 +201,7 @@ function timestampToResponse(value) {
     return null;
 }
 function canManageWebsite(member) {
-    return (member.role === "Owner" ||
-        member.role === "Manager" ||
-        member.permissionFlags?.manageWebsite === true ||
-        member.permissionFlags?.manageOrgSettings === true);
+    return Boolean(member);
 }
 export const saveOrganizationWebsiteConfig = onCall(async (request) => {
     const uid = requireAuth(request);

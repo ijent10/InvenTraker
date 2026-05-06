@@ -177,7 +177,13 @@ export default function WebsiteBuilderPage() {
     onError: (error) => {
       const errorCode =
         typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
-      const errorMessage = error instanceof Error ? error.message : "Could not save website."
+      const errorDetails =
+        (error as { details?: { message?: unknown; code?: unknown } | null })?.details &&
+        typeof (error as { details?: { message?: unknown } | null }).details?.message === "string"
+          ? String((error as { details?: { message?: string } }).details?.message ?? "")
+          : ""
+      const baseMessage = error instanceof Error ? error.message : "Could not save website."
+      const errorMessage = errorDetails && errorDetails !== baseMessage ? `${baseMessage} ${errorDetails}` : baseMessage
       setErrorMessage(errorCode ? errorMessage + " (" + errorCode + ")" : errorMessage)
       setStatusMessage(null)
     }

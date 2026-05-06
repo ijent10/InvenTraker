@@ -5034,6 +5034,9 @@ export async function saveOrganizationWebsiteConfig(
     const code = typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
     const isTransientCallableFailure =
       code === "functions/internal" ||
+      code === "functions/unknown" ||
+      code === "functions/not-found" ||
+      code === "functions/unimplemented" ||
       code === "functions/unavailable" ||
       code === "functions/deadline-exceeded" ||
       code === "functions/cancelled"
@@ -5083,8 +5086,21 @@ export async function saveOrganizationWebsiteConfig(
   try {
     await setDoc(doc(db, "organizations", orgId, "website", "config"), payload, { merge: true })
   } catch (directWriteError) {
-    // If callable failed first, surface callable failure details because they are usually more actionable.
-    throw callableError ?? directWriteError ?? new Error("Could not save website.")
+    const directCode =
+      typeof (directWriteError as { code?: unknown })?.code === "string"
+        ? String((directWriteError as { code?: unknown }).code)
+        : ""
+    if (directCode === "permission-denied") {
+      const permissionError = new Error(
+        "Missing or insufficient permissions. Ask an organization owner to confirm your membership and website permissions."
+      ) as Error & { code?: string }
+      permissionError.code = directCode
+      throw permissionError
+    }
+    if (directWriteError instanceof Error) {
+      throw directWriteError
+    }
+    throw callableError ?? new Error("Could not save website.")
   }
 
   const shouldSyncPublicSite = mode === "publish" || mode === "unpublish" || normalized.published

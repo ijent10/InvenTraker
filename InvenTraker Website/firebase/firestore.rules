@@ -88,6 +88,10 @@ service cloud.firestore {
       );
     }
 
+    function canManageWebsite(orgId) {
+      return isOwner(orgId) || hasPermissionFlag(orgId, "manageWebsite");
+    }
+
     function statusIsActive(statusValue) {
       return ["active", "trialing"].hasAny([statusValue]);
     }
@@ -233,17 +237,17 @@ service cloud.firestore {
       allow read: if resource.data.published == true;
       allow create: if signedIn()
         && request.resource.data.organizationId is string
-        && inOrg(request.resource.data.organizationId);
+        && canManageWebsite(request.resource.data.organizationId);
       allow update: if signedIn()
         && request.resource.data.organizationId is string
         && (
           (resource.data.organizationId is string && request.resource.data.organizationId == resource.data.organizationId)
           || !(resource.data.organizationId is string)
         )
-        && inOrg(request.resource.data.organizationId);
+        && canManageWebsite(request.resource.data.organizationId);
       allow delete: if signedIn()
         && resource.data.organizationId is string
-        && inOrg(resource.data.organizationId);
+        && canManageWebsite(resource.data.organizationId);
     }
 
     match /publicWebsiteSubmissions/{submissionId} {
@@ -296,7 +300,7 @@ service cloud.firestore {
 
       match /website/{websiteId} {
         allow read: if inOrg(orgId);
-        allow create, update, delete: if inOrg(orgId);
+        allow create, update, delete: if canManageWebsite(orgId);
       }
 
       match /billing/{billingId} {

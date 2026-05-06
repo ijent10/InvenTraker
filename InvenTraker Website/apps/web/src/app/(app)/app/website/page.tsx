@@ -122,7 +122,7 @@ function moveInArray<T>(rows: T[], fromIndex: number, toIndex: number): T[] {
 export default function WebsiteBuilderPage() {
   const queryClient = useQueryClient()
   const { user } = useAuthUser()
-  const { activeOrg, activeOrgId, effectivePermissions } = useOrgContext()
+  const { activeOrg, activeOrgId, role, effectivePermissions } = useOrgContext()
   const [config, setConfig] = useState<PublicWebsiteConfigRecord | null>(null)
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -141,7 +141,7 @@ export default function WebsiteBuilderPage() {
   const { data: submissions = [] } = useQuery({
     queryKey: ["organization-website-submissions", activeOrgId],
     queryFn: () => fetchWebsiteSubmissions(activeOrgId),
-    enabled: Boolean(activeOrgId && effectivePermissions.manageWebsite),
+    enabled: Boolean(activeOrgId && (role === "Owner" || effectivePermissions.manageWebsite)),
     staleTime: 30_000
   })
 
@@ -340,7 +340,7 @@ export default function WebsiteBuilderPage() {
     }
   }
 
-  if (!effectivePermissions.manageWebsite) {
+  if (!(role === "Owner" || effectivePermissions.manageWebsite)) {
     return <PageHead title="Website" subtitle="You do not have access to manage the customer website." />
   }
 

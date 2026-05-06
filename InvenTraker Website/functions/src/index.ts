@@ -385,14 +385,17 @@ export const listMyOrganizations = onCall(async (request) => {
     const locationIds = Array.isArray(memberData.locationIds)
       ? memberData.locationIds.filter((locationId): locationId is string => typeof locationId === "string")
       : []
-    const permissionFlags = {
-      ...permissionDefaultsForRole(role),
-      ...(
-        typeof memberData.permissionFlags === "object" && memberData.permissionFlags
-          ? (memberData.permissionFlags as Record<string, boolean>)
-          : {}
-      )
-    }
+    const permissionFlags =
+      role === "Owner"
+        ? permissionDefaultsForRole("Owner")
+        : {
+            ...permissionDefaultsForRole(role),
+            ...(
+              typeof memberData.permissionFlags === "object" && memberData.permissionFlags
+                ? (memberData.permissionFlags as Record<string, boolean>)
+                : {}
+            )
+          }
 
     if (!memberSnap.exists && !isPlatformAdmin) {
       await memberRef.set({

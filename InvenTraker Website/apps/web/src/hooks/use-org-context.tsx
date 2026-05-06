@@ -183,8 +183,10 @@ function useOrgContextState(): OrgContextValue {
   const basePermissions = permissionDefaultsForRole(role)
   const ownerPermissions = Object.fromEntries(permissionCatalog.map((entry) => [entry.key, true])) as Record<string, boolean>
   const effectivePermissions: Record<string, boolean> = role === "Owner" ? ownerPermissions : { ...basePermissions }
-  for (const [key, value] of Object.entries(activeOrg?.permissionFlags ?? {})) {
-    effectivePermissions[key] = value === true
+  if (role !== "Owner") {
+    for (const [key, value] of Object.entries(activeOrg?.permissionFlags ?? {})) {
+      effectivePermissions[key] = value === true
+    }
   }
 
   return {

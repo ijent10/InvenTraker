@@ -221,8 +221,9 @@ function timestampToResponse(value: unknown): unknown {
 }
 
 function canManageWebsite(member: Awaited<ReturnType<typeof requireOrgMembership>>): boolean {
-  // Membership is already enforced by requireOrgMembership; website editing is available to org members.
-  return Boolean(member)
+  if (!member) return false
+  if (member.role === "Owner") return true
+  return member.permissionFlags?.manageWebsite === true
 }
 
 function normalizeUnknownError(error: unknown): { message: string; code?: string } {

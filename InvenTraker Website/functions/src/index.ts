@@ -332,6 +332,14 @@ async function writeAuditLog(input: {
   return ref.id
 }
 
+function normalizeUnknownError(error: unknown): { message: string; code?: string } {
+  if (!error || typeof error !== "object") return { message: "Unknown backend error." }
+  const record = error as { message?: unknown; code?: unknown }
+  const message = typeof record.message === "string" && record.message.trim() ? record.message : "Unknown backend error."
+  const code = typeof record.code === "string" ? record.code : undefined
+  return { message, code }
+}
+
 export const listMyOrganizations = onCall(async (request) => {
   const uid = requireAuth(request)
   listMyOrganizationsRequestSchema.parse(request.data ?? {})
@@ -942,171 +950,215 @@ async function commitRecommendationLines(params: {
   }
 }
 
-export const getStoreRecommendations = onCall(async (request) => {
+export const getStoreRecommendations = onCall({ timeoutSeconds: 180, memory: "1GiB" }, async (request) => {
   const uid = requireAuth(request)
-  const input = getStoreRecommendationsRequestSchema.parse(request.data)
-  await requireStoreAccess(input.orgId, uid, input.storeId)
-
-  const { response } = await buildStoreRecommendations({
-    orgId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId,
-    domains: input.domains,
-    productionPlanOptions: input.productionPlanOptions,
-    windowStart: input.windowStart,
-    windowEnd: input.windowEnd,
-    actorUid: uid,
-    forceRefresh: input.forceRefresh
-  })
-
-  const collections = await resolveStoreCollections(input.orgId, input.storeId)
-  await writeAuditLog({
-    actorUserId: uid,
-    actorRoleSnapshot: "Manager",
-    organizationId: input.orgId,
-    storeId: input.storeId,
-    targetPath: `${collections.runPath}/${response.meta.runId}`,
-    action: "create",
-    after: {
-      engineVersion: response.meta.engineVersion,
-      schemaVersion: response.meta.schemaVersion,
-      rulePathUsed: response.meta.rulePathUsed,
-      sourceRefs: response.meta.sourceRefs,
-      inputHash: response.meta.inputHash,
-      degraded: response.meta.degraded,
-      fallbackUsed: response.meta.fallbackUsed,
-      fallbackReason: response.meta.fallbackReason ?? null,
-      fallbackSource: response.meta.fallbackSource ?? null,
-      fallbackTrigger: response.meta.fallbackTrigger ?? null,
-      domains: response.meta.domains,
-      orderRecommendations: response.orderRecommendations.length,
-      productionRecommendations: response.productionRecommendations.length,
-      productionPlanRows:
-        response.productionPlan.ingredientDemandRows.length + response.productionPlan.frozenPullForecastRows.length,
-      questions: response.questions.length
-    }
-  })
-
-  return response
-})
-
-export const commitOrderRecommendations = onCall(async (request) => {
-  const uid = requireAuth(request)
-  const input = commitOrderRecommendationsRequestSchema.parse(request.data)
-  await requireStoreAccess(input.orgId, uid, input.storeId)
-
-  const collections = await resolveStoreCollections(input.orgId, input.storeId)
-  const runData = await readRecommendationRun({
-    storePath: collections.basePath,
-    runId: input.runId
-  })
-  if (!runData) {
-    throw new HttpsError("not-found", "Recommendation run not found for this store.")
+  const parsed = getStoreRecommendationsRequestSchema.safeParse(request.data)
+  if (!parsed.success) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid recommendation preview request.",
+      parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }))
+    )
   }
+  const input = parsed.data
+  try {
+    await requireStoreAccess(input.orgId, uid, input.storeId)
 
-  if (runData.organizationId !== input.orgId || runData.storeId !== input.storeId) {
-    throw new HttpsError("permission-denied", "Recommendation run does not belong to this organization/store.")
-  }
-
-  const recommendationRows = Array.isArray(runData.orderRecommendations)
-    ? (runData.orderRecommendations as Array<Record<string, unknown>>)
-    : []
-  const recommendationByItem = new Map(
-    recommendationRows
-      .map((row) => [String(row.itemId ?? ""), row] as const)
-      .filter(([itemId]) => itemId.length > 0)
-  )
-
-  const selectedLines = input.selectedLines
-    .map((line) => {
-      const rec = recommendationByItem.get(line.itemId)
-      const fallbackUnit = rec?.unit === "lbs" ? "lbs" : "each"
-      const quantity = Math.max(0, Number(line.finalQuantity ?? 0))
-      return {
-        itemId: line.itemId,
-        finalQuantity: quantity,
-        unit: line.unit ?? fallbackUnit,
-        rationaleSummary:
-          line.rationaleSummary ??
-          (typeof rec?.rationaleSummary === "string" ? rec.rationaleSummary : "Applied from recommendation preview.")
-      } satisfies CommitOrderLine
+    const { response } = await buildStoreRecommendations({
+      orgId: input.orgId,
+      storeId: input.storeId,
+      vendorId: input.vendorId,
+      domains: input.domains,
+      productionPlanOptions: input.productionPlanOptions,
+      windowStart: input.windowStart,
+      windowEnd: input.windowEnd,
+      actorUid: uid,
+      forceRefresh: input.forceRefresh
     })
-    .filter((line) => line.itemId.trim().length > 0)
 
-  const result = await commitRecommendationLines({
-    uid,
-    orgId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId,
-    runId: input.runId,
-    engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
-    lines: selectedLines
-  })
+    const collections = await resolveStoreCollections(input.orgId, input.storeId)
+    await writeAuditLog({
+      actorUserId: uid,
+      actorRoleSnapshot: "Manager",
+      organizationId: input.orgId,
+      storeId: input.storeId,
+      targetPath: `${collections.runPath}/${response.meta.runId}`,
+      action: "create",
+      after: {
+        engineVersion: response.meta.engineVersion,
+        schemaVersion: response.meta.schemaVersion,
+        rulePathUsed: response.meta.rulePathUsed,
+        sourceRefs: response.meta.sourceRefs,
+        inputHash: response.meta.inputHash,
+        degraded: response.meta.degraded,
+        fallbackUsed: response.meta.fallbackUsed,
+        fallbackReason: response.meta.fallbackReason ?? null,
+        fallbackSource: response.meta.fallbackSource ?? null,
+        fallbackTrigger: response.meta.fallbackTrigger ?? null,
+        domains: response.meta.domains,
+        orderRecommendations: response.orderRecommendations.length,
+        productionRecommendations: response.productionRecommendations.length,
+        productionPlanRows:
+          response.productionPlan.ingredientDemandRows.length + response.productionPlan.frozenPullForecastRows.length,
+        questions: response.questions.length
+      }
+    })
 
-  return {
-    orderId: result.orderId,
-    lineCount: result.lineCount,
-    todosCreated: result.todosCreated,
-    runId: input.runId,
-    engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
-    appliedFromRun: true
+    return response
+  } catch (error) {
+    if (error instanceof HttpsError) throw error
+    const details = normalizeUnknownError(error)
+    throw new HttpsError("internal", "Could not generate recommendations for this store.", details)
   }
 })
 
-export const generateOrderSuggestions = onCall(async (request) => {
+export const commitOrderRecommendations = onCall({ timeoutSeconds: 120, memory: "1GiB" }, async (request) => {
+  const uid = requireAuth(request)
+  const parsed = commitOrderRecommendationsRequestSchema.safeParse(request.data)
+  if (!parsed.success) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid recommendation commit request.",
+      parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }))
+    )
+  }
+  const input = parsed.data
+
+  try {
+    await requireStoreAccess(input.orgId, uid, input.storeId)
+
+    const collections = await resolveStoreCollections(input.orgId, input.storeId)
+    const runData = await readRecommendationRun({
+      storePath: collections.basePath,
+      runId: input.runId
+    })
+    if (!runData) {
+      throw new HttpsError("not-found", "Recommendation run not found for this store.")
+    }
+
+    if (runData.organizationId !== input.orgId || runData.storeId !== input.storeId) {
+      throw new HttpsError("permission-denied", "Recommendation run does not belong to this organization/store.")
+    }
+
+    const recommendationRows = Array.isArray(runData.orderRecommendations)
+      ? (runData.orderRecommendations as Array<Record<string, unknown>>)
+      : []
+    const recommendationByItem = new Map(
+      recommendationRows
+        .map((row) => [String(row.itemId ?? ""), row] as const)
+        .filter(([itemId]) => itemId.length > 0)
+    )
+
+    const selectedLines = input.selectedLines
+      .map((line) => {
+        const rec = recommendationByItem.get(line.itemId)
+        const fallbackUnit = rec?.unit === "lbs" ? "lbs" : "each"
+        const quantity = Math.max(0, Number(line.finalQuantity ?? 0))
+        return {
+          itemId: line.itemId,
+          finalQuantity: quantity,
+          unit: line.unit ?? fallbackUnit,
+          rationaleSummary:
+            line.rationaleSummary ??
+            (typeof rec?.rationaleSummary === "string" ? rec.rationaleSummary : "Applied from recommendation preview.")
+        } satisfies CommitOrderLine
+      })
+      .filter((line) => line.itemId.trim().length > 0)
+
+    const result = await commitRecommendationLines({
+      uid,
+      orgId: input.orgId,
+      storeId: input.storeId,
+      vendorId: input.vendorId,
+      runId: input.runId,
+      engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
+      lines: selectedLines
+    })
+
+    return {
+      orderId: result.orderId,
+      lineCount: result.lineCount,
+      todosCreated: result.todosCreated,
+      runId: input.runId,
+      engineVersion: typeof runData.engineVersion === "string" ? runData.engineVersion : "rules_v1",
+      appliedFromRun: true
+    }
+  } catch (error) {
+    if (error instanceof HttpsError) throw error
+    const details = normalizeUnknownError(error)
+    throw new HttpsError("internal", "Could not apply recommendation lines.", details)
+  }
+})
+
+export const generateOrderSuggestions = onCall({ timeoutSeconds: 180, memory: "1GiB" }, async (request) => {
   // Deprecated compatibility callable.
   // Use getStoreRecommendations (preview) + commitOrderRecommendations (apply) on all clients.
   const uid = requireAuth(request)
-  const input = generateOrderSuggestionsRequestSchema.parse(request.data)
-  await requireStoreAccess(input.orgId, uid, input.storeId)
+  const parsed = generateOrderSuggestionsRequestSchema.safeParse(request.data)
+  if (!parsed.success) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid generate-order request.",
+      parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }))
+    )
+  }
+  const input = parsed.data
 
-  const { response } = await buildStoreRecommendations({
-    orgId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId,
-    domains: ["orders"],
-    actorUid: uid,
-    forceRefresh: true
-  })
+  try {
+    await requireStoreAccess(input.orgId, uid, input.storeId)
 
-  const selectedLines: CommitOrderLine[] = response.orderRecommendations
-    .filter((row) => row.recommendedQuantity > 0)
-    .map((row) => ({
-      itemId: row.itemId,
-      finalQuantity: row.recommendedQuantity,
-      unit: row.unit,
-      rationaleSummary: row.rationaleSummary
-    }))
+    const { response } = await buildStoreRecommendations({
+      orgId: input.orgId,
+      storeId: input.storeId,
+      vendorId: input.vendorId,
+      domains: ["orders"],
+      actorUid: uid,
+      forceRefresh: true
+    })
 
-  const committed = await commitRecommendationLines({
-    uid,
-    orgId: input.orgId,
-    storeId: input.storeId,
-    vendorId: input.vendorId,
-    runId: response.meta.runId,
-    engineVersion: response.meta.engineVersion,
-    lines: selectedLines
-  })
+    const selectedLines: CommitOrderLine[] = response.orderRecommendations
+      .filter((row) => row.recommendedQuantity > 0)
+      .map((row) => ({
+        itemId: row.itemId,
+        finalQuantity: row.recommendedQuantity,
+        unit: row.unit,
+        rationaleSummary: row.rationaleSummary
+      }))
 
-  return {
-    orderId: committed.orderId,
-    lines: response.orderRecommendations.map((row) => ({
-      itemId: row.itemId,
-      suggestedQty: row.recommendedQuantity,
-      unit: row.unit,
-      rationale: row.rationaleSummary,
-      caseRounded: row.caseInterpretation === "case_rounded",
-      onHand: row.onHand,
-      minQuantity: row.minQuantity
-    })),
-    todosCreated: committed.todosCreated,
-    summary: `Generated ${response.orderRecommendations.length} recommendation line(s).`,
-    riskAlerts: response.orderRecommendations
-      .filter((row) => row.predictedWasteRisk.probability >= 0.5)
-      .slice(0, 5)
-      .map((row) => `${row.itemName ?? row.itemId} has elevated waste risk.`),
-    questionsForManager: response.questions,
-    recommendationMeta: response.meta
+    const committed = await commitRecommendationLines({
+      uid,
+      orgId: input.orgId,
+      storeId: input.storeId,
+      vendorId: input.vendorId,
+      runId: response.meta.runId,
+      engineVersion: response.meta.engineVersion,
+      lines: selectedLines
+    })
+
+    return {
+      orderId: committed.orderId,
+      lines: response.orderRecommendations.map((row) => ({
+        itemId: row.itemId,
+        suggestedQty: row.recommendedQuantity,
+        unit: row.unit,
+        rationale: row.rationaleSummary,
+        caseRounded: row.caseInterpretation === "case_rounded",
+        onHand: row.onHand,
+        minQuantity: row.minQuantity
+      })),
+      todosCreated: committed.todosCreated,
+      summary: `Generated ${response.orderRecommendations.length} recommendation line(s).`,
+      riskAlerts: response.orderRecommendations
+        .filter((row) => row.predictedWasteRisk.probability >= 0.5)
+        .slice(0, 5)
+        .map((row) => `${row.itemName ?? row.itemId} has elevated waste risk.`),
+      questionsForManager: response.questions,
+      recommendationMeta: response.meta
+    }
+  } catch (error) {
+    if (error instanceof HttpsError) throw error
+    const details = normalizeUnknownError(error)
+    throw new HttpsError("internal", "Could not generate order suggestions.", details)
   }
 })
 

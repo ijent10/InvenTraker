@@ -58,6 +58,19 @@ function draftFromRecommendation(row: OrderRecommendation): DraftLine {
   }
 }
 
+function formatCallableError(error: unknown, fallback: string): string {
+  const code =
+    typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
+  const details =
+    (error as { details?: { message?: unknown } | null })?.details &&
+    typeof (error as { details?: { message?: unknown } | null }).details?.message === "string"
+      ? String((error as { details?: { message?: string } }).details?.message ?? "")
+      : ""
+  const base = error instanceof Error ? error.message : fallback
+  const merged = details && details !== base ? `${base} ${details}` : base
+  return code ? `${merged} (${code})` : merged
+}
+
 export default function OrdersPage() {
   const { activeOrgId, activeStoreId, activeOrg, activeStore, effectivePermissions } = useOrgContext()
   const [selectedVendorId, setSelectedVendorId] = useState("")
@@ -119,7 +132,7 @@ export default function OrdersPage() {
     },
     onError: (error) => {
       setStatusMessage(null)
-      setErrorMessage(error instanceof Error ? error.message : "Could not generate recommendation preview.")
+      setErrorMessage(formatCallableError(error, "Could not generate recommendation preview."))
     }
   })
 
@@ -156,7 +169,7 @@ export default function OrdersPage() {
     },
     onError: (error) => {
       setStatusMessage(null)
-      setErrorMessage(error instanceof Error ? error.message : "Could not apply suggestions.")
+      setErrorMessage(formatCallableError(error, "Could not apply suggestions."))
     }
   })
 

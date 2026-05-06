@@ -253,6 +253,10 @@ export default function HealthChecksPage() {
       setErrorMessage("Form title is required.")
       return
     }
+    if (draft.scope === "store" && !(draft.storeId || activeStoreId)) {
+      setErrorMessage("Choose a store for store-scoped forms.")
+      return
+    }
     const validQuestions = draft.questions
       .map((question) => ({
         ...question,
@@ -413,6 +417,27 @@ export default function HealthChecksPage() {
                   />
                 </div>
               </div>
+              {draft.scope === "store" ? (
+                <div>
+                  <p className="secondary-text mb-1 text-xs">Assigned Store</p>
+                  <AppSelect
+                    value={draft.storeId || activeStoreId || ""}
+                    onChange={(event) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        storeId: event.target.value || undefined
+                      }))
+                    }
+                  >
+                    <option value="">Select store</option>
+                    {stores.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {storeLabelById.get(store.id) ?? store.name}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </div>
+              ) : null}
 
               <div>
                 <p className="mb-2 text-sm font-semibold">Assign Roles</p>

@@ -116,8 +116,9 @@ private final class HealthChecksViewModel: ObservableObject {
             let filtered = fetched.filter { form in
                 guard form.isActive else { return false }
                 if form.scope == "store" {
-                    let scopedStore = form.storeId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    if !scopedStore.isEmpty && scopedStore != storeId {
+                    let scopedStore = HealthChecksRemoteService.normalizeStoreIdentifier(form.storeId)
+                    let activeStore = HealthChecksRemoteService.normalizeStoreIdentifier(storeId)
+                    if !scopedStore.isEmpty && scopedStore != activeStore {
                         return false
                     }
                 }
@@ -701,59 +702,81 @@ private enum HealthChecksRemoteService {
             return true
         }
 
-        let normalizedRoleTargets = Set(
-            form.roleTargets
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-        )
+        let normalizedRoleTargets = normalizedAssignmentSet(form.roleTargets)
+        let normalizedDeptTargets = normalizedAssignmentSet(form.departmentTargets)
 
-        if !normalizedRoleTargets.isEmpty {
-            var roleAliases = Set<String>([membership.role.rawValue.lowercased()])
-            switch membership.role {
-            case .owner:
-                roleAliases.formUnion(["owner", "admin"])
-            case .manager:
-                roleAliases.formUnion(["manager", "lead"])
-            case .employee:
-                roleAliases.formUnion(["employee", "staff", "assistant"])
-            case .viewer:
-                roleAliases.formUnion(["viewer"])
-            }
-            if let roleTitle = membership.jobTitle?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased(),
-               !roleTitle.isEmpty {
-                roleAliases.insert(roleTitle)
-                roleAliases.insert(roleTitle.replacingOccurrences(of: " ", with: ""))
-            }
-            if roleAliases.isDisjoint(with: normalizedRoleTargets) {
-                return false
-            }
-        }
-
-        let normalizedDeptTargets = Set(
-            form.departmentTargets
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-        )
-        if normalizedDeptTargets.isEmpty {
+        if normalizedRoleTargets.isEmpty && normalizedDeptTargets.isEmpty {
             return true
         }
-        let membershipDepartments = Set(
-            (membership.departmentNames ?? [])
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-                + (membership.departmentIds ?? [])
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                    .filter { !$0.isEmpty }
-                + [membership.departmentId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
-                    .compactMap { $0 }
-                    .filter { !$0.isEmpty }
-        )
-        if membershipDepartments.isEmpty {
-            return false
+
+        let roleMatch: Bool
+        if normalizedRoleTargets.isEmpty {
+            roleMatch = false
+        } else {
+            var roleAliases = normalizedAssignmentSet([membership.role.rawValue, membership.role.displayName])
+            switch membership.role {
+            case .owner:
+                roleAliases.formUnion(normalizedAssignmentSet(["owner", "admin"]))
+            case .manager:
+                roleAliases.formUnion(normalizedAssignmentSet(["manager", "lead", "supervisor"]))
+            case .employee:
+                roleAliases.formUnion(normalizedAssignmentSet(["employee", "staff", "assistant", "associate"]))
+            case .viewer:
+                roleAliases.formUnion(normalizedAssignmentSet(["viewer"]))
+            }
+            if let roleTitle = membership.jobTitle, !roleTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                roleAliases.formUnion(normalizedAssignmentSet([roleTitle]))
+            }
+            roleMatch = !roleAliases.isDisjoint(with: normalizedRoleTargets)
         }
-        return !membershipDepartments.isDisjoint(with: normalizedDeptTargets)
+
+        let departmentMatch: Bool
+        if normalizedDeptTargets.isEmpty {
+            departmentMatch = false
+        } else {
+            let membershipDepartments = normalizedAssignmentSet(
+                (membership.departmentNames ?? [])
+                + (membership.departmentIds ?? [])
+                + [membership.departmentId].compactMap { $0 }
+            )
+            departmentMatch = !membershipDepartments.isEmpty && !membershipDepartments.isDisjoint(with: normalizedDeptTargets)
+        }
+
+        if !normalizedRoleTargets.isEmpty && !normalizedDeptTargets.isEmpty {
+            return roleMatch || departmentMatch
+        }
+        if !normalizedRoleTargets.isEmpty {
+            return roleMatch
+        }
+        return departmentMatch
+    }
+
+    private static func normalizedAssignmentSet(_ values: [String]) -> Set<String> {
+        var results = Set<String>()
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let lowercase = trimmed.lowercased()
+            results.insert(lowercase)
+
+            let collapsedWhitespace = lowercase.replacingOccurrences(
+                of: "\\s+",
+                with: " ",
+                options: .regularExpression
+            )
+            results.insert(collapsedWhitespace)
+            results.insert(collapsedWhitespace.replacingOccurrences(of: " ", with: ""))
+
+            let alphanumericOnly = collapsedWhitespace.replacingOccurrences(
+                of: "[^a-z0-9]",
+                with: "",
+                options: .regularExpression
+            )
+            if !alphanumericOnly.isEmpty {
+                results.insert(alphanumericOnly)
+            }
+        }
+        return results
     }
 
     private static func decodeForm(id: String, data: [String: Any]) -> HealthCheckForm? {
@@ -762,7 +785,8 @@ private enum HealthChecksRemoteService {
         let scope = ((data["scope"] as? String) ?? "organization").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let roleTargets = (data["roleTargets"] as? [String] ?? [])
         let departmentTargets = (data["departmentTargets"] as? [String] ?? [])
-        let storeId = (data["storeId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoreId = normalizeStoreIdentifier(data["storeId"] as? String)
+        let storeId = normalizedStoreId.isEmpty ? nil : normalizedStoreId
         let isActive = data["isActive"] as? Bool ?? true
         let rawQuestions = data["questions"] as? [[String: Any]] ?? []
         let questions = rawQuestions.enumerated().map { index, row in
@@ -796,6 +820,19 @@ private enum HealthChecksRemoteService {
             questions: questions,
             isActive: isActive
         )
+    }
+
+    static func normalizeStoreIdentifier(_ raw: String?) -> String {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            return trimmed
+                .split(separator: "/")
+                .map(String.init)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .last(where: { !$0.isEmpty }) ?? ""
+        }
+        return trimmed
     }
 
     #if canImport(FirebaseFirestore)

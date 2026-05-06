@@ -63,6 +63,9 @@ export type ItemRecord = {
   name: string
   upc?: string
   reworkItemCode?: string
+  notes?: string
+  restockMaxQuantity?: number
+  customFields: ItemCustomFieldRecord[]
   unit: "each" | "lbs"
   // Canonical + legacy aliases (iOS currently writes legacy names)
   minQuantity: number
@@ -82,6 +85,7 @@ export type ItemRecord = {
   locationId?: string
   categoryId?: string
   departmentLocation?: string
+  storeHidden?: boolean
   tags: string[]
   archived: boolean
   isArchived: boolean
@@ -112,6 +116,12 @@ export type ItemRecord = {
   lastSyncedAt?: unknown
 }
 
+export type ItemCustomFieldRecord = {
+  id: string
+  label: string
+  value: string
+}
+
 export type StoreItemOverrideRecord = {
   id: string
   organizationId: string
@@ -119,6 +129,7 @@ export type StoreItemOverrideRecord = {
   itemId: string
   minimumQuantity?: number
   departmentLocation?: string
+  hidden?: boolean
   updatedAt?: unknown
   updatedBy?: string
 }
@@ -1654,6 +1665,32 @@ function normalizeBatches(value: unknown): ItemRecord["batches"] {
   return batches
 }
 
+function normalizeItemCustomFields(value: unknown): ItemCustomFieldRecord[] {
+  if (!Array.isArray(value)) return []
+  const fields: ItemCustomFieldRecord[] = []
+  const seen = new Set<string>()
+  for (const [index, entry] of value.entries()) {
+    if (!entry || typeof entry !== "object") continue
+    const record = entry as Record<string, unknown>
+    const label = (asString(record.label) ?? asString(record.name) ?? "").trim()
+    const fieldValue = (asString(record.value) ?? "").trim()
+    if (!label || !fieldValue) continue
+    const rawId = (asString(record.id) ?? "").trim()
+    const fallbackId = label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48)
+    let id = rawId || fallbackId || `field_${index + 1}`
+    while (seen.has(id)) {
+      id = `${id}_${index + 1}`
+    }
+    seen.add(id)
+    fields.push({ id, label, value: fieldValue })
+  }
+  return fields
+}
+
 function totalQuantityFromBatches(batches: ItemRecord["batches"]): number {
   return Number(
     batches.reduce((sum, batch) => sum + Math.max(0, asNumber(batch.quantity, 0)), 0).toFixed(3)
@@ -1663,7 +1700,7 @@ function totalQuantityFromBatches(batches: ItemRecord["batches"]): number {
 function normalizeItemRecord(
   id: string,
   data: Record<string, unknown>,
-  override?: { minimumQuantity?: number; departmentLocation?: string }
+  override?: { minimumQuantity?: number; departmentLocation?: string; hidden?: boolean }
 ): ItemRecord {
   const minQuantity = asNumber(data.minQuantity ?? data.minimumQuantity, 0)
   const qtyPerCase = Math.max(1, asNumber(data.qtyPerCase ?? data.quantityPerBox, 1))
@@ -1687,6 +1724,11 @@ function normalizeItemRecord(
     name: String(data.name ?? "Unnamed Item"),
     upc: asString(data.upc),
     reworkItemCode: asString(data.reworkItemCode),
+    notes: asString(data.notes),
+    restockMaxQuantity: Number.isFinite(asNumber(data.restockMaxQuantity, Number.NaN))
+      ? Math.max(0, asNumber(data.restockMaxQuantity, 0))
+      : undefined,
+    customFields: normalizeItemCustomFields(data.customFields),
     unit: data.unit === "lbs" ? "lbs" : "each",
     minQuantity: minimumQuantity,
     minimumQuantity,
@@ -1705,6 +1747,7 @@ function normalizeItemRecord(
     locationId: asString(data.locationId),
     categoryId: asString(data.categoryId),
     departmentLocation,
+    storeHidden: override?.hidden === true,
     tags: asStringArray(data.tags),
     archived: Boolean(data.archived ?? data.isArchived),
     isArchived: Boolean(data.archived ?? data.isArchived),
@@ -1825,6 +1868,12 @@ function organizationItemPatch(patch: Partial<ItemRecord>): Record<string, unkno
   if (patch.name !== undefined) record.name = patch.name
   if (patch.upc !== undefined) record.upc = patch.upc?.trim() || null
   if (patch.reworkItemCode !== undefined) record.reworkItemCode = patch.reworkItemCode?.trim() || null
+  if (patch.notes !== undefined) record.notes = patch.notes?.trim() || null
+  if (patch.restockMaxQuantity !== undefined) {
+    const floorMax = Math.max(0, asNumber(patch.restockMaxQuantity, 0))
+    record.restockMaxQuantity = floorMax > 0 ? floorMax : null
+  }
+  if (patch.customFields !== undefined) record.customFields = normalizeItemCustomFields(patch.customFields)
   if (patch.price !== undefined) record.price = Math.max(0, asNumber(patch.price, 0))
   if (patch.qtyPerCase !== undefined || patch.quantityPerBox !== undefined) {
     const caseQty = Math.max(1, asNumber(patch.qtyPerCase ?? patch.quantityPerBox, 1))
@@ -2077,6 +2126,7 @@ export async function fetchStoreItemOverrides(
         ? asNumber(data.minimumQuantity, 0)
         : undefined,
       departmentLocation: asString(data.departmentLocation),
+      hidden: data.hidden === true,
       updatedAt: data.updatedAt,
       updatedBy: asString(data.updatedBy)
     }
@@ -2216,6 +2266,11 @@ export async function updateItem(orgId: string, itemId: string, patch: Partial<I
 
   const upc = (patch.upc ?? asString(currentData.upc) ?? "").trim()
   if (!upc) return
+  const normalizedVendorName = (patch.vendorName ?? asString(currentData.vendorName) ?? "").trim()
+  const normalizedDepartment = (patch.department ?? asString(currentData.department) ?? "").trim()
+  const normalizedDepartmentLocation = (
+    patch.departmentLocation ?? asString(currentData.departmentLocation) ?? ""
+  ).trim()
 
   await setDoc(
     doc(db, "organizations", orgId, "companyCatalog", upc),
@@ -2235,9 +2290,9 @@ export async function updateItem(orgId: string, itemId: string, patch: Partial<I
         currentData.defaultExpirationDays ??
         currentData.defaultExpiration ??
         7,
-      vendorName: patch.vendorName ?? currentData.vendorName ?? null,
-      department: patch.department ?? currentData.department ?? null,
-      departmentLocation: currentData.departmentLocation ?? null,
+      vendorName: normalizedVendorName || null,
+      department: normalizedDepartment || null,
+      departmentLocation: normalizedDepartmentLocation || null,
       unitRaw: patch.unit ?? currentData.unit ?? "each",
       isPrepackaged: patch.isPrepackaged ?? currentData.isPrepackaged ?? false,
       rewrapsWithUniqueBarcode:
@@ -2252,7 +2307,7 @@ export async function updateStoreItemOverride(
   orgId: string,
   storeId: string,
   itemId: string,
-  patch: Partial<Pick<StoreItemOverrideRecord, "minimumQuantity" | "departmentLocation">> & {
+  patch: Partial<Pick<StoreItemOverrideRecord, "minimumQuantity" | "departmentLocation" | "hidden">> & {
     actorUid?: string
   }
 ): Promise<void> {
@@ -2267,6 +2322,9 @@ export async function updateStoreItemOverride(
   if (patch.minimumQuantity !== undefined) data.minimumQuantity = Math.max(0, asNumber(patch.minimumQuantity, 0))
   if (patch.departmentLocation !== undefined) {
     data.departmentLocation = patch.departmentLocation?.trim() ? patch.departmentLocation.trim() : null
+  }
+  if (patch.hidden !== undefined) {
+    data.hidden = patch.hidden === true
   }
   if (patch.actorUid) data.updatedBy = patch.actorUid
   await setDoc(ref, data, { merge: true })
@@ -2288,11 +2346,13 @@ export async function fetchStoreInventoryItems(
 
   for (const metadata of itemById.values()) {
     const batches = metadata.batches.filter((batch) => Math.max(0, asNumber(batch.quantity, 0)) > 0)
-    if (batches.length === 0) continue
     const itemId = metadata.id
     if (!metadata) continue
 
     const override = overrides[itemId]
+    if (override?.hidden === true) continue
+    const isExplicitlyAssigned = Boolean(override)
+    if (!isExplicitlyAssigned && batches.length === 0) continue
     const minimumQuantity = override?.minimumQuantity ?? metadata.minimumQuantity
     const departmentLocation = override?.departmentLocation ?? metadata.departmentLocation
     const totalQuantity = Number(
@@ -2329,6 +2389,41 @@ export async function fetchStoreInventoryItems(
   return rows.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+export async function setStoreItemVisibility(input: {
+  orgId: string
+  storeId: string
+  itemId: string
+  visible: boolean
+  actorUid?: string
+}): Promise<void> {
+  const { orgId, storeId, itemId, visible, actorUid } = input
+  if (!db || !orgId || !storeId || !itemId) return
+
+  await updateStoreItemOverride(orgId, storeId, itemId, {
+    hidden: !visible,
+    actorUid
+  })
+
+  if (visible) return
+
+  const resolvedStore = (await fetchStores(orgId).catch(() => [] as StoreWithPath[])).find(
+    (entry) => entry.id === storeId
+  )
+  const batchCollection = resolvedStore
+    ? storeCollectionPath(orgId, resolvedStore, "inventoryBatches")
+    : collection(db, "organizations", orgId, "stores", storeId, "inventoryBatches")
+  const existingBatches = await getDocs(
+    query(batchCollection, where("itemId", "==", itemId), limit(2500))
+  ).catch(() => null)
+  if (!existingBatches || existingBatches.empty) return
+
+  const batchWriter = writeBatch(db)
+  for (const row of existingBatches.docs) {
+    batchWriter.delete(row.ref)
+  }
+  await batchWriter.commit()
+}
+
 export async function upsertStoreInventoryItem(
   orgId: string,
   storeId: string,
@@ -2356,6 +2451,7 @@ export async function upsertStoreInventoryItem(
   await updateStoreItemOverride(orgId, storeId, itemId, {
     minimumQuantity: storeMinimumQuantity,
     departmentLocation: storeDepartmentLocation,
+    hidden: false,
     actorUid
   })
 

@@ -723,9 +723,29 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     itemAliasToBackendID[mirroredBackend] = backendId
                 }
             }
+            var explicitStoreAssignments: Set<String> = []
+            if let storeOverrideSnapshot = try? await orgRef
+                .collection("storeItemOverrides")
+                .whereField("storeId", isEqualTo: normalizedStoreID)
+                .getDocuments() {
+                for overrideDoc in storeOverrideSnapshot.documents {
+                    let overrideData = overrideDoc.data()
+                    if (overrideData["hidden"] as? Bool) == true {
+                        continue
+                    }
+                    let scopedItemID = ((overrideData["itemId"] as? String) ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !scopedItemID.isEmpty else { continue }
+                    explicitStoreAssignments.insert(scopedItemID)
+                    if let backendAlias = itemAliasToBackendID[scopedItemID] {
+                        explicitStoreAssignments.insert(backendAlias)
+                    }
+                }
+            }
 
             var canonicalBatchesByBackendID: [String: [String: (isNested: Bool, data: [String: Any])]] = [:]
             var hasAnyBatchRows = false
+            var materializedRemoteBackendIDs: Set<String> = []
 
             func mergeBatchDocuments(_ documents: [QueryDocumentSnapshot], defaultNested: Bool? = nil) {
                 guard !documents.isEmpty else { return }
@@ -785,6 +805,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             let existingItems = (try? modelContext.fetch(FetchDescriptor<InventoryItem>())) ?? []
             var itemByBackendID: [String: InventoryItem] = [:]
             var itemByUUID: [UUID: InventoryItem] = [:]
+            var itemByUPCAndStore: [String: InventoryItem] = [:]
             for item in existingItems where item.organizationId == organizationId {
                 let scopedStore = item.storeId.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard scopedStore == storeId else { continue }
@@ -792,6 +813,9 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     itemByBackendID["\(backend)|\(scopedStore)"] = item
                 }
                 itemByUUID[item.id] = item
+                if let upc = stringValue(item.upc), !upc.isEmpty {
+                    itemByUPCAndStore["\(upc)|\(scopedStore)"] = item
+                }
             }
 
             for doc in itemSnapshot.documents {
@@ -845,12 +869,8 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 }
 
                 let hasStoreScopedQuantity = !canonicalBatches.isEmpty
+                let hasExplicitStoreAssignment = explicitStoreAssignments.contains(backendId)
                 if !remoteStoreRaw.isEmpty, remoteStoreRaw != storeId {
-                    continue
-                }
-                // Org metadata items (storeId empty) should only materialize locally for this store
-                // when they actually have quantity records for this store.
-                if remoteStoreRaw.isEmpty && !hasStoreScopedQuantity {          
                     continue
                 }
                 let resolvedRemoteStore = remoteStoreRaw.isEmpty ? storeId : remoteStoreRaw
@@ -881,9 +901,16 @@ final class InventoryStateSyncService: InventoryStateSyncing {
 
                 let resolvedName = (data["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !resolvedName.isEmpty else { continue }
+                let resolvedUPC = stringValue(data["upc"])
 
                 let backendLookupKey = "\(backendId)|\(resolvedRemoteStore)"
-                let existingItem = itemByBackendID[backendLookupKey] ?? itemByUUID[resolvedID]
+                let upcLookupKey = resolvedUPC.map { "\($0)|\(resolvedRemoteStore)" }
+                let existingItem =
+                    itemByBackendID[backendLookupKey] ??
+                    itemByUUID[resolvedID] ??
+                    (upcLookupKey.flatMap { itemByUPCAndStore[$0] })
+                let shouldMaterializeForStore = !remoteStoreRaw.isEmpty || hasStoreScopedQuantity || hasExplicitStoreAssignment
+                guard shouldMaterializeForStore else { continue }
                 let item: InventoryItem
                 var itemChanged = false
                 if let existingItem {
@@ -903,7 +930,11 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 }
 
                 let remoteRevision = data["revision"] as? Int ?? item.revision
-                let remoteLastModified = dateValue(data["lastModified"])
+                let remoteLastModified: Date = {
+                    let remoteLastModified = dateValue(data["lastModified"])
+                    let remoteUpdatedAt = dateValue(data["updatedAt"])
+                    return remoteUpdatedAt > remoteLastModified ? remoteUpdatedAt : remoteLastModified
+                }()
                 let hasRemoteImagePointer = data["thumbnailBase64"] != nil ||
                     data["photoUrl"] != nil ||
                     (data["pictures"] as? [Any]) != nil
@@ -913,6 +944,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     remoteLastModified <= item.lastModified,
                     !(item.pictures.isEmpty && hasRemoteImagePointer)
                 {
+                    materializedRemoteBackendIDs.insert(backendId)
                     itemByUUID[item.id] = item
                     itemByBackendID[backendLookupKey] = item
                     continue
@@ -924,7 +956,7 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 if item.storeId != resolvedStore { item.storeId = resolvedStore; itemChanged = true }
                 if item.backendId != backendId { item.backendId = backendId; itemChanged = true }
 
-                let remoteUPC = data["upc"] as? String
+                let remoteUPC = resolvedUPC
                 if item.upc != remoteUPC { item.upc = remoteUPC; itemChanged = true }
                 let remoteReworkItemCode = data["reworkItemCode"] as? String
                 if item.reworkItemCode != remoteReworkItemCode {
@@ -934,6 +966,24 @@ final class InventoryStateSyncService: InventoryStateSyncing {
 
                 let remoteTags = data["tags"] as? [String] ?? item.tags
                 if item.tags != remoteTags { item.tags = remoteTags; itemChanged = true }
+
+                let remoteNotes = stringValue(data["notes"]) ?? ""
+                if item.notes != remoteNotes {
+                    item.notes = remoteNotes
+                    itemChanged = true
+                }
+
+                let remoteRestockMaxQuantity = max(0, doubleValue(data["restockMaxQuantity"]))
+                if item.restockMaxQuantity != remoteRestockMaxQuantity {
+                    item.restockMaxQuantity = remoteRestockMaxQuantity
+                    itemChanged = true
+                }
+
+                let remoteCustomFields = inventoryCustomFields(from: data["customFields"])
+                if item.customFields != remoteCustomFields {
+                    item.customFields = remoteCustomFields
+                    itemChanged = true
+                }
 
                 let rawRemoteDefaultExpiration =
                     data["defaultExpiration"] as? Int ??
@@ -958,13 +1008,16 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     itemChanged = true
                 }
 
-                let remoteMinimumQuantity = data["minimumQuantity"] as? Double ?? item.minimumQuantity
+                let remoteMinimumQuantity = doubleValue(data["minimumQuantity"] ?? data["minQuantity"], fallback: item.minimumQuantity)
                 if item.minimumQuantity != remoteMinimumQuantity {
                     item.minimumQuantity = remoteMinimumQuantity
                     itemChanged = true
                 }
 
-                let remoteQuantityPerBox = data["quantityPerBox"] as? Int ?? item.quantityPerBox
+                let remoteQuantityPerBox = max(
+                    1,
+                    intValue(data["quantityPerBox"] ?? data["qtyPerCase"], fallback: item.quantityPerBox)
+                )
                 if item.quantityPerBox != remoteQuantityPerBox {
                     item.quantityPerBox = remoteQuantityPerBox
                     itemChanged = true
@@ -1065,12 +1118,27 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                     itemChanged = true
                 }
 
-                if let vendorIDString = data["vendorId"] as? String,
-                   let vendorID = UUID(uuidString: vendorIDString),
-                   let vendor = vendorByUUID[vendorID],
-                   item.vendor?.id != vendor.id {
-                    item.vendor = vendor
-                    itemChanged = true
+                if data.keys.contains("vendorId") || data.keys.contains("vendorName") {
+                    let remoteVendorID = stringValue(data["vendorId"])
+                    let remoteVendorName = stringValue(data["vendorName"])
+                    let resolvedVendor: Vendor? = {
+                        if let remoteVendorID, let byBackend = vendorByBackendID[remoteVendorID] {
+                            return byBackend
+                        }
+                        if let remoteVendorID, let vendorUUID = UUID(uuidString: remoteVendorID) {
+                            return vendorByUUID[vendorUUID]
+                        }
+                        if let remoteVendorName, !remoteVendorName.isEmpty {
+                            return vendorByBackendID.values.first {
+                                $0.name.caseInsensitiveCompare(remoteVendorName) == .orderedSame
+                            }
+                        }
+                        return nil
+                    }()
+                    if item.vendor?.id != resolvedVendor?.id {
+                        item.vendor = resolvedVendor
+                        itemChanged = true
+                    }
                 }
 
                 let scopedBatches: [[String: Any]] = canonicalBatches
@@ -1136,41 +1204,21 @@ final class InventoryStateSyncService: InventoryStateSyncing {
                 }
                 itemByUUID[item.id] = item
                 itemByBackendID["\(backendId)|\(resolvedRemoteStore)"] = item
+                if let itemUPC = stringValue(item.upc), !itemUPC.isEmpty {
+                    itemByUPCAndStore["\(itemUPC)|\(resolvedRemoteStore)"] = item
+                }
+                materializedRemoteBackendIDs.insert(backendId)
             }
 
-            let remoteBackendIDs = Set(itemSnapshot.documents.map(\.documentID))
-            let storeBackendsWithQuantity = Set(
-                canonicalBatchesByBackendID.compactMap { backendId, rows in
-                    let hasPositiveQuantity = rows.values.contains { row in
-                        doubleValue(row.data["quantity"]) > 0
-                    }
-                    return hasPositiveQuantity ? backendId : nil
-                }
-            )
             let scopedExistingItems = existingItems.filter { item in
                 item.organizationId == organizationId &&
                 item.storeId.trimmingCharacters(in: .whitespacesAndNewlines) == storeId
             }
             for item in scopedExistingItems {
                 let backendId = (item.backendId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                let hasQuantity = item.batches.contains { $0.quantity > 0 }
-                if !backendId.isEmpty {
-                    if !remoteBackendIDs.contains(backendId) {
+                if !backendId.isEmpty, !materializedRemoteBackendIDs.contains(backendId) {
                         modelContext.delete(item)
                         didMerge = true
-                        continue
-                    }
-                    // If metadata exists but no quantity rows for this store, remove stale local materialization.
-                    if !storeBackendsWithQuantity.contains(backendId), item.lastSyncedAt != nil {
-                        modelContext.delete(item)
-                        didMerge = true
-                        continue
-                    }
-                    continue
-                }
-                if !hasQuantity && item.totalQuantity <= 0 {
-                    modelContext.delete(item)
-                    didMerge = true
                 }
             }
         }
@@ -1841,13 +1889,57 @@ final class InventoryStateSyncService: InventoryStateSyncing {
         data["departmentLocation"] = item.departmentLocation
         data["updatedByUid"] = item.updatedByUid
         data["backendId"] = item.backendId
-        data["vendorId"] = item.vendor?.id.uuidString
-        data["vendorName"] = item.vendor?.name
+        if let vendor = item.vendor {
+            let backendVendorID = (vendor.backendId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            data["vendorId"] = backendVendorID.isEmpty ? vendor.id.uuidString : backendVendorID
+            data["vendorName"] = vendor.name
+        } else {
+            data["vendorId"] = FieldValue.delete()
+            data["vendorName"] = FieldValue.delete()
+        }
+        let cleanedNotes = item.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanedNotes.isEmpty {
+            data["notes"] = cleanedNotes
+        } else {
+            data["notes"] = FieldValue.delete()
+        }
+        if item.restockMaxQuantity > 0 {
+            data["restockMaxQuantity"] = item.restockMaxQuantity
+        } else {
+            data["restockMaxQuantity"] = FieldValue.delete()
+        }
+        let customFieldsPayload = item.customFields.map {
+            [
+                "id": $0.id,
+                "label": $0.label,
+                "value": $0.value
+            ]
+        }
+        if !customFieldsPayload.isEmpty {
+            data["customFields"] = customFieldsPayload
+        } else {
+            data["customFields"] = FieldValue.delete()
+        }
 
         try await ref.setData(data, merge: true)
 
         let scopedStoreId = item.storeId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !scopedStoreId.isEmpty else { return }
+        var storeAssignmentData: [String: Any] = [
+            "organizationId": organizationId,
+            "storeId": scopedStoreId,
+            "itemId": item.id.uuidString,
+            "hidden": false,
+            "updatedAt": Date()
+        ]
+        if let updatedBy = item.updatedByUid {
+            storeAssignmentData["updatedBy"] = updatedBy
+        }
+        try await db.collection("organizations")
+            .document(organizationId)
+            .collection("storeItemOverrides")
+            .document("\(scopedStoreId)_\(item.id.uuidString)")
+            .setData(storeAssignmentData, merge: true)
         try await upsertStoreBatches(
             for: item,
             organizationId: organizationId,
@@ -2812,6 +2904,17 @@ final class InventoryStateSyncService: InventoryStateSyncing {
             return parsed
         }
         return nil
+    }
+
+    private func inventoryCustomFields(from value: Any?) -> [InventoryCustomField] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.enumerated().compactMap { index, row in
+            let label = stringValue(row["label"] ?? row["name"]) ?? ""
+            let fieldValue = stringValue(row["value"]) ?? ""
+            guard !label.isEmpty, !fieldValue.isEmpty else { return nil }
+            let id = stringValue(row["id"]) ?? "field_\(index + 1)"
+            return InventoryCustomField(id: id, label: label, value: fieldValue)
+        }
     }
 
     private func boolValue(_ value: Any?, fallback: Bool = false) -> Bool {

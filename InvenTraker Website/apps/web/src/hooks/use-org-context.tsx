@@ -127,12 +127,13 @@ function useOrgContextState(): OrgContextValue {
       try {
         const allStores = await fetchStores(activeOrgId)
         const assignedStoreIds = currentOrg?.storeIds ?? []
+        const hasScopedStoreAssignments = assignedStoreIds.length > 0
         const filteredStores =
           currentOrg?.role === "Owner"
             ? allStores
-            : assignedStoreIds.length > 0
+            : hasScopedStoreAssignments
               ? allStores.filter((store) => assignedStoreIds.includes(store.id))
-              : []
+              : allStores
 
         const mappedStores = filteredStores.map((store) => ({
           id: store.id,

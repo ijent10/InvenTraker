@@ -244,7 +244,12 @@ export async function requirePlatformAdmin(request: AuthedRequest): Promise<stri
 export async function getMembership(orgId: string, uid: string) {
   const snap = await adminDb.doc(`organizations/${orgId}/members/${uid}`).get()
   const member = snap.exists
-    ? (snap.data() as { role?: string; storeIds?: string[]; permissionFlags?: Record<string, boolean> })
+    ? (snap.data() as {
+        role?: string
+        assignmentType?: "corporate" | "store"
+        storeIds?: string[]
+        permissionFlags?: Record<string, boolean>
+      })
     : null
   const orgSnap = await adminDb.doc(`organizations/${orgId}`).get()
   const orgData = (orgSnap.data() as { ownerUserIds?: string[]; ownerUid?: string } | undefined) ?? {}
@@ -258,6 +263,7 @@ export async function getMembership(orgId: string, uid: string) {
   if (isPlatformAdmin) {
     return {
       role: "Owner" as const,
+      assignmentType: "corporate" as const,
       storeIds: [],
       permissionFlags: permissionDefaultsForRole("Owner"),
       ownerByArray: true
@@ -268,6 +274,10 @@ export async function getMembership(orgId: string, uid: string) {
 
   return {
     role: normalizeRole(member?.role, ownerByArray),
+    assignmentType:
+      member?.assignmentType === "corporate" || member?.assignmentType === "store"
+        ? member.assignmentType
+        : "store",
     storeIds: Array.isArray(member?.storeIds) ? member.storeIds : [],
     permissionFlags:
       member?.permissionFlags && typeof member.permissionFlags === "object"
@@ -288,7 +298,8 @@ export async function requireStoreAccess(orgId: string, uid: string, storeId: st
   if (member.role === "Owner") return member
   if (member.role === "Manager" || member.role === "Staff") {
     const storeIds = member.storeIds ?? []
-    const allowed = storeIds.includes(storeId)
+    const hasScopedAssignments = member.assignmentType === "store" || storeIds.length > 0
+    const allowed = !hasScopedAssignments || storeIds.includes(storeId)
     if (!allowed) throw new HttpsError("permission-denied", "No store access")
   }
   return member

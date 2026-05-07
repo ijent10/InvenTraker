@@ -8,7 +8,6 @@ import { PageHead } from "@/components/page-head"
 import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
-  createOrgNotification,
   fetchOrgNotifications,
   fetchOrgSettings,
   fetchStoreSettings,
@@ -210,28 +209,24 @@ export default function NotificationsPage() {
         requestPayload.attachmentSizeBytes = uploadedAsset.sizeBytes
       }
 
-      try {
-        const callableResult = await sendOrgNotification(requestPayload)
-        if (!callableResult?.ok) {
-          throw new Error("Callable send failed.")
+      const callableResult = await sendOrgNotification(requestPayload)
+      if (!callableResult?.ok) {
+        throw new Error("Notification service is unavailable. Please try again.")
+      }
+      if (delivery === "immediate") {
+        const pushSent = callableResult.pushSummary?.sent ?? 0
+        const pushDevices = callableResult.pushSummary?.recipientDevices ?? 0
+        if (pushSent <= 0) {
+          const pushError = callableResult.pushError?.trim()
+          if (pushError) {
+            throw new Error(`Notification saved, but push delivery failed: ${pushError}`)
+          }
+          throw new Error(
+            pushDevices <= 0
+              ? "Notification saved, but no active push devices were found for the selected audience."
+              : "Notification saved, but no push notifications were delivered."
+          )
         }
-      } catch (callableError) {
-        // Compatibility fallback for older deployed callables.
-        await createOrgNotification(activeOrgId, user.uid, {
-          name,
-          content,
-          roleTargets: effectiveRoleTargets,
-          dispatchMode: delivery,
-          scheduledFor,
-          storeId: activeStoreId || undefined,
-          senderName: user.displayName ?? user.email ?? "",
-          attachmentAssetId: uploadedAsset?.id,
-          attachmentName: uploadedAsset?.originalName,
-          attachmentUrl: uploadedAsset?.downloadUrl,
-          attachmentContentType: uploadedAsset?.contentType,
-          attachmentSizeBytes: uploadedAsset?.sizeBytes
-        })
-        void callableError
       }
       await refetch()
       setStatusMessage(delivery === "scheduled" ? "Notification scheduled." : "Notification sent.")

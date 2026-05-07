@@ -2065,18 +2065,44 @@ export async function fetchUserOrganizations(uid: string): Promise<OrgContext[]>
 
 export async function fetchStores(orgId: string): Promise<StoreWithPath[]> {
   if (!db || !orgId) return []
-  const stores: StoreWithPath[] = []
-  const regions = await getDocs(collection(db, "organizations", orgId, "regions"))
+  const storesById = new Map<string, StoreWithPath>()
 
-  for (const region of regions.docs) {
-    const districts = await getDocs(collection(db, "organizations", orgId, "regions", region.id, "districts"))
-    for (const district of districts.docs) {
+  const addStore = (store: StoreWithPath) => {
+    const existing = storesById.get(store.id)
+    if (!existing) {
+      storesById.set(store.id, store)
+      return
+    }
+
+    const existingIsLegacy = existing.regionId === "legacy" && existing.districtId === "legacy"
+    const incomingIsLegacy = store.regionId === "legacy" && store.districtId === "legacy"
+
+    if (existingIsLegacy && !incomingIsLegacy) {
+      storesById.set(store.id, store)
+      return
+    }
+    if (!existingIsLegacy && incomingIsLegacy) {
+      return
+    }
+
+    storesById.set(store.id, {
+      ...existing,
+      ...store
+    })
+  }
+
+  const regions = await getDocs(collection(db, "organizations", orgId, "regions")).catch(() => null)
+  for (const region of regions?.docs ?? []) {
+    const districts = await getDocs(collection(db, "organizations", orgId, "regions", region.id, "districts")).catch(
+      () => null
+    )
+    for (const district of districts?.docs ?? []) {
       const storeSnap = await getDocs(
         collection(db, "organizations", orgId, "regions", region.id, "districts", district.id, "stores")
-      )
-      for (const store of storeSnap.docs) {
+      ).catch(() => null)
+      for (const store of storeSnap?.docs ?? []) {
         const data = store.data() as Record<string, unknown>
-        stores.push({
+        addStore({
           id: store.id,
           name: String(data.name ?? "Store"),
           title: typeof data.title === "string" ? data.title : undefined,
@@ -2096,7 +2122,30 @@ export async function fetchStores(orgId: string): Promise<StoreWithPath[]> {
     }
   }
 
-  return stores.sort((a, b) => formatStoreLabel(a).localeCompare(formatStoreLabel(b)))
+  // Legacy compatibility: older orgs may keep stores under organizations/{orgId}/stores.
+  const legacyStores = await getDocs(collection(db, "organizations", orgId, "stores")).catch(() => null)
+  for (const store of legacyStores?.docs ?? []) {
+    const data = store.data() as Record<string, unknown>
+    addStore({
+      id: store.id,
+      name: String(data.name ?? "Store"),
+      title: typeof data.title === "string" ? data.title : undefined,
+      storeNumber: typeof data.storeNumber === "string" ? data.storeNumber : undefined,
+      status: String(data.status ?? "active"),
+      regionId: typeof data.regionId === "string" && data.regionId.trim() ? data.regionId.trim() : "legacy",
+      districtId:
+        typeof data.districtId === "string" && data.districtId.trim() ? data.districtId.trim() : "legacy",
+      lastSyncAt: data.lastSyncAt,
+      addressLine1: typeof data.addressLine1 === "string" ? data.addressLine1 : undefined,
+      addressLine2: typeof data.addressLine2 === "string" ? data.addressLine2 : undefined,
+      city: typeof data.city === "string" ? data.city : undefined,
+      state: typeof data.state === "string" ? data.state : undefined,
+      postalCode: typeof data.postalCode === "string" ? data.postalCode : undefined,
+      country: typeof data.country === "string" ? data.country : undefined
+    })
+  }
+
+  return Array.from(storesById.values()).sort((a, b) => formatStoreLabel(a).localeCompare(formatStoreLabel(b)))
 }
 
 export async function fetchStoreItemOverrides(

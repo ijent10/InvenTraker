@@ -14,14 +14,16 @@ import {
 } from "@/lib/data/firestore"
 import { computeFinancialHealth } from "@/lib/firebase/functions"
 
-type InsightSectionKey = "inventory" | "waste" | "expiring" | "mostWasted" | "overstocked"
+type InsightSectionKey = "inventory" | "waste" | "expiring" | "mostWasted" | "overstocked" | "risk" | "stock"
 
 const DEFAULT_SECTIONS: Record<InsightSectionKey, boolean> = {
   inventory: true,
   waste: true,
   expiring: true,
   mostWasted: true,
-  overstocked: true
+  overstocked: true,
+  risk: true,
+  stock: true
 }
 
 const SECTION_LABELS: Array<{ key: InsightSectionKey; label: string }> = [
@@ -29,8 +31,32 @@ const SECTION_LABELS: Array<{ key: InsightSectionKey; label: string }> = [
   { key: "waste", label: "Waste" },
   { key: "expiring", label: "Expiring Soon" },
   { key: "mostWasted", label: "Most Wasted" },
-  { key: "overstocked", label: "Overstocked" }
+  { key: "overstocked", label: "Overstocked" },
+  { key: "stock", label: "Stock Pressure" },
+  { key: "risk", label: "Risk Signals" }
 ]
+
+function toDate(value: unknown): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  if (typeof value === "object" && value && "toDate" in value && typeof (value as { toDate?: unknown }).toDate === "function") {
+    try {
+      const parsed = (value as { toDate: () => Date }).toDate()
+      return Number.isNaN(parsed.getTime()) ? null : parsed
+    } catch {
+      return null
+    }
+  }
+  return null
+}
 
 export default function InsightsPage() {
   const { user } = useAuthUser()
@@ -141,6 +167,102 @@ export default function InsightsPage() {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10)
   }, [wasteRows, wasteSearch])
+
+  const derivedInsights = useMemo(() => {
+    const now = Date.now()
+    const dayMs = 24 * 60 * 60 * 1000
+    const weekAgo = now - 7 * dayMs
+    const expiringCutoff = now + Number(expiringWindow) * dayMs
+
+    let expiringBatchCount = 0
+    let expiredBatchCount = 0
+    let expiringUnits = 0
+    let outOfStockCount = 0
+    let lowStockCount = 0
+    let shortageValue = 0
+
+    const lowStockDrivers: Array<{ itemId: string; itemName: string; deficit: number; deficitValue: number }> = []
+    const priceByItemId = new Map(scopedItems.map((item) => [item.id, Number(item.price ?? 0)]))
+    const topLossByItem = new Map<string, { name: string; cost: number; quantity: number }>()
+
+    for (const item of scopedItems) {
+      const totalQuantity = Number(item.totalQuantity ?? 0)
+      const minimumQuantity = Number(item.minimumQuantity ?? item.minQuantity ?? 0)
+      const unitPrice = Number(item.price ?? 0)
+      if (totalQuantity <= 0) outOfStockCount += 1
+      if (totalQuantity < minimumQuantity) {
+        lowStockCount += 1
+        const deficit = Math.max(0, minimumQuantity - totalQuantity)
+        const deficitValue = deficit * unitPrice
+        shortageValue += deficitValue
+        lowStockDrivers.push({
+          itemId: item.id,
+          itemName: item.name,
+          deficit: Number(deficit.toFixed(3)),
+          deficitValue: Number(deficitValue.toFixed(2))
+        })
+      }
+
+      for (const batch of item.batches) {
+        const expirationDate = toDate(batch.expirationDate)
+        if (!expirationDate) continue
+        const expiresAt = expirationDate.getTime()
+        if (expiresAt < now) {
+          expiredBatchCount += 1
+          continue
+        }
+        if (expiresAt <= expiringCutoff) {
+          expiringBatchCount += 1
+          expiringUnits += Number(batch.quantity ?? 0)
+        }
+      }
+    }
+
+    let wasteCostWeek = 0
+    let wasteUnitsWeek = 0
+    for (const row of wasteRows) {
+      const eventAt = toDate(row.date ?? row.createdAt)?.getTime()
+      if (!eventAt || eventAt < weekAgo) continue
+
+      const itemId = String(row.itemId ?? "")
+      const itemName = String(row.itemName ?? row.itemId ?? "Unknown")
+      const quantity = Number(row.quantity ?? row.amount ?? 0)
+      const unitPrice = Number(row.itemPriceSnapshot ?? (itemId ? priceByItemId.get(itemId) ?? 0 : 0))
+      const explicitCost = Number(row.totalCost ?? row.cost ?? Number.NaN)
+      const lossCost = Number.isFinite(explicitCost) ? explicitCost : quantity * unitPrice
+      wasteCostWeek += lossCost
+      wasteUnitsWeek += quantity
+
+      const current = topLossByItem.get(itemName) ?? { name: itemName, cost: 0, quantity: 0 }
+      current.cost += lossCost
+      current.quantity += quantity
+      topLossByItem.set(itemName, current)
+    }
+
+    const wasteRate = (financial?.inventoryValue ?? 0) > 0 ? (wasteCostWeek / (financial?.inventoryValue ?? 1)) * 100 : 0
+    const topLossItems = Array.from(topLossByItem.values())
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 8)
+      .map((row) => ({
+        ...row,
+        cost: Number(row.cost.toFixed(2)),
+        quantity: Number(row.quantity.toFixed(3))
+      }))
+
+    return {
+      expiringBatchCount,
+      expiredBatchCount,
+      expiringUnits: Number(expiringUnits.toFixed(3)),
+      outOfStockCount,
+      lowStockCount,
+      shortageValue: Number(shortageValue.toFixed(2)),
+      wasteCostWeek: Number(wasteCostWeek.toFixed(2)),
+      wasteUnitsWeek: Number(wasteUnitsWeek.toFixed(3)),
+      wasteRate: Number(wasteRate.toFixed(2)),
+      lowStockDrivers: lowStockDrivers.sort((a, b) => b.deficitValue - a.deficitValue).slice(0, 8),
+      topLossItems
+    }
+  }, [expiringWindow, financial?.inventoryValue, scopedItems, wasteRows])
 
   const allSectionsHidden = Object.values(visibleSections).every((enabled) => !enabled)
 
@@ -257,7 +379,8 @@ export default function InsightsPage() {
             <>
               <AppCard>
                 <p className="secondary-text">Waste Cost (Week)</p>
-                <p className="mt-2 text-3xl font-semibold">${(financial?.wasteCostWeek ?? 0).toFixed(2)}</p>
+                <p className="mt-2 text-3xl font-semibold">${derivedInsights.wasteCostWeek.toFixed(2)}</p>
+                <p className="secondary-text mt-1">{derivedInsights.wasteUnitsWeek.toFixed(3)} units logged</p>
               </AppCard>
               <AppCard>
                 <p className="secondary-text">Waste Cost (Month)</p>
@@ -270,6 +393,36 @@ export default function InsightsPage() {
               <p className="secondary-text">Expiring Soon Value</p>
               <p className="mt-2 text-3xl font-semibold">${(financial?.expiringSoonValue ?? 0).toFixed(2)}</p>
               <p className="secondary-text mt-1">Within {expiringWindow} days</p>
+            </AppCard>
+          ) : null}
+          {visibleSections.expiring ? (
+            <AppCard>
+              <p className="secondary-text">Expiring / Expired Batches</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {derivedInsights.expiringBatchCount} / {derivedInsights.expiredBatchCount}
+              </p>
+              <p className="secondary-text mt-1">{derivedInsights.expiringUnits.toFixed(3)} units expiring soon</p>
+            </AppCard>
+          ) : null}
+          {visibleSections.stock ? (
+            <>
+              <AppCard>
+                <p className="secondary-text">Out of Stock</p>
+                <p className="mt-2 text-3xl font-semibold">{derivedInsights.outOfStockCount}</p>
+                <p className="secondary-text mt-1">{derivedInsights.lowStockCount} additional low-stock items</p>
+              </AppCard>
+              <AppCard>
+                <p className="secondary-text">Shortage Risk Value</p>
+                <p className="mt-2 text-3xl font-semibold">${derivedInsights.shortageValue.toFixed(2)}</p>
+                <p className="secondary-text mt-1">Estimated value to reach minimum levels</p>
+              </AppCard>
+            </>
+          ) : null}
+          {visibleSections.risk ? (
+            <AppCard>
+              <p className="secondary-text">Waste Rate (7d)</p>
+              <p className="mt-2 text-3xl font-semibold">{derivedInsights.wasteRate.toFixed(2)}%</p>
+              <p className="secondary-text mt-1">Waste cost as a percentage of current inventory value</p>
             </AppCard>
           ) : null}
         </div>
@@ -313,6 +466,42 @@ export default function InsightsPage() {
                     <p className="secondary-text">
                       On hand {entry.onHand.toFixed(3)} · Min {entry.minQuantity.toFixed(3)}
                     </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </AppCard>
+        ) : null}
+        {visibleSections.stock ? (
+          <AppCard>
+            <h2 className="card-title">Low Stock Drivers</h2>
+            <div className="mt-3 space-y-2">
+              {derivedInsights.lowStockDrivers.length === 0 ? (
+                <p className="secondary-text">No shortages right now.</p>
+              ) : (
+                derivedInsights.lowStockDrivers.map((entry) => (
+                  <div key={entry.itemId} className="rounded-xl border border-app-border px-3 py-2 text-sm">
+                    <p className="font-semibold">{entry.itemName}</p>
+                    <p className="secondary-text">
+                      Deficit {entry.deficit.toFixed(3)} · Risk ${entry.deficitValue.toFixed(2)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </AppCard>
+        ) : null}
+        {visibleSections.risk ? (
+          <AppCard>
+            <h2 className="card-title">Top Waste Loss (7d)</h2>
+            <div className="mt-3 space-y-2">
+              {derivedInsights.topLossItems.length === 0 ? (
+                <p className="secondary-text">No recent waste losses found in the selected scope.</p>
+              ) : (
+                derivedInsights.topLossItems.map((entry) => (
+                  <div key={entry.name} className="flex items-center justify-between rounded-xl border border-app-border px-3 py-2 text-sm">
+                    <span>{entry.name}</span>
+                    <span className="font-semibold">${entry.cost.toFixed(2)}</span>
                   </div>
                 ))
               )}

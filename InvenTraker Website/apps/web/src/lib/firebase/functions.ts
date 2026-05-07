@@ -184,9 +184,21 @@ export type SendOrgNotificationRequest = {
   senderEmployeeId?: string
 }
 
-export async function sendOrgNotification(input: SendOrgNotificationRequest): Promise<{ ok: boolean; id: string } | null> {
+export type SendOrgNotificationResponse = {
+  ok: boolean
+  id: string
+  pushSummary?: {
+    recipientUsers: number
+    recipientDevices: number
+    sent: number
+    failed: number
+  } | null
+  pushError?: string | null
+}
+
+export async function sendOrgNotification(input: SendOrgNotificationRequest): Promise<SendOrgNotificationResponse | null> {
   if (!functions) return null
-  const callable = httpsCallable<SendOrgNotificationRequest, { ok: boolean; id: string }>(
+  const callable = httpsCallable<SendOrgNotificationRequest, SendOrgNotificationResponse>(
     functions,
     "sendOrgNotification"
   )

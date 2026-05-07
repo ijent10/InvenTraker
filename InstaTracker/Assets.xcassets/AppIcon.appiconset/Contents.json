@@ -5,30 +5,6 @@
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "dark"
-        }
-      ],
-      "filename" : "8544362D-C549-4C68-95CE-858A492EF771.PNG",
-      "idiom" : "universal",
-      "platform" : "ios",
-      "size" : "1024x1024"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "tinted"
-        }
-      ],
-      "filename" : "23D5EBDB-6668-40FD-AA4D-6E76E7466FCA 1.PNG",
-      "idiom" : "universal",
-      "platform" : "ios",
-      "size" : "1024x1024"
     }
   ],
   "info" : {

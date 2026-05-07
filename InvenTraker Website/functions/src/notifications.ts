@@ -123,17 +123,24 @@ async function resolveRecipientUserIds(input: {
       userId?: string
       role?: string
       jobTitle?: string
+      assignmentType?: string
       storeIds?: string[]
     }
     const uid = typeof data.userId === "string" && data.userId.trim().length > 0 ? data.userId.trim() : doc.id
     const role = normalizeText(data.role || "")
     const isOwner = role === "owner" || orgOwnerIds.has(uid)
+    const assignmentType = normalizeText(data.assignmentType)
 
     if (input.storeId && input.storeId.trim().length > 0 && !isOwner) {
       const storeIds = Array.isArray(data.storeIds)
-        ? data.storeIds.filter((entry): entry is string => typeof entry === "string")
+        ? data.storeIds
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter(Boolean)
         : []
-      if (!storeIds.includes(input.storeId)) {
+      const hasStoreScopedAssignment = assignmentType === "store" || storeIds.length > 0
+      const canReceiveStoreNotification = !hasStoreScopedAssignment || storeIds.includes(input.storeId)
+      if (!canReceiveStoreNotification) {
         continue
       }
     }

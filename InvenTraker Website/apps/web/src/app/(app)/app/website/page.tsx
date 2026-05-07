@@ -183,8 +183,19 @@ export default function WebsiteBuilderPage() {
           ? String((error as { details?: { message?: string } }).details?.message ?? "")
           : ""
       const baseMessage = error instanceof Error ? error.message : "Could not save website."
-      const errorMessage = errorDetails && errorDetails !== baseMessage ? `${baseMessage} ${errorDetails}` : baseMessage
-      setErrorMessage(errorCode ? errorMessage + " (" + errorCode + ")" : errorMessage)
+      const mergedMessage = `${baseMessage} ${errorDetails}`.trim().toLowerCase()
+      const normalizedCode = errorCode.startsWith("functions/") ? errorCode.slice("functions/".length) : errorCode
+      const displayMessage =
+        normalizedCode === "permission-denied"
+          ? "Missing or insufficient permissions. Ask an organization owner to confirm your membership and website permissions."
+          : normalizedCode === "unauthenticated"
+            ? "Your session expired. Sign out, sign back in, and try again."
+            : mergedMessage.includes("network") || mergedMessage.includes("failed to fetch")
+              ? "Could not reach the website service. Check connection, then try again."
+              : errorDetails && errorDetails !== baseMessage
+                ? `${baseMessage} ${errorDetails}`
+                : baseMessage
+      setErrorMessage(errorCode ? displayMessage + " (" + errorCode + ")" : displayMessage)
       setStatusMessage(null)
     }
   })

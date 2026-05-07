@@ -18,8 +18,15 @@ export function useAuthUser() {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser)
       if (nextUser) {
-        const token = await nextUser.getIdTokenResult(true)
-        let platformAdmin = token.claims.platform_admin === true
+        let platformAdmin = false
+        try {
+          // Use cached token claims first to avoid forcing a network refresh during session bootstrap.
+          const token = await nextUser.getIdTokenResult()
+          platformAdmin = token.claims.platform_admin === true
+        } catch {
+          platformAdmin = false
+        }
+
         if (!platformAdmin && db) {
           try {
             const userSnap = await getDoc(doc(db, "users", nextUser.uid))
@@ -29,6 +36,7 @@ export function useAuthUser() {
             // Leave token-based value in place on lookup failure.
           }
         }
+
         setIsPlatformAdmin(platformAdmin)
       } else {
         setIsPlatformAdmin(false)

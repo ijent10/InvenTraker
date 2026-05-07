@@ -37,7 +37,10 @@ function mapAuthError(error: unknown): string {
       case "auth/too-many-requests":
         return "Too many attempts. Please wait a minute and try again."
       case "auth/network-request-failed":
-        return "Network issue while contacting authentication service."
+        return "Could not reach Firebase Authentication. Check connection, disable VPN/content blockers, and confirm this domain is listed under Firebase Auth authorized domains."
+      case "auth/invalid-api-key":
+      case "auth/app-not-authorized":
+        return "Authentication configuration is not valid for this domain. Confirm the Firebase web app config and authorized domains."
       case "auth/email-already-in-use":
         return "That email is already in use."
       default:

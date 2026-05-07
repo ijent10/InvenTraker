@@ -5176,15 +5176,28 @@ export async function saveOrganizationWebsiteConfig(
     }
   } catch (error) {
     callableError = error
-    const code = typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
+    const rawCode =
+      typeof (error as { code?: unknown })?.code === "string" ? String((error as { code?: unknown }).code) : ""
+    const code = rawCode.startsWith("functions/") ? rawCode.slice("functions/".length) : rawCode
+    const message =
+      typeof (error as { message?: unknown })?.message === "string" ? String((error as { message?: unknown }).message) : ""
+    const detailsMessage =
+      typeof (error as { details?: { message?: unknown } | null })?.details?.message === "string"
+        ? String((error as { details?: { message?: string } }).details?.message ?? "")
+        : ""
+    const combinedMessage = `${message} ${detailsMessage}`.toLowerCase()
     const isTransientCallableFailure =
-      code === "functions/internal" ||
-      code === "functions/unknown" ||
-      code === "functions/not-found" ||
-      code === "functions/unimplemented" ||
-      code === "functions/unavailable" ||
-      code === "functions/deadline-exceeded" ||
-      code === "functions/cancelled"
+      code === "internal" ||
+      code === "unknown" ||
+      code === "not-found" ||
+      code === "unimplemented" ||
+      code === "unavailable" ||
+      code === "deadline-exceeded" ||
+      code === "cancelled" ||
+      combinedMessage.includes("network") ||
+      combinedMessage.includes("failed to fetch") ||
+      combinedMessage.includes("unreachable") ||
+      combinedMessage.includes("service unavailable")
     if (!isTransientCallableFailure) {
       throw error
     }

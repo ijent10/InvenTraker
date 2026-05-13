@@ -31,24 +31,93 @@ async function runAuthEndpointDiagnostic(): Promise<string> {
   if (!authApiKey) return "Auth diagnostic unavailable: missing Firebase API key."
   if (typeof window === "undefined") return "Auth diagnostic unavailable outside browser."
 
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(authApiKey)}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        identifier: "diagnostic@inventraker.com",
-        continueUri: window.location.origin
-      })
+  const checkCreateAuthUri = async () => {
+    try {
+      const response = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(authApiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            identifier: "diagnostic@inventraker.com",
+            continueUri: window.location.origin
+          })
+        }
+      )
+      const raw = await response.text()
+      if (response.ok) return `createAuthUri: reachable (${response.status})`
+      const hint = raw.slice(0, 160).replace(/\s+/g, " ").trim()
+      return `createAuthUri: failed (${response.status}) ${hint}`
+    } catch (error) {
+      return `createAuthUri: fetch failed (${error instanceof Error ? error.message : "unknown"})`
     }
-  )
-  const raw = await response.text()
-  if (!response.ok) {
-    return `Auth endpoint check failed (${response.status}): ${raw.slice(0, 260)}`
   }
-  return `Auth endpoint reachable (${response.status}).`
+
+  const checkSignInWithPassword = async () => {
+    try {
+      const response = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(authApiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: "diagnostic@inventraker.com",
+            password: "diagnostic-password",
+            returnSecureToken: true
+          })
+        }
+      )
+      const raw = await response.text()
+      if (response.ok) return `signInWithPassword: reachable (${response.status})`
+      const expectedCredentialError =
+        response.status === 400 &&
+        /INVALID_LOGIN_CREDENTIALS|EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_EMAIL/i.test(raw)
+      if (expectedCredentialError) return `signInWithPassword: reachable (${response.status}, expected invalid credentials)`
+      const hint = raw.slice(0, 200).replace(/\s+/g, " ").trim()
+      return `signInWithPassword: failed (${response.status}) ${hint}`
+    } catch (error) {
+      return `signInWithPassword: fetch failed (${error instanceof Error ? error.message : "unknown"})`
+    }
+  }
+
+  const checkSecureToken = async () => {
+    try {
+      const body = new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: "diagnostic-refresh-token"
+      })
+      const response = await fetch(
+        `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(authApiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: body.toString()
+        }
+      )
+      const raw = await response.text()
+      if (response.ok) return `securetoken: reachable (${response.status})`
+      const expectedRefreshError = response.status === 400 && /INVALID_REFRESH_TOKEN|INVALID_GRANT_TYPE/i.test(raw)
+      if (expectedRefreshError) return `securetoken: reachable (${response.status}, expected invalid refresh token)`
+      const hint = raw.slice(0, 220).replace(/\s+/g, " ").trim()
+      return `securetoken: failed (${response.status}) ${hint}`
+    } catch (error) {
+      return `securetoken: fetch failed (${error instanceof Error ? error.message : "unknown"})`
+    }
+  }
+
+  const [createAuthUriResult, signInWithPasswordResult, secureTokenResult] = await Promise.all([
+    checkCreateAuthUri(),
+    checkSignInWithPassword(),
+    checkSecureToken()
+  ])
+
+  return `${createAuthUriResult}; ${signInWithPasswordResult}; ${secureTokenResult}`
 }
 
 function mapAuthError(error: unknown): string {

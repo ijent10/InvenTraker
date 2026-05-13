@@ -12,8 +12,8 @@ const cspDirectives = [
   "media-src 'self' blob: https:",
   scriptSrc,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.firestore.googleapis.com https://*.cloudfunctions.net wss://*.firebaseio.com https://api.stripe.com https://r.stripe.com https://m.stripe.network https://js.stripe.com",
-  "frame-src https://checkout.stripe.com https://billing.stripe.com https://js.stripe.com https://hooks.stripe.com",
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.web.app https://*.firestore.googleapis.com https://*.cloudfunctions.net https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://api.stripe.com https://r.stripe.com https://m.stripe.network https://js.stripe.com",
+  "frame-src 'self' https://*.firebaseapp.com https://*.web.app https://checkout.stripe.com https://billing.stripe.com https://js.stripe.com https://hooks.stripe.com",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https://checkout.stripe.com https://billing.stripe.com"

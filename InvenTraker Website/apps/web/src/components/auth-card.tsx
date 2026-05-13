@@ -3,7 +3,9 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FirebaseError } from "firebase/app"
 import {
+  browserSessionPersistence,
   createUserWithEmailAndPassword,
+  setPersistence,
   sendPasswordResetEmail,
   signInWithEmailAndPassword
 } from "firebase/auth"
@@ -212,13 +214,11 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     try {
       const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
-        if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
-          await withTimeout(
-            (auth as { authStateReady: () => Promise<void> }).authStateReady(),
-            AUTH_OP_TIMEOUT_MS,
-            "Auth state readiness"
-          )
-        }
+        await withTimeout(
+          setPersistence(auth, browserSessionPersistence),
+          AUTH_OP_TIMEOUT_MS,
+          "Auth persistence setup"
+        )
         await withTimeout(
           signInWithEmailAndPassword(auth, normalizedEmail, values.password),
           AUTH_OP_TIMEOUT_MS,
@@ -228,6 +228,12 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
         router.replace("/app")
         return
       }
+
+      await withTimeout(
+        setPersistence(auth, browserSessionPersistence),
+        AUTH_OP_TIMEOUT_MS,
+        "Auth persistence setup"
+      )
 
       const credential = await withTimeout(
         createUserWithEmailAndPassword(auth, normalizedEmail, values.password),
@@ -256,13 +262,11 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
           const normalizedEmail = values.email.trim().toLowerCase()
           // One immediate retry after auth state settles helps with occasional browser race conditions.
           try {
-            if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
-              await withTimeout(
-                (auth as { authStateReady: () => Promise<void> }).authStateReady(),
-                AUTH_OP_TIMEOUT_MS,
-                "Auth state readiness"
-              )
-            }
+            await withTimeout(
+              setPersistence(auth, browserSessionPersistence),
+              AUTH_OP_TIMEOUT_MS,
+              "Auth persistence setup"
+            )
             await new Promise((resolve) => window.setTimeout(resolve, 150))
             await withTimeout(
               signInWithEmailAndPassword(auth, normalizedEmail, values.password),

@@ -63,7 +63,7 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
 
   const checkCreateAuthUri = async () => {
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(authApiKey)}`,
         {
           method: "POST",
@@ -90,7 +90,7 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
     try {
       const diagnosticEmail = (emailForSignIn ?? "diagnostic@inventraker.com").trim().toLowerCase()
       const diagnosticPassword = passwordForSignIn ?? "diagnostic-password"
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(authApiKey)}`,
         {
           method: "POST",
@@ -124,7 +124,7 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
         grant_type: "refresh_token",
         refresh_token: "diagnostic-refresh-token"
       })
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(authApiKey)}`,
         {
           method: "POST",

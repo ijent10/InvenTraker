@@ -14,6 +14,7 @@ import { z } from "zod"
 import { AppButton, AppInput } from "@inventracker/ui"
 
 import { auth, firebaseReady } from "@/lib/firebase/client"
+import { env } from "@/lib/env"
 import { claimOrganizationByCompanyCode } from "@/lib/firebase/functions"
 
 const schema = z.object({
@@ -24,6 +25,31 @@ const schema = z.object({
 })
 
 type Input = z.infer<typeof schema>
+const authApiKey = env.success ? env.data.NEXT_PUBLIC_FIREBASE_API_KEY : ""
+
+async function runAuthEndpointDiagnostic(): Promise<string> {
+  if (!authApiKey) return "Auth diagnostic unavailable: missing Firebase API key."
+  if (typeof window === "undefined") return "Auth diagnostic unavailable outside browser."
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(authApiKey)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        identifier: "diagnostic@inventraker.com",
+        continueUri: window.location.origin
+      })
+    }
+  )
+  const raw = await response.text()
+  if (!response.ok) {
+    return `Auth endpoint check failed (${response.status}): ${raw.slice(0, 260)}`
+  }
+  return `Auth endpoint reachable (${response.status}).`
+}
 
 function mapAuthError(error: unknown): string {
   if (error instanceof FirebaseError) {
@@ -104,7 +130,31 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
       document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
       router.replace("/app")
     } catch (error) {
-      setSubmitError(mapAuthError(error))
+      const mappedMessage = mapAuthError(error)
+      if (error instanceof FirebaseError) {
+        if (error.code === "auth/network-request-failed") {
+          let diagnostic = ""
+          try {
+            diagnostic = await runAuthEndpointDiagnostic()
+          } catch (diagnosticError) {
+            diagnostic = `Auth endpoint check threw: ${
+              diagnosticError instanceof Error ? diagnosticError.message : "Unknown diagnostic error."
+            }`
+          }
+          const host = typeof window !== "undefined" ? window.location.host : "unknown-host"
+          setSubmitError(`${mappedMessage} [${error.code}] Host: ${host}. ${diagnostic}`)
+          return
+        }
+
+        const details =
+          typeof error.message === "string" && error.message.trim().length > 0
+            ? ` (${error.code}: ${error.message})`
+            : ` (${error.code})`
+        setSubmitError(mappedMessage + details)
+        return
+      }
+
+      setSubmitError(mappedMessage)
     }
   }
 

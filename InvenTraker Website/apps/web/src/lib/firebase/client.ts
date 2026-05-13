@@ -1,22 +1,24 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
-import {
-  browserLocalPersistence,
-  browserSessionPersistence,
-  getAuth,
-  indexedDBLocalPersistence,
-  initializeAuth,
-  inMemoryPersistence
-} from "firebase/auth"
+import { getAuth } from "firebase/auth"
 import { initializeFirestore } from "firebase/firestore/lite"
 import { getFunctions } from "firebase/functions"
 import { getStorage } from "firebase/storage"
 
 import { env } from "@/lib/env"
 
+const runtimeHostname =
+  typeof window !== "undefined" && typeof window.location?.hostname === "string"
+    ? window.location.hostname.trim().toLowerCase()
+    : ""
+const shouldUseRuntimeAuthDomain =
+  runtimeHostname.length > 0 && runtimeHostname !== "localhost" && runtimeHostname !== "127.0.0.1"
+const resolvedAuthDomain =
+  shouldUseRuntimeAuthDomain && env.success ? runtimeHostname : env.success ? env.data.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN : ""
+
 const firebaseConfig = env.success
   ? {
       apiKey: env.data.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: env.data.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      authDomain: resolvedAuthDomain,
       projectId: env.data.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       storageBucket: env.data.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       messagingSenderId: env.data.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
@@ -28,21 +30,7 @@ const firebaseConfig = env.success
 const app = firebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null
 
 export const firebaseReady = Boolean(app)
-const auth = (() => {
-  if (!app) return null
-  try {
-    return initializeAuth(app, {
-      persistence: [
-        indexedDBLocalPersistence,
-        browserLocalPersistence,
-        browserSessionPersistence,
-        inMemoryPersistence
-      ]
-    })
-  } catch {
-    return getAuth(app)
-  }
-})()
+const auth = app ? getAuth(app) : null
 export const db = app
   ? initializeFirestore(app, {
       ignoreUndefinedProperties: true

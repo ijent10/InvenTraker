@@ -5,6 +5,7 @@ import { FirebaseError } from "firebase/app"
 import {
   browserSessionPersistence,
   createUserWithEmailAndPassword,
+  inMemoryPersistence,
   setPersistence,
   sendPasswordResetEmail,
   signInWithEmailAndPassword
@@ -157,6 +158,18 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
   return `${createAuthUriResult}; ${signInWithPasswordResult}; ${secureTokenResult}`
 }
 
+async function setBestEffortPersistence(): Promise<void> {
+  if (!auth) return
+  try {
+    await withTimeout(setPersistence(auth, browserSessionPersistence), 4_500, "Auth persistence setup")
+  } catch {
+    // Some browsers/extensions can block storage-backed persistence. Keep login moving.
+    await withTimeout(setPersistence(auth, inMemoryPersistence), 2_500, "Auth fallback persistence setup").catch(
+      () => undefined
+    )
+  }
+}
+
 function mapAuthError(error: unknown): string {
   if (error instanceof FirebaseError) {
     switch (error.code) {
@@ -214,11 +227,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     try {
       const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
-        await withTimeout(
-          setPersistence(auth, browserSessionPersistence),
-          AUTH_OP_TIMEOUT_MS,
-          "Auth persistence setup"
-        )
+        await setBestEffortPersistence()
         await withTimeout(
           signInWithEmailAndPassword(auth, normalizedEmail, values.password),
           AUTH_OP_TIMEOUT_MS,
@@ -229,11 +238,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
         return
       }
 
-      await withTimeout(
-        setPersistence(auth, browserSessionPersistence),
-        AUTH_OP_TIMEOUT_MS,
-        "Auth persistence setup"
-      )
+      await setBestEffortPersistence()
 
       const credential = await withTimeout(
         createUserWithEmailAndPassword(auth, normalizedEmail, values.password),
@@ -262,11 +267,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
           const normalizedEmail = values.email.trim().toLowerCase()
           // One immediate retry after auth state settles helps with occasional browser race conditions.
           try {
-            await withTimeout(
-              setPersistence(auth, browserSessionPersistence),
-              AUTH_OP_TIMEOUT_MS,
-              "Auth persistence setup"
-            )
+            await setBestEffortPersistence()
             await new Promise((resolve) => window.setTimeout(resolve, 150))
             await withTimeout(
               signInWithEmailAndPassword(auth, normalizedEmail, values.password),

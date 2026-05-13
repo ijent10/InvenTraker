@@ -3,10 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FirebaseError } from "firebase/app"
 import {
-  browserSessionPersistence,
   createUserWithEmailAndPassword,
-  inMemoryPersistence,
-  setPersistence,
   sendPasswordResetEmail,
   signInWithEmailAndPassword
 } from "firebase/auth"
@@ -17,7 +14,6 @@ import { z } from "zod"
 import { AppButton, AppInput } from "@inventracker/ui"
 
 import { auth, firebaseReady } from "@/lib/firebase/client"
-import { env } from "@/lib/env"
 import { claimOrganizationByCompanyCode } from "@/lib/firebase/functions"
 
 const schema = z.object({
@@ -28,147 +24,6 @@ const schema = z.object({
 })
 
 type Input = z.infer<typeof schema>
-const authApiKey = env.success ? env.data.NEXT_PUBLIC_FIREBASE_API_KEY : ""
-const AUTH_OP_TIMEOUT_MS = 10_000
-const DIAGNOSTIC_TIMEOUT_MS = 6_500
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new Error(`${label} timed out.`))
-    }, timeoutMs)
-    void promise.then(
-      (value) => {
-        window.clearTimeout(timer)
-        resolve(value)
-      },
-      (error) => {
-        window.clearTimeout(timer)
-        reject(error)
-      }
-    )
-  })
-}
-
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(input, { ...init, signal: controller.signal })
-  } finally {
-    window.clearTimeout(timer)
-  }
-}
-
-async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSignIn?: string): Promise<string> {
-  if (!authApiKey) return "Auth diagnostic unavailable: missing Firebase API key."
-  if (typeof window === "undefined") return "Auth diagnostic unavailable outside browser."
-
-  const checkCreateAuthUri = async () => {
-    try {
-      const response = await fetchWithTimeout(
-        `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(authApiKey)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            identifier: "diagnostic@inventraker.com",
-            continueUri: window.location.origin
-          })
-        },
-        DIAGNOSTIC_TIMEOUT_MS
-      )
-      const raw = await response.text()
-      if (response.ok) return `createAuthUri: reachable (${response.status})`
-      const hint = raw.slice(0, 160).replace(/\s+/g, " ").trim()
-      return `createAuthUri: failed (${response.status}) ${hint}`
-    } catch (error) {
-      return `createAuthUri: fetch failed (${error instanceof Error ? error.message : "unknown"})`
-    }
-  }
-
-  const checkSignInWithPassword = async () => {
-    try {
-      const diagnosticEmail = (emailForSignIn ?? "diagnostic@inventraker.com").trim().toLowerCase()
-      const diagnosticPassword = passwordForSignIn ?? "diagnostic-password"
-      const response = await fetchWithTimeout(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(authApiKey)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            email: diagnosticEmail,
-            password: diagnosticPassword,
-            returnSecureToken: true
-          })
-        },
-        DIAGNOSTIC_TIMEOUT_MS
-      )
-      const raw = await response.text()
-      if (response.ok) return `signInWithPassword: valid credentials (${response.status})`
-      const expectedCredentialError =
-        response.status === 400 &&
-        /INVALID_LOGIN_CREDENTIALS|EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_EMAIL/i.test(raw)
-      if (expectedCredentialError) return `signInWithPassword: invalid credentials (${response.status})`
-      const hint = raw.slice(0, 200).replace(/\s+/g, " ").trim()
-      return `signInWithPassword: failed (${response.status}) ${hint}`
-    } catch (error) {
-      return `signInWithPassword: fetch failed (${error instanceof Error ? error.message : "unknown"})`
-    }
-  }
-
-  const checkSecureToken = async () => {
-    try {
-      const body = new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: "diagnostic-refresh-token"
-      })
-      const response = await fetchWithTimeout(
-        `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(authApiKey)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          body: body.toString()
-        },
-        DIAGNOSTIC_TIMEOUT_MS
-      )
-      const raw = await response.text()
-      if (response.ok) return `securetoken: reachable (${response.status})`
-      const expectedRefreshError = response.status === 400 && /INVALID_REFRESH_TOKEN|INVALID_GRANT_TYPE/i.test(raw)
-      if (expectedRefreshError) return `securetoken: reachable (${response.status}, expected invalid refresh token)`
-      const hint = raw.slice(0, 220).replace(/\s+/g, " ").trim()
-      return `securetoken: failed (${response.status}) ${hint}`
-    } catch (error) {
-      return `securetoken: fetch failed (${error instanceof Error ? error.message : "unknown"})`
-    }
-  }
-
-  const [createAuthUriResult, signInWithPasswordResult, secureTokenResult] = await Promise.all([
-    checkCreateAuthUri(),
-    checkSignInWithPassword(),
-    checkSecureToken()
-  ])
-
-  return `${createAuthUriResult}; ${signInWithPasswordResult}; ${secureTokenResult}`
-}
-
-async function setBestEffortPersistence(): Promise<void> {
-  if (!auth) return
-  try {
-    await withTimeout(setPersistence(auth, browserSessionPersistence), 4_500, "Auth persistence setup")
-  } catch {
-    // Some browsers/extensions can block storage-backed persistence. Keep login moving.
-    await withTimeout(setPersistence(auth, inMemoryPersistence), 2_500, "Auth fallback persistence setup").catch(
-      () => undefined
-    )
-  }
-}
 
 function mapAuthError(error: unknown): string {
   if (error instanceof FirebaseError) {
@@ -182,10 +37,7 @@ function mapAuthError(error: unknown): string {
       case "auth/too-many-requests":
         return "Too many attempts. Please wait a minute and try again."
       case "auth/network-request-failed":
-        return "Could not reach Firebase Authentication. Check connection, disable VPN/content blockers, and confirm this domain is listed under Firebase Auth authorized domains."
-      case "auth/invalid-api-key":
-      case "auth/app-not-authorized":
-        return "Authentication configuration is not valid for this domain. Confirm the Firebase web app config and authorized domains."
+        return "Network issue while contacting authentication service."
       case "auth/email-already-in-use":
         return "That email is already in use."
       default:
@@ -227,24 +79,13 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     try {
       const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
-        await setBestEffortPersistence()
-        await withTimeout(
-          signInWithEmailAndPassword(auth, normalizedEmail, values.password),
-          AUTH_OP_TIMEOUT_MS,
-          "Sign-in request"
-        )
+        await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
         document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
         router.replace("/app")
         return
       }
 
-      await setBestEffortPersistence()
-
-      const credential = await withTimeout(
-        createUserWithEmailAndPassword(auth, normalizedEmail, values.password),
-        AUTH_OP_TIMEOUT_MS,
-        "Sign-up request"
-      )
+      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, values.password)
       if (signupMethod === "company") {
         const companyCode = values.companyCode?.trim().toUpperCase() ?? ""
         const employeeId = values.employeeId?.trim() ?? ""
@@ -261,53 +102,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
       document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
       router.replace("/app")
     } catch (error) {
-      const mappedMessage = mapAuthError(error)
-      if (error instanceof FirebaseError) {
-        if (error.code === "auth/network-request-failed") {
-          const normalizedEmail = values.email.trim().toLowerCase()
-          // One immediate retry after auth state settles helps with occasional browser race conditions.
-          try {
-            await setBestEffortPersistence()
-            await new Promise((resolve) => window.setTimeout(resolve, 150))
-            await withTimeout(
-              signInWithEmailAndPassword(auth, normalizedEmail, values.password),
-              AUTH_OP_TIMEOUT_MS,
-              "Retry sign-in request"
-            )
-            document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
-            router.replace("/app")
-            return
-          } catch {
-            // Continue to detailed diagnostic below.
-          }
-
-          let diagnostic = ""
-          try {
-            diagnostic = await runAuthEndpointDiagnostic(normalizedEmail, values.password)
-          } catch (diagnosticError) {
-            diagnostic = `Auth endpoint check threw: ${
-              diagnosticError instanceof Error ? diagnosticError.message : "Unknown diagnostic error."
-            }`
-          }
-          const host = typeof window !== "undefined" ? window.location.host : "unknown-host"
-          setSubmitError(`${mappedMessage} [${error.code}] Host: ${host}. ${diagnostic}`)
-          return
-        }
-
-        const details =
-          typeof error.message === "string" && error.message.trim().length > 0
-            ? ` (${error.code}: ${error.message})`
-            : ` (${error.code})`
-        setSubmitError(mappedMessage + details)
-        return
-      }
-
-      if (error instanceof Error && /timed out/i.test(error.message)) {
-        setSubmitError("Sign-in timed out. Please try again.")
-        return
-      }
-
-      setSubmitError(mappedMessage)
+      setSubmitError(mapAuthError(error))
     }
   }
 

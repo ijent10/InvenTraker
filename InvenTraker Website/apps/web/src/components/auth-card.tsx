@@ -27,7 +27,7 @@ const schema = z.object({
 type Input = z.infer<typeof schema>
 const authApiKey = env.success ? env.data.NEXT_PUBLIC_FIREBASE_API_KEY : ""
 
-async function runAuthEndpointDiagnostic(): Promise<string> {
+async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSignIn?: string): Promise<string> {
   if (!authApiKey) return "Auth diagnostic unavailable: missing Firebase API key."
   if (typeof window === "undefined") return "Auth diagnostic unavailable outside browser."
 
@@ -57,6 +57,8 @@ async function runAuthEndpointDiagnostic(): Promise<string> {
 
   const checkSignInWithPassword = async () => {
     try {
+      const diagnosticEmail = (emailForSignIn ?? "diagnostic@inventraker.com").trim().toLowerCase()
+      const diagnosticPassword = passwordForSignIn ?? "diagnostic-password"
       const response = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(authApiKey)}`,
         {
@@ -65,18 +67,18 @@ async function runAuthEndpointDiagnostic(): Promise<string> {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            email: "diagnostic@inventraker.com",
-            password: "diagnostic-password",
+            email: diagnosticEmail,
+            password: diagnosticPassword,
             returnSecureToken: true
           })
         }
       )
       const raw = await response.text()
-      if (response.ok) return `signInWithPassword: reachable (${response.status})`
+      if (response.ok) return `signInWithPassword: valid credentials (${response.status})`
       const expectedCredentialError =
         response.status === 400 &&
         /INVALID_LOGIN_CREDENTIALS|EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_EMAIL/i.test(raw)
-      if (expectedCredentialError) return `signInWithPassword: reachable (${response.status}, expected invalid credentials)`
+      if (expectedCredentialError) return `signInWithPassword: invalid credentials (${response.status})`
       const hint = raw.slice(0, 200).replace(/\s+/g, " ").trim()
       return `signInWithPassword: failed (${response.status}) ${hint}`
     } catch (error) {
@@ -175,14 +177,18 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     }
 
     try {
+      const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
-        await signInWithEmailAndPassword(auth, values.email.toLowerCase(), values.password)
+        if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
+          await (auth as { authStateReady: () => Promise<void> }).authStateReady()
+        }
+        await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
         document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
         router.replace("/app")
         return
       }
 
-      const credential = await createUserWithEmailAndPassword(auth, values.email.toLowerCase(), values.password)
+      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, values.password)
       if (signupMethod === "company") {
         const companyCode = values.companyCode?.trim().toUpperCase() ?? ""
         const employeeId = values.employeeId?.trim() ?? ""
@@ -202,9 +208,24 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
       const mappedMessage = mapAuthError(error)
       if (error instanceof FirebaseError) {
         if (error.code === "auth/network-request-failed") {
+          const normalizedEmail = values.email.trim().toLowerCase()
+          // One immediate retry after auth state settles helps with occasional browser race conditions.
+          try {
+            if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
+              await (auth as { authStateReady: () => Promise<void> }).authStateReady()
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 150))
+            await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
+            document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
+            router.replace("/app")
+            return
+          } catch {
+            // Continue to detailed diagnostic below.
+          }
+
           let diagnostic = ""
           try {
-            diagnostic = await runAuthEndpointDiagnostic()
+            diagnostic = await runAuthEndpointDiagnostic(normalizedEmail, values.password)
           } catch (diagnosticError) {
             diagnostic = `Auth endpoint check threw: ${
               diagnosticError instanceof Error ? diagnosticError.message : "Unknown diagnostic error."

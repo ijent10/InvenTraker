@@ -26,6 +26,36 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>
 const authApiKey = env.success ? env.data.NEXT_PUBLIC_FIREBASE_API_KEY : ""
+const AUTH_OP_TIMEOUT_MS = 10_000
+const DIAGNOSTIC_TIMEOUT_MS = 6_500
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out.`))
+    }, timeoutMs)
+    void promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
 
 async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSignIn?: string): Promise<string> {
   if (!authApiKey) return "Auth diagnostic unavailable: missing Firebase API key."
@@ -44,7 +74,8 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
             identifier: "diagnostic@inventraker.com",
             continueUri: window.location.origin
           })
-        }
+        },
+        DIAGNOSTIC_TIMEOUT_MS
       )
       const raw = await response.text()
       if (response.ok) return `createAuthUri: reachable (${response.status})`
@@ -71,7 +102,8 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
             password: diagnosticPassword,
             returnSecureToken: true
           })
-        }
+        },
+        DIAGNOSTIC_TIMEOUT_MS
       )
       const raw = await response.text()
       if (response.ok) return `signInWithPassword: valid credentials (${response.status})`
@@ -100,7 +132,8 @@ async function runAuthEndpointDiagnostic(emailForSignIn?: string, passwordForSig
             "Content-Type": "application/x-www-form-urlencoded"
           },
           body: body.toString()
-        }
+        },
+        DIAGNOSTIC_TIMEOUT_MS
       )
       const raw = await response.text()
       if (response.ok) return `securetoken: reachable (${response.status})`
@@ -180,15 +213,27 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
       const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
         if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
-          await (auth as { authStateReady: () => Promise<void> }).authStateReady()
+          await withTimeout(
+            (auth as { authStateReady: () => Promise<void> }).authStateReady(),
+            AUTH_OP_TIMEOUT_MS,
+            "Auth state readiness"
+          )
         }
-        await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
+        await withTimeout(
+          signInWithEmailAndPassword(auth, normalizedEmail, values.password),
+          AUTH_OP_TIMEOUT_MS,
+          "Sign-in request"
+        )
         document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
         router.replace("/app")
         return
       }
 
-      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, values.password)
+      const credential = await withTimeout(
+        createUserWithEmailAndPassword(auth, normalizedEmail, values.password),
+        AUTH_OP_TIMEOUT_MS,
+        "Sign-up request"
+      )
       if (signupMethod === "company") {
         const companyCode = values.companyCode?.trim().toUpperCase() ?? ""
         const employeeId = values.employeeId?.trim() ?? ""
@@ -212,10 +257,18 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
           // One immediate retry after auth state settles helps with occasional browser race conditions.
           try {
             if (typeof (auth as { authStateReady?: unknown }).authStateReady === "function") {
-              await (auth as { authStateReady: () => Promise<void> }).authStateReady()
+              await withTimeout(
+                (auth as { authStateReady: () => Promise<void> }).authStateReady(),
+                AUTH_OP_TIMEOUT_MS,
+                "Auth state readiness"
+              )
             }
             await new Promise((resolve) => window.setTimeout(resolve, 150))
-            await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
+            await withTimeout(
+              signInWithEmailAndPassword(auth, normalizedEmail, values.password),
+              AUTH_OP_TIMEOUT_MS,
+              "Retry sign-in request"
+            )
             document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
             router.replace("/app")
             return
@@ -241,6 +294,11 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
             ? ` (${error.code}: ${error.message})`
             : ` (${error.code})`
         setSubmitError(mappedMessage + details)
+        return
+      }
+
+      if (error instanceof Error && /timed out/i.test(error.message)) {
+        setSubmitError("Sign-in timed out. Please try again.")
         return
       }
 

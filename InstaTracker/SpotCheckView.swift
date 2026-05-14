@@ -38,6 +38,8 @@ struct SpotCheckView: View {
     @State private var showingReworkReminder = false
     @State private var reworkReminderMessage = ""
     @State private var wrappedDuplicateExpirationPrompt: WrappedDuplicateExpirationPrompt?
+    @State private var pendingUnknownDraftItem: InventoryItem?
+    @State private var showingAddUnknownToCatalogPrompt = false
 
     private var canSpotCheck: Bool {
         session.canPerform(.spotCheck)
@@ -233,7 +235,19 @@ struct SpotCheckView: View {
         } message: {
             Text(catalogLookupMessage)
         }
-        .confirmationDialog("Spot Check Area", isPresented: $showingStockAreaPrompt, titleVisibility: .visible) {
+        .alert("Add To Central Catalog?", isPresented: $showingAddUnknownToCatalogPrompt) {
+            Button("Not Now") {
+                continuePendingUnknownDraftFlow()
+            }
+            Button("Add") {
+                Task {
+                    await addPendingUnknownDraftToCatalog()
+                }
+            }
+        } message: {
+            Text("Add this new UPC to your central catalog so other stores can use it?")
+        }
+        .alert("Spot Check Area", isPresented: $showingStockAreaPrompt) {
             Button(StockArea.backOfHouse.title) {
                 applyPendingSpotCheckSelection(.backOfHouse)
             }
@@ -390,7 +404,14 @@ struct SpotCheckView: View {
                 ? "Created a store draft item. Review submission could not be sent right now."
                 : "Created a store draft and sent it for organization review."
             showingCatalogLookupMessage = true
-            presentSpotCheck(item: draftItem, prefilledBatches: [])
+            pendingUnknownDraftItem = draftItem
+            let normalizedUPC = (draftItem.upc ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if session.canPerform(.manageCatalog), !normalizedUPC.isEmpty {
+                showingAddUnknownToCatalogPrompt = true
+            } else {
+                continuePendingUnknownDraftFlow()
+            }
         } catch {
             catalogLookupMessage = "Could not check the central catalog right now."
             showingCatalogLookupMessage = true
@@ -437,6 +458,63 @@ struct SpotCheckView: View {
         showingStockAreaPrompt = true
     }
 
+    private func continuePendingUnknownDraftFlow() {
+        guard let draft = pendingUnknownDraftItem else { return }
+        pendingUnknownDraftItem = nil
+        presentSpotCheck(item: draft, prefilledBatches: [])
+    }
+
+    @MainActor
+    private func addPendingUnknownDraftToCatalog() async {
+        guard let draft = pendingUnknownDraftItem else {
+            continuePendingUnknownDraftFlow()
+            return
+        }
+        let normalizedUPC = (draft.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedUPC.isEmpty else {
+            continuePendingUnknownDraftFlow()
+            return
+        }
+
+        do {
+            _ = try await catalogService.upsertProduct(
+                upc: normalizedUPC,
+                title: draft.name,
+                tags: draft.tags,
+                price: draft.price,
+                casePack: max(1, draft.quantityPerBox),
+                thumbnailData: draft.pictures.first,
+                editorUid: session.firebaseUser?.id,
+                editorOrganizationId: session.activeOrganizationId,
+                hasPermission: session.canPerform(.manageCatalog),
+                hasExpiration: draft.hasExpiration,
+                defaultExpiration: draft.defaultExpiration,
+                defaultPackedExpiration: draft.defaultPackedExpiration,
+                vendorName: draft.vendor?.name,
+                department: draft.department,
+                departmentLocation: draft.departmentLocation,
+                unitRaw: draft.unit.rawValue,
+                minimumQuantity: draft.minimumQuantity,
+                storeDepartment: draft.department,
+                storeDepartmentLocation: draft.departmentLocation,
+                storeId: settings.normalizedActiveStoreID,
+                isPrepackaged: draft.isPrepackaged,
+                rewrapsWithUniqueBarcode: draft.rewrapsWithUniqueBarcode,
+                canBeReworked: draft.canBeReworked,
+                reworkShelfLifeDays: draft.effectiveReworkShelfLifeDays,
+                maxReworkCount: draft.effectiveMaxReworkCount,
+                updateGlobalCatalog: true
+            )
+            catalogLookupMessage = "Item added to central catalog."
+            showingCatalogLookupMessage = true
+        } catch {
+            catalogLookupMessage = "Could not add this item to the central catalog right now."
+            showingCatalogLookupMessage = true
+        }
+
+        continuePendingUnknownDraftFlow()
+    }
+
     private func applyPendingSpotCheckSelection(_ area: StockArea) {
         guard let item = pendingSelectionItem else { return }
         wrappedStockArea = area
@@ -480,6 +558,18 @@ struct SpotCheckView: View {
         }
 
         if session.scannedCodes.contains(normalizedCode) {
+            if !session.item.hasExpiration {
+                session.entries.append(
+                    WrappedScannedEntry(
+                        code: normalizedCode,
+                        draft: makeCountedBatchDraft(from: matched.batch)
+                    )
+                )
+                wrappedScanSession = session
+                showWrappedToast(message: "Added duplicate • No expiration")
+                scannerService.allowNextScan(after: 0.8)
+                return
+            }
             presentWrappedDuplicateExpirationPrompt(
                 scannedCode: normalizedCode,
                 item: session.item,
@@ -514,10 +604,17 @@ struct SpotCheckView: View {
     private func showWrappedToast(for item: InventoryItem, batch: Batch, duplicate: Bool) {
         let priceValue = batch.packagePrice ?? batch.packageWeight.map { item.price * $0 } ?? item.price
         let priceText = priceValue.formatted(.currency(code: Locale.current.currency?.identifier ?? "USD"))
-        let expirationText = batch.expirationDate.formatted(date: .abbreviated, time: .omitted)
-        let text = duplicate
-            ? "Already counted • \(priceText) • \(expirationText)"
-            : "\(priceText) • Expires \(expirationText)"
+        let text: String
+        if item.hasExpiration {
+            let expirationText = batch.expirationDate.formatted(date: .abbreviated, time: .omitted)
+            text = duplicate
+                ? "Already counted • \(priceText) • \(expirationText)"
+                : "\(priceText) • Expires \(expirationText)"
+        } else {
+            text = duplicate
+                ? "Already counted • \(priceText)"
+                : "\(priceText) • No expiration"
+        }
         showWrappedToast(message: text)
     }
 
@@ -588,8 +685,12 @@ struct SpotCheckView: View {
         )
         wrappedScanSession = session
         wrappedDuplicateExpirationPrompt = nil
-        let expirationText = option.draft.expirationDate.formatted(date: .abbreviated, time: .omitted)
-        showWrappedToast(message: "Added duplicate • Expires \(expirationText)")
+        if session.item.hasExpiration {
+            let expirationText = option.draft.expirationDate.formatted(date: .abbreviated, time: .omitted)
+            showWrappedToast(message: "Added duplicate • Expires \(expirationText)")
+        } else {
+            showWrappedToast(message: "Added duplicate • No expiration")
+        }
         showingScanner = true
         scannerService.allowNextScan(after: 0.8)
     }
@@ -818,7 +919,24 @@ struct SpotCheckCountView: View {
     }
     
     private var countedTotal: Double {
-        countedBatches.reduce(0) { $0 + $1.quantity }
+        if isNonExpiringItem {
+            return parsedQuantityInput ?? 0
+        }
+        return countedBatches.reduce(0) { $0 + $1.quantity }
+    }
+
+    private var isNonExpiringItem: Bool {
+        !item.hasExpiration
+    }
+
+    private var selectedAreaQuantity: Double {
+        item.batches
+            .filter { $0.stockArea == selectedStockArea }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
+    private var parsedQuantityInput: Double? {
+        parseQuantityInput(quantityText)
     }
     
     var body: some View {
@@ -873,80 +991,95 @@ struct SpotCheckCountView: View {
                     }
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Add Counted Batch")
-                            .font(.headline)
-                        
-                        HStack(spacing: 8) {
-                            TextField("0", text: $quantityText)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .focused($isQuantityFocused)
-                                .roundedInputField(tint: settings.accentColor)
-                            Text(item.unit.rawValue)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        if item.hasExpiration {
-                            DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
-                        } else {
-                            Text("This item does not expire.")
+
+                    if isNonExpiringItem {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Update Quantity")
+                                .font(.headline)
+                            HStack(spacing: 8) {
+                                TextField("0", text: $quantityText)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .focused($isQuantityFocused)
+                                    .roundedInputField(tint: settings.accentColor)
+                                Text(item.unit.rawValue)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("This item has no expiration.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        
-                        Button(action: addCurrentBatch) {
-                            Text("Add Batch")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(settings.accentColor.gradient)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-                    .padding()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    
-                    if countedBatches.isEmpty {
-                        Text("No counted batches added yet.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     } else {
-                        VStack(spacing: 10) {
-                            ForEach(countedBatches) { draft in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("\(draft.quantity.formattedQuantity()) \(item.unit.rawValue)")
-                                        Text(item.hasExpiration ? draft.expirationDate.formatted(date: .abbreviated, time: .omitted) : "No expiration")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Add Counted Batch")
+                                .font(.headline)
+
+                            HStack(spacing: 8) {
+                                TextField("0", text: $quantityText)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .focused($isQuantityFocused)
+                                    .roundedInputField(tint: settings.accentColor)
+                                Text(item.unit.rawValue)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            DatePicker("Expiration", selection: $expirationDate, displayedComponents: .date)
+
+                            Button(action: addCurrentBatch) {
+                                Text("Add Batch")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(settings.accentColor.gradient)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        if countedBatches.isEmpty {
+                            Text("No counted batches added yet.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(countedBatches) { draft in
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("\(draft.quantity.formattedQuantity()) \(item.unit.rawValue)")
+                                            Text(draft.expirationDate.formatted(date: .abbreviated, time: .omitted))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Button("Edit") {
+                                            quantityText = draft.quantity.formattedQuantity()
+                                            expirationDate = draft.expirationDate
+                                            countedBatches.removeAll { $0.id == draft.id }
+                                            isQuantityFocused = true
+                                        }
+                                        .buttonStyle(.bordered)
+                                        Button(role: .destructive) {
+                                            countedBatches.removeAll { $0.id == draft.id }
+                                        } label: {
+                                            Image(systemName: "trash")
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    Spacer()
-                                    Button("Edit") {
-                                        quantityText = draft.quantity.formattedQuantity()
-                                        expirationDate = draft.expirationDate
-                                        countedBatches.removeAll { $0.id == draft.id }
-                                        isQuantityFocused = true
-                                    }
-                                    .buttonStyle(.bordered)
-                                    Button(role: .destructive) {
-                                        countedBatches.removeAll { $0.id == draft.id }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.plain)
+                                    .padding()
+                                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
                                 }
-                                .padding()
-                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
                             }
                         }
                     }
                     
                     VStack(spacing: 12) {
                         Button(action: finalizeSpotCheck) {
-                            Text(isSaving ? "Saving..." : "Finish Spot Check")
+                            Text(isSaving ? "Saving..." : (isNonExpiringItem ? "Update Quantity" : "Finish Spot Check"))
                                 .font(.headline)
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
@@ -981,6 +1114,11 @@ struct SpotCheckCountView: View {
             .onAppear {
                 applyInitialBatchIfNeeded()
             }
+            .onChange(of: selectedStockArea) { _, _ in
+                if isNonExpiringItem {
+                    quantityText = editableQuantityText(from: selectedAreaQuantity)
+                }
+            }
         }
     }
 
@@ -988,6 +1126,13 @@ struct SpotCheckCountView: View {
         guard !didApplyInitialBatch else { return }
         didApplyInitialBatch = true
         selectedStockArea = initialStockArea
+
+        if isNonExpiringItem {
+            countedBatches = []
+            quantityText = editableQuantityText(from: selectedAreaQuantity)
+            expirationDate = .distantFuture
+            return
+        }
 
         if !initialBatches.isEmpty {
             countedBatches = initialBatches
@@ -1016,7 +1161,8 @@ struct SpotCheckCountView: View {
     }
     
     private func addCurrentBatch() {
-        guard let quantity = Double(quantityText), quantity > 0 else { return }
+        guard !isNonExpiringItem else { return }
+        guard let quantity = parsedQuantityInput, quantity > 0 else { return }
         countedBatches.append(
             CountedBatchDraft(
                 quantity: quantity,
@@ -1035,13 +1181,74 @@ struct SpotCheckCountView: View {
         isSaving = true
         let previousTotal = item.totalQuantity
 
-        let pendingQuantity = Double(quantityText) ?? 0
+        if isNonExpiringItem {
+            let parsedQuantity = max(0, parsedQuantityInput ?? 0)
+            item.batches.removeAll { $0.stockArea == selectedStockArea }
+            if parsedQuantity > 0 {
+                let batch = Batch(
+                    quantity: parsedQuantity,
+                    expirationDate: .distantFuture,
+                    stockArea: selectedStockArea,
+                    organizationId: item.organizationId,
+                    storeId: item.storeId
+                )
+                batch.item = item
+                item.batches.append(batch)
+            }
+            item.lastModified = Date()
+            item.revision += 1
+            item.updatedByUid = session.firebaseUser?.id
+            let countedTotal = item.totalQuantity
+            modelContext.insert(
+                SpotCheckInsightAction(
+                    organizationId: item.organizationId,
+                    storeId: item.storeId,
+                    itemIDSnapshot: item.id,
+                    itemNameSnapshot: item.name,
+                    itemPriceSnapshot: item.price,
+                    previousQuantity: previousTotal,
+                    countedQuantity: countedTotal
+                )
+            )
+            try? modelContext.save()
+
+            if let organizationId = session.activeOrganizationId {
+                let payload = ActionPayload.spotCheckSetCount(
+                    SpotCheckSetCountPayload(
+                        itemId: item.id.uuidString,
+                        newTotal: countedTotal,
+                        batchCount: item.batches.count
+                    )
+                )
+                let refs = AuditObjectRefs(
+                    organizationId: organizationId,
+                    itemId: item.id.uuidString,
+                    orderId: nil,
+                    batchIds: item.batches.map { $0.id.uuidString }
+                )
+                Task {
+                    await ActionSyncService.shared.logAndApply(
+                        action: payload,
+                        refs: refs,
+                        baseRevision: max(item.revision - 1, 0),
+                        session: session,
+                        modelContext: modelContext
+                    )
+                }
+            }
+
+            onSaved()
+            dismiss()
+            return
+        }
+
+        let pendingQuantity = parsedQuantityInput ?? 0
         guard !countedBatches.isEmpty || pendingQuantity > 0 else {
             isSaving = false
             return
         }
         
-        if let quantity = Double(quantityText), quantity > 0 {
+        if let quantity = parsedQuantityInput, quantity > 0 {
             countedBatches.append(
                 CountedBatchDraft(
                     quantity: quantity,
@@ -1157,6 +1364,32 @@ struct SpotCheckCountView: View {
         
         onSaved()
         dismiss()
+    }
+
+    private func editableQuantityText(from value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 3
+        return formatter.string(from: NSNumber(value: value)) ?? value.formattedQuantity()
+    }
+
+    private func parseQuantityInput(_ raw: String) -> Double? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale.current
+        if let parsed = formatter.number(from: trimmed)?.doubleValue {
+            return parsed
+        }
+
+        let fallback = trimmed
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        return Double(fallback)
     }
     
     private func setInventoryToZero() {

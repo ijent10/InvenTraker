@@ -50,12 +50,22 @@ struct InventoryListView: View {
         hasher.combine(scopedItems.count)
         for item in scopedItems {
             hasher.combine(item.id)
+            hasher.combine(item.revision)
             hasher.combine(item.lastModified.timeIntervalSinceReferenceDate)
             hasher.combine(item.isOnSale)
             hasher.combine(item.salePercentage)
             hasher.combine(item.department ?? "")
             hasher.combine(item.departmentLocation ?? "")
             hasher.combine(item.batches.count)
+            hasher.combine(item.totalQuantity)
+            hasher.combine(item.backStockQuantity)
+            hasher.combine(item.frontStockQuantity)
+            for batch in item.batches.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+                hasher.combine(batch.id)
+                hasher.combine(batch.quantity)
+                hasher.combine(batch.expirationDate.timeIntervalSinceReferenceDate)
+                hasher.combine(batch.stockArea.rawValue)
+            }
         }
         return hasher.finalize()
     }
@@ -409,7 +419,9 @@ private struct InventoryFilterSnapshot: Identifiable {
             quickBatchSummary = nil
         } else {
             let batchCount = item.batches.count
-            if let nextDate = item.batches.map(\.expirationDate).min() {
+            if !item.hasExpiration {
+                quickBatchSummary = "\(batchCount) batch\(batchCount == 1 ? "" : "es") • No expiration"
+            } else if let nextDate = item.batches.map(\.expirationDate).min() {
                 quickBatchSummary = "\(batchCount) batch\(batchCount == 1 ? "" : "es") • Next exp \(Self.summaryDateFormatter.string(from: nextDate))"
             } else {
                 quickBatchSummary = "\(batchCount) batch\(batchCount == 1 ? "" : "es")"

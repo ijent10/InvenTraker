@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { AppButton, AppCard, AppCheckbox, AppInput, AppSelect, appButtonClass } from "@inventracker/ui"
 
 import { PageHead } from "@/components/page-head"
 import { useAuthUser } from "@/hooks/use-auth-user"
 import { useOrgContext } from "@/hooks/use-org-context"
 import {
+  deleteInventoryItem,
   fetchItem,
   fetchStoreSettings,
   fetchVendors,
@@ -73,9 +74,12 @@ function formFromItem(item: ItemRecord): FormState {
 export default function InventoryItemDetailPage({ params }: { params: { itemId: string } }) {
   const { user } = useAuthUser()
   const { activeOrgId, activeStoreId, activeStore, effectivePermissions } = useOrgContext()
+  const queryClient = useQueryClient()
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
+  const [updatingArchiveState, setUpdatingArchiveState] = useState(false)
+  const [deletingItem, setDeletingItem] = useState(false)
 
   const { data: item, refetch } = useQuery({
     queryKey: ["item", activeOrgId, activeStoreId, params.itemId],
@@ -130,6 +134,10 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
     )
   }, [form?.departmentId, storeSettings?.categoryConfigs])
 
+  const canManageItemLifecycle = Boolean(
+    effectivePermissions.editOrgInventoryMeta || effectivePermissions.manageInventory
+  )
+
   const save = async () => {
     if (!activeOrgId || !form || !item) return
     setStatusMessage(null)
@@ -179,6 +187,45 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
       setStatusMessage(activeStoreId ? "Organization and store inventory fields saved." : "Organization inventory fields saved.")
     } catch {
       setErrorMessage("Could not save item.")
+    }
+  }
+
+  const toggleArchiveState = async () => {
+    if (!activeOrgId || !item || updatingArchiveState || !canManageItemLifecycle) return
+    setStatusMessage(null)
+    setErrorMessage(null)
+    setUpdatingArchiveState(true)
+    try {
+      const nextArchived = !item.isArchived
+      await updateItem(activeOrgId, item.id, { archived: nextArchived, isArchived: nextArchived })
+      await queryClient.invalidateQueries({ queryKey: ["items", activeOrgId] })
+      await queryClient.invalidateQueries({ queryKey: ["store-inventory-items", activeOrgId] })
+      await refetch()
+      setStatusMessage(nextArchived ? "Item archived." : "Item restored from archive.")
+    } catch {
+      setErrorMessage("Could not update archive status.")
+    } finally {
+      setUpdatingArchiveState(false)
+    }
+  }
+
+  const removeItem = async () => {
+    if (!activeOrgId || !item || deletingItem || !canManageItemLifecycle) return
+    const confirmed = window.confirm(
+      `Delete "${item.name}" from this organization inventory? This removes store batches and overrides for this item.`
+    )
+    if (!confirmed) return
+    setStatusMessage(null)
+    setErrorMessage(null)
+    setDeletingItem(true)
+    try {
+      await deleteInventoryItem(activeOrgId, item.id)
+      await queryClient.invalidateQueries({ queryKey: ["items", activeOrgId] })
+      await queryClient.invalidateQueries({ queryKey: ["store-inventory-items", activeOrgId] })
+      window.location.assign("/app/inventory")
+    } catch {
+      setErrorMessage("Could not delete item.")
+      setDeletingItem(false)
     }
   }
 
@@ -240,6 +287,21 @@ export default function InventoryItemDetailPage({ params }: { params: { itemId: 
               disabled={!effectivePermissions.editOrgInventoryMeta}
             >
               Save
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              onClick={() => void toggleArchiveState()}
+              disabled={!canManageItemLifecycle || updatingArchiveState || deletingItem}
+            >
+              {updatingArchiveState ? "Updating..." : item.isArchived ? "Unarchive" : "Archive"}
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              className="border-rose-500/40 text-rose-200 hover:bg-rose-500/20"
+              onClick={() => void removeItem()}
+              disabled={!canManageItemLifecycle || deletingItem || updatingArchiveState}
+            >
+              {deletingItem ? "Deleting..." : item.isArchived ? "Delete Archived" : "Delete Item"}
             </AppButton>
           </div>
         }

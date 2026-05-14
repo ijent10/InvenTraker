@@ -103,6 +103,49 @@ function normalizeDomainSet(domains) {
     const unique = [...new Set(domains.filter((domain) => domain === "orders" || domain === "production"))];
     return unique.length ? unique : ["orders", "production"];
 }
+const MAX_BATCH_ROWS = 2500;
+const MAX_WASTE_ROWS = 2500;
+const MAX_ORDER_ROWS = 500;
+async function loadStoreScopedCollection(params) {
+    const directPath = `${params.storePath.path}/${params.collectionName}`;
+    const directSnap = await adminDb.collection(directPath).limit(params.limitCount).get().catch(() => null);
+    if (directSnap && directSnap.docs.length > 0) {
+        return {
+            docs: directSnap.docs,
+            sourceRef: directPath
+        };
+    }
+    const scopedCollectionGroup = await adminDb
+        .collectionGroup(params.collectionName)
+        .where("organizationId", "==", params.orgId)
+        .where("storeId", "==", params.normalizedStoreId)
+        .limit(params.limitCount)
+        .get()
+        .catch(() => null);
+    if (scopedCollectionGroup && scopedCollectionGroup.docs.length > 0) {
+        return {
+            docs: scopedCollectionGroup.docs,
+            sourceRef: `collectionGroup:${params.collectionName}[org+store]`
+        };
+    }
+    const orgWideCollectionGroup = await adminDb
+        .collectionGroup(params.collectionName)
+        .where("organizationId", "==", params.orgId)
+        .limit(params.limitCount)
+        .get()
+        .catch(() => null);
+    if (!orgWideCollectionGroup) {
+        return {
+            docs: [],
+            sourceRef: `${directPath} (fallback unavailable)`
+        };
+    }
+    const filtered = orgWideCollectionGroup.docs.filter((entry) => isStoreScopedMatch(entry.data(), entry.ref.path, params.normalizedStoreId));
+    return {
+        docs: filtered,
+        sourceRef: `collectionGroup:${params.collectionName}[org-filtered]`
+    };
+}
 export async function collectRecommendationFeatures(params) {
     const now = new Date();
     const normalizedStoreId = params.storeId.trim();
@@ -120,34 +163,41 @@ export async function collectRecommendationFeatures(params) {
         storePath.path,
         `organizations/${params.orgId}/items`,
         `organizations/${params.orgId}/vendors`,
-        "collectionGroup:inventoryBatches",
-        "collectionGroup:wasteRecords",
-        "collectionGroup:orders",
         `organizations/${params.orgId}/productionProducts`,
         `organizations/${params.orgId}/productionIngredients`,
         `organizations/${params.orgId}/productionSpotChecks`,
         `organizations/${params.orgId}/productionRuns`
     ];
-    const [itemsSnap, vendorsSnap, batchesSnap, wasteSnap, ordersSnap, productsSnap, ingredientsSnap, spotChecksSnap, runsSnap] = await Promise.all([
+    const [itemsSnap, vendorsSnap, batchesScoped, wasteScoped, ordersScoped, productsSnap, ingredientsSnap, spotChecksSnap, runsSnap] = await Promise.all([
         adminDb.collection(`organizations/${params.orgId}/items`).get(),
         adminDb.collection(`organizations/${params.orgId}/vendors`).get(),
-        adminDb
-            .collectionGroup("inventoryBatches")
-            .where("organizationId", "==", params.orgId)
-            .get(),
-        adminDb
-            .collectionGroup("wasteRecords")
-            .where("organizationId", "==", params.orgId)
-            .get(),
-        adminDb
-            .collectionGroup("orders")
-            .where("organizationId", "==", params.orgId)
-            .get(),
+        loadStoreScopedCollection({
+            orgId: params.orgId,
+            normalizedStoreId,
+            storePath,
+            collectionName: "inventoryBatches",
+            limitCount: MAX_BATCH_ROWS
+        }),
+        loadStoreScopedCollection({
+            orgId: params.orgId,
+            normalizedStoreId,
+            storePath,
+            collectionName: "wasteRecords",
+            limitCount: MAX_WASTE_ROWS
+        }),
+        loadStoreScopedCollection({
+            orgId: params.orgId,
+            normalizedStoreId,
+            storePath,
+            collectionName: "orders",
+            limitCount: MAX_ORDER_ROWS
+        }),
         adminDb.collection(`organizations/${params.orgId}/productionProducts`).get().catch(() => null),
         adminDb.collection(`organizations/${params.orgId}/productionIngredients`).get().catch(() => null),
         adminDb.collection(`organizations/${params.orgId}/productionSpotChecks`).get().catch(() => null),
         adminDb.collection(`organizations/${params.orgId}/productionRuns`).get().catch(() => null)
     ]);
+    sourceRefs.push(batchesScoped.sourceRef, wasteScoped.sourceRef, ordersScoped.sourceRef);
     const vendorMap = new Map();
     for (const vendor of vendorsSnap.docs) {
         const data = vendor.data();
@@ -160,7 +210,7 @@ export async function collectRecommendationFeatures(params) {
     }
     const onHandByItem = new Map();
     const expiringByItemByLead = new Map();
-    for (const batch of batchesSnap.docs) {
+    for (const batch of batchesScoped.docs) {
         const data = batch.data();
         if (!isStoreScopedMatch(data, batch.ref.path, normalizedStoreId))
             continue;
@@ -178,7 +228,7 @@ export async function collectRecommendationFeatures(params) {
         }
     }
     const wasteByItem = new Map();
-    for (const waste of wasteSnap.docs) {
+    for (const waste of wasteScoped.docs) {
         const data = waste.data();
         if (!isStoreScopedMatch(data, waste.ref.path, normalizedStoreId))
             continue;
@@ -192,7 +242,7 @@ export async function collectRecommendationFeatures(params) {
         wasteByItem.set(itemId, (wasteByItem.get(itemId) ?? 0) + Math.max(0, asNumber(data.quantity, 0)));
     }
     const incomingLines = [];
-    for (const order of ordersSnap.docs) {
+    for (const order of ordersScoped.docs) {
         const orderData = order.data();
         if (!isStoreScopedMatch(orderData, order.ref.path, normalizedStoreId))
             continue;

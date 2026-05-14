@@ -1705,8 +1705,8 @@ function normalizeItemRecord(
   const minQuantity = asNumber(data.minQuantity ?? data.minimumQuantity, 0)
   const qtyPerCase = Math.max(1, asNumber(data.qtyPerCase ?? data.quantityPerBox, 1))
   const rawExpirationValue = data.defaultExpirationDays ?? data.defaultExpiration
-  const hasExpiration = data.hasExpiration === undefined ? asNumber(rawExpirationValue, 7) > 0 : Boolean(data.hasExpiration)
-  const defaultExpiration = Math.max(0, asNumber(rawExpirationValue, hasExpiration ? 7 : 0))
+  const hasExpiration = data.hasExpiration === undefined ? asNumber(rawExpirationValue, 0) > 0 : Boolean(data.hasExpiration)
+  const defaultExpiration = Math.max(0, asNumber(rawExpirationValue, hasExpiration ? 1 : 0))
   const packedExpiration = Math.max(
     0,
     asNumber(data.defaultPackedExpiration ?? defaultExpiration, defaultExpiration)
@@ -1883,7 +1883,7 @@ function organizationItemPatch(patch: Partial<ItemRecord>): Record<string, unkno
   if (patch.caseSize !== undefined) record.caseSize = Math.max(1, asNumber(patch.caseSize, 1))
   if (patch.hasExpiration !== undefined) record.hasExpiration = Boolean(patch.hasExpiration)
   if (patch.defaultExpirationDays !== undefined || patch.defaultExpiration !== undefined) {
-    const expiration = Math.max(0, asNumber(patch.defaultExpirationDays ?? patch.defaultExpiration, 7))
+    const expiration = Math.max(0, asNumber(patch.defaultExpirationDays ?? patch.defaultExpiration, 0))
     record.defaultExpirationDays = expiration
     record.defaultExpiration = expiration
   }
@@ -2328,9 +2328,9 @@ export async function updateItem(orgId: string, itemId: string, patch: Partial<I
       tags: patch.tags ?? currentData.tags ?? [],
       price: patch.price ?? currentData.price ?? 0,
       casePack: patch.qtyPerCase ?? patch.quantityPerBox ?? currentData.qtyPerCase ?? currentData.quantityPerBox ?? 1,
-      hasExpiration: patch.hasExpiration ?? currentData.hasExpiration ?? true,
+      hasExpiration: patch.hasExpiration ?? currentData.hasExpiration ?? false,
       defaultExpiration:
-        patch.defaultExpirationDays ?? patch.defaultExpiration ?? currentData.defaultExpirationDays ?? currentData.defaultExpiration ?? 7,
+        patch.defaultExpirationDays ?? patch.defaultExpiration ?? currentData.defaultExpirationDays ?? currentData.defaultExpiration ?? 0,
       defaultPackedExpiration:
         patch.defaultPackedExpiration ??
         currentData.defaultPackedExpiration ??
@@ -2338,7 +2338,7 @@ export async function updateItem(orgId: string, itemId: string, patch: Partial<I
         patch.defaultExpiration ??
         currentData.defaultExpirationDays ??
         currentData.defaultExpiration ??
-        7,
+        0,
       vendorName: normalizedVendorName || null,
       department: normalizedDepartment || null,
       departmentLocation: normalizedDepartmentLocation || null,
@@ -3865,10 +3865,10 @@ export async function syncOrganizationItemsToStoreCatalog(
     const upc = asString(data.upc) ?? ""
     const catalogDocId = upc.trim() || item.id
     const qtyPerCase = Math.max(1, asNumber(data.qtyPerCase ?? data.quantityPerBox, 1))
-    const hasExpiration = data.hasExpiration === undefined ? true : Boolean(data.hasExpiration)
+    const hasExpiration = data.hasExpiration === undefined ? false : Boolean(data.hasExpiration)
     const defaultExpiration = Math.max(
       0,
-      asNumber(data.defaultExpirationDays ?? data.defaultExpiration, hasExpiration ? 7 : 0)
+      asNumber(data.defaultExpirationDays ?? data.defaultExpiration, hasExpiration ? 1 : 0)
     )
     const defaultPackedExpiration = Math.max(
       0,
@@ -5580,6 +5580,65 @@ export async function fetchCentralCatalogItems(): Promise<CentralCatalogItemReco
   }
 
   return rows.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function deleteInventoryItem(orgId: string, itemId: string): Promise<void> {
+  if (!db || !orgId || !itemId) return
+  const firestore = db
+
+  const itemRef = doc(firestore, "organizations", orgId, "items", itemId)
+  const itemSnap = await getDoc(itemRef).catch(() => null)
+  const itemData = (itemSnap?.data() as Record<string, unknown> | undefined) ?? {}
+  const upc = (asString(itemData.upc) ?? "").trim()
+
+  let pending = 0
+  let writer = writeBatch(firestore)
+  const enqueueDelete = async (ref: Parameters<typeof deleteDoc>[0]) => {
+    writer.delete(ref)
+    pending += 1
+    if (pending >= 450) {
+      await writer.commit()
+      writer = writeBatch(firestore)
+      pending = 0
+    }
+  }
+
+  await enqueueDelete(itemRef)
+  if (upc) {
+    await enqueueDelete(doc(firestore, "organizations", orgId, "companyCatalog", upc))
+  }
+
+  const overrideRows = await getDocs(
+    query(
+      collection(firestore, "organizations", orgId, "storeItemOverrides"),
+      where("itemId", "==", itemId),
+      limit(2500)
+    )
+  ).catch(() => null)
+  for (const row of overrideRows?.docs ?? []) {
+    await enqueueDelete(row.ref)
+  }
+
+  const stores = await fetchStores(orgId).catch(() => [] as StoreWithPath[])
+  for (const store of stores) {
+    const catalogCollection = storeCollectionPath(orgId, store, "catalog")
+    await enqueueDelete(doc(catalogCollection, itemId))
+    if (upc) {
+      await enqueueDelete(doc(catalogCollection, upc))
+    }
+
+    const inventoryBatchCollection = storeCollectionPath(orgId, store, "inventoryBatches")
+    const batchRows = await getDocs(
+      query(inventoryBatchCollection, where("itemId", "==", itemId), limit(2500))
+    ).catch(() => null)
+    for (const batchRow of batchRows?.docs ?? []) {
+      await enqueueDelete(batchRow.ref)
+    }
+  }
+
+  if (pending > 0) {
+    await writer.commit()
+  }
 }
 
 export async function upsertCentralCatalogItem(

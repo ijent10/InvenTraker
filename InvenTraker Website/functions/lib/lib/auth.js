@@ -237,6 +237,7 @@ export async function getMembership(orgId, uid) {
     if (isPlatformAdmin) {
         return {
             role: "Owner",
+            assignmentType: "corporate",
             storeIds: [],
             permissionFlags: permissionDefaultsForRole("Owner"),
             ownerByArray: true
@@ -246,6 +247,9 @@ export async function getMembership(orgId, uid) {
         return null;
     return {
         role: normalizeRole(member?.role, ownerByArray),
+        assignmentType: member?.assignmentType === "corporate" || member?.assignmentType === "store"
+            ? member.assignmentType
+            : "store",
         storeIds: Array.isArray(member?.storeIds) ? member.storeIds : [],
         permissionFlags: member?.permissionFlags && typeof member.permissionFlags === "object"
             ? { ...permissionDefaultsForRole(normalizeRole(member?.role, ownerByArray)), ...member.permissionFlags }
@@ -265,7 +269,8 @@ export async function requireStoreAccess(orgId, uid, storeId) {
         return member;
     if (member.role === "Manager" || member.role === "Staff") {
         const storeIds = member.storeIds ?? [];
-        const allowed = storeIds.includes(storeId);
+        const hasScopedAssignments = member.assignmentType === "store" || storeIds.length > 0;
+        const allowed = !hasScopedAssignments || storeIds.includes(storeId);
         if (!allowed)
             throw new HttpsError("permission-denied", "No store access");
     }

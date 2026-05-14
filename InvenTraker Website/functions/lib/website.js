@@ -201,82 +201,109 @@ function timestampToResponse(value) {
     return null;
 }
 function canManageWebsite(member) {
-    return Boolean(member);
+    if (!member)
+        return false;
+    if (member.role === "Owner")
+        return true;
+    return member.permissionFlags?.manageWebsite === true;
+}
+function normalizeUnknownError(error) {
+    if (!error || typeof error !== "object")
+        return { message: "Unknown server error." };
+    const record = error;
+    const message = typeof record.message === "string" && record.message.trim() ? record.message : "Unknown server error.";
+    const code = typeof record.code === "string" ? record.code : undefined;
+    return { message, code };
 }
 export const saveOrganizationWebsiteConfig = onCall(async (request) => {
     const uid = requireAuth(request);
-    const input = saveOrganizationWebsiteConfigRequestSchema.parse(request.data ?? {});
-    const member = await requireOrgMembership(input.orgId, uid);
-    if (!canManageWebsite(member)) {
-        throw new HttpsError("permission-denied", "Missing permission to manage the customer website.");
+    const parsed = saveOrganizationWebsiteConfigRequestSchema.safeParse(request.data ?? {});
+    if (!parsed.success) {
+        throw new HttpsError("invalid-argument", "Invalid website payload.", parsed.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message
+        })));
     }
-    const orgSnap = await adminDb.doc(`organizations/${input.orgId}`).get();
-    const orgName = normalizeString(orgSnap.data()?.name, "Customer Website", 160);
-    const configRef = adminDb.doc(`organizations/${input.orgId}/website/config`);
-    const previousSnap = await configRef.get();
-    const previous = previousSnap.exists ? previousSnap.data() : {};
-    const normalized = normalizeWebsiteConfig(input.config, input.orgId, orgName, input.mode);
-    if (input.mode === "publish" && !normalized.slug) {
-        throw new HttpsError("failed-precondition", "A public website path is required before publishing.");
-    }
-    if (normalized.published && normalized.slug) {
-        const existingPublicSnap = await adminDb.doc(`publicSites/${normalized.slug}`).get();
-        const existingOrgId = normalizeString(existingPublicSnap.data()?.organizationId);
-        if (existingPublicSnap.exists && existingOrgId && existingOrgId !== input.orgId) {
-            throw new HttpsError("already-exists", "That website path is already in use.");
+    const input = parsed.data;
+    try {
+        const member = await requireOrgMembership(input.orgId, uid);
+        if (!canManageWebsite(member)) {
+            throw new HttpsError("permission-denied", "Missing permission to manage the customer website.");
         }
-    }
-    const previousSlug = normalizeWebsiteSlug(previous.slug);
-    const now = new Date();
-    const isFreshPublish = input.mode === "publish" && previous.published !== true;
-    const publishedAt = isFreshPublish ? now.toISOString() : timestampToResponse(previous.publishedAt ?? input.config.publishedAt);
-    const unpublishedAt = input.mode === "unpublish" ? now.toISOString() : timestampToResponse(input.config.unpublishedAt ?? previous.unpublishedAt);
-    const payload = stripUndefinedDeep({
-        ...normalized,
-        createdAt: previous.createdAt ?? FieldValue.serverTimestamp(),
-        publishedAt: normalized.published ? (isFreshPublish ? FieldValue.serverTimestamp() : previous.publishedAt ?? input.config.publishedAt ?? null) : previous.publishedAt ?? null,
-        unpublishedAt: input.mode === "unpublish" ? FieldValue.serverTimestamp() : input.config.unpublishedAt ?? previous.unpublishedAt ?? null,
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: uid
-    });
-    const batch = adminDb.batch();
-    batch.set(configRef, payload, { merge: true });
-    if (previousSlug && previousSlug !== normalized.slug) {
-        batch.delete(adminDb.doc(`publicSites/${previousSlug}`));
-    }
-    if (normalized.published && normalized.slug) {
-        batch.set(adminDb.doc(`publicSites/${normalized.slug}`), stripUndefinedDeep({
-            ...payload,
+        const orgSnap = await adminDb.doc(`organizations/${input.orgId}`).get();
+        const orgName = normalizeString(orgSnap.data()?.name, "Customer Website", 160);
+        const configRef = adminDb.doc(`organizations/${input.orgId}/website/config`);
+        const previousSnap = await configRef.get();
+        const previous = previousSnap.exists ? previousSnap.data() : {};
+        const normalized = normalizeWebsiteConfig(input.config, input.orgId, orgName, input.mode);
+        if (input.mode === "publish" && !normalized.slug) {
+            throw new HttpsError("failed-precondition", "A public website path is required before publishing.");
+        }
+        if (normalized.published && normalized.slug) {
+            const existingPublicSnap = await adminDb.doc(`publicSites/${normalized.slug}`).get();
+            const existingOrgId = normalizeString(existingPublicSnap.data()?.organizationId);
+            if (existingPublicSnap.exists && existingOrgId && existingOrgId !== input.orgId) {
+                throw new HttpsError("already-exists", "That website path is already in use.");
+            }
+        }
+        const previousSlug = normalizeWebsiteSlug(previous.slug);
+        const now = new Date();
+        const isFreshPublish = input.mode === "publish" && previous.published !== true;
+        const publishedAt = isFreshPublish ? now.toISOString() : timestampToResponse(previous.publishedAt ?? input.config.publishedAt);
+        const unpublishedAt = input.mode === "unpublish" ? now.toISOString() : timestampToResponse(input.config.unpublishedAt ?? previous.unpublishedAt);
+        const payload = stripUndefinedDeep({
+            ...normalized,
+            createdAt: previous.createdAt ?? FieldValue.serverTimestamp(),
+            publishedAt: normalized.published ? (isFreshPublish ? FieldValue.serverTimestamp() : previous.publishedAt ?? input.config.publishedAt ?? null) : previous.publishedAt ?? null,
+            unpublishedAt: input.mode === "unpublish" ? FieldValue.serverTimestamp() : input.config.unpublishedAt ?? previous.unpublishedAt ?? null,
+            updatedAt: FieldValue.serverTimestamp(),
+            updatedBy: uid
+        });
+        const batch = adminDb.batch();
+        batch.set(configRef, payload, { merge: true });
+        if (previousSlug && previousSlug !== normalized.slug) {
+            batch.delete(adminDb.doc(`publicSites/${previousSlug}`));
+        }
+        if (normalized.published && normalized.slug) {
+            batch.set(adminDb.doc(`publicSites/${normalized.slug}`), stripUndefinedDeep({
+                ...payload,
+                organizationId: input.orgId,
+                published: true,
+                updatedAt: FieldValue.serverTimestamp()
+            }), { merge: true });
+        }
+        else if (normalized.slug) {
+            batch.delete(adminDb.doc(`publicSites/${normalized.slug}`));
+        }
+        batch.set(adminDb.collection("auditLogs").doc(), {
+            actorUserId: uid,
+            actorRoleSnapshot: member.role,
             organizationId: input.orgId,
-            published: true,
-            updatedAt: FieldValue.serverTimestamp()
-        }), { merge: true });
+            storeId: null,
+            targetPath: configRef.path,
+            action: previousSnap.exists ? "update" : "create",
+            before: previousSnap.exists ? previous : null,
+            after: {
+                slug: normalized.slug,
+                published: normalized.published,
+                mode: input.mode
+            },
+            createdAt: FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        return stripUndefinedDeep({
+            ...normalized,
+            publishedAt,
+            unpublishedAt,
+            createdAt: timestampToResponse(previous.createdAt),
+            updatedAt: now.toISOString(),
+            updatedBy: uid
+        });
     }
-    else if (normalized.slug) {
-        batch.delete(adminDb.doc(`publicSites/${normalized.slug}`));
+    catch (error) {
+        if (error instanceof HttpsError)
+            throw error;
+        const details = normalizeUnknownError(error);
+        throw new HttpsError("internal", "Could not save website configuration.", details);
     }
-    batch.set(adminDb.collection("auditLogs").doc(), {
-        actorUserId: uid,
-        actorRoleSnapshot: member.role,
-        organizationId: input.orgId,
-        storeId: null,
-        targetPath: configRef.path,
-        action: previousSnap.exists ? "update" : "create",
-        before: previousSnap.exists ? previous : null,
-        after: {
-            slug: normalized.slug,
-            published: normalized.published,
-            mode: input.mode
-        },
-        createdAt: FieldValue.serverTimestamp()
-    });
-    await batch.commit();
-    return stripUndefinedDeep({
-        ...normalized,
-        publishedAt,
-        unpublishedAt,
-        createdAt: timestampToResponse(previous.createdAt),
-        updatedAt: now.toISOString(),
-        updatedBy: uid
-    });
 });

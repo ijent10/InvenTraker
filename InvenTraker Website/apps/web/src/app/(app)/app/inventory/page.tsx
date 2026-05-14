@@ -10,6 +10,7 @@ import {
   DataTable,
   SearchInput,
   SegmentedControl,
+  appButtonClass,
   type TableColumn
 } from "@inventracker/ui"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -31,35 +32,6 @@ import { downloadSpreadsheetExport } from "@/lib/exports/spreadsheet"
 import type { ImportInspectionResult } from "@/lib/imports/attribute-mapper"
 
 type ImportExpirationMode = "all" | "some" | "none"
-type ManualItemUnit = "each" | "lbs"
-
-type ManualItemFormState = {
-  name: string
-  upc: string
-  unit: ManualItemUnit
-  minimumQuantity: string
-  price: string
-  department: string
-  departmentLocation: string
-  vendorName: string
-  hasExpiration: boolean
-  defaultExpirationDays: string
-}
-
-function defaultManualItemForm(): ManualItemFormState {
-  return {
-    name: "",
-    upc: "",
-    unit: "each",
-    minimumQuantity: "0",
-    price: "0",
-    department: "",
-    departmentLocation: "",
-    vendorName: "",
-    hasExpiration: false,
-    defaultExpirationDays: "0"
-  }
-}
 
 function cleanImportText(value: unknown): string {
   return String(value ?? "").trim()
@@ -139,10 +111,6 @@ export default function InventoryPage() {
   const [importErrorMessage, setImportErrorMessage] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [inspectingImport, setInspectingImport] = useState(false)
-  const [manualItemForm, setManualItemForm] = useState<ManualItemFormState>(() => defaultManualItemForm())
-  const [creatingItem, setCreatingItem] = useState(false)
-  const [createStatusMessage, setCreateStatusMessage] = useState<string | null>(null)
-  const [createErrorMessage, setCreateErrorMessage] = useState<string | null>(null)
   const canViewOrgInventory = effectivePermissions.viewOrganizationInventory === true
   const canManageStoreInventory = Boolean(
     activeStoreId &&
@@ -352,55 +320,6 @@ export default function InventoryPage() {
     }
   }
 
-  const createInventoryItem = async () => {
-    if (!activeOrgId || !activeStoreId) return
-    const name = manualItemForm.name.trim()
-    if (!name) {
-      setCreateErrorMessage("Item name is required.")
-      return
-    }
-    setCreatingItem(true)
-    setCreateStatusMessage(null)
-    setCreateErrorMessage(null)
-    try {
-      const upc = normalizeImportBarcode(manualItemForm.upc)
-      const hasExpiration = manualItemForm.hasExpiration
-      const defaultExpirationDays = hasExpiration
-        ? Math.max(1, parseImportNumber(manualItemForm.defaultExpirationDays) ?? 1)
-        : 0
-      const minimumQuantity = Math.max(0, parseImportNumber(manualItemForm.minimumQuantity) ?? 0)
-      const patch: Partial<ItemRecord> & { storeMinimumQuantity?: number; storeDepartmentLocation?: string } = {
-        name,
-        upc,
-        unit: manualItemForm.unit,
-        minimumQuantity,
-        storeMinimumQuantity: minimumQuantity,
-        department: manualItemForm.department.trim() || undefined,
-        departmentLocation: manualItemForm.departmentLocation.trim() || undefined,
-        storeDepartmentLocation: manualItemForm.departmentLocation.trim() || undefined,
-        vendorName: manualItemForm.vendorName.trim() || undefined,
-        price: Math.max(0, parseImportNumber(manualItemForm.price) ?? 0),
-        hasExpiration,
-        defaultExpiration: defaultExpirationDays,
-        defaultExpirationDays,
-        defaultPackedExpiration: defaultExpirationDays
-      }
-      const itemId = makeImportItemId(
-        { name, upc },
-        `manual_${Math.max(1, Date.now())}`
-      )
-      await upsertStoreInventoryItem(activeOrgId, activeStoreId, itemId, patch)
-      await queryClient.invalidateQueries({ queryKey: ["items", activeOrgId] })
-      await queryClient.invalidateQueries({ queryKey: ["store-inventory-items", activeOrgId, activeStoreId] })
-      setManualItemForm(defaultManualItemForm())
-      setCreateStatusMessage(`Created ${name}.`)
-    } catch (error) {
-      setCreateErrorMessage(error instanceof Error ? error.message : "Could not create item.")
-    } finally {
-      setCreatingItem(false)
-    }
-  }
-
   const runSubmissionReview = async (
     submissionId: string,
     decision: "approved" | "rejected" | "promoted"
@@ -457,6 +376,14 @@ export default function InventoryPage() {
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/app/inventory/new"
+              className={`${appButtonClass("primary")} ${canCreateInventory ? "" : "pointer-events-none opacity-50"}`}
+              aria-disabled={!canCreateInventory}
+              tabIndex={canCreateInventory ? 0 : -1}
+            >
+              Add Item
+            </Link>
             <AppButton
               variant="secondary"
               onClick={() => setImportOpen((value) => !value)}
@@ -615,138 +542,25 @@ export default function InventoryPage() {
       <AppCard className="mb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="card-title">Create Item</h2>
+            <h2 className="card-title">Add Item</h2>
             <p className="secondary-text mt-1">
-              Add a single inventory item directly to this store.
+              Use the dedicated add-item page for full item setup.
             </p>
           </div>
-          <AppButton
-            onClick={() => void createInventoryItem()}
-            disabled={!canCreateInventory || creatingItem}
+          <Link
+            href="/app/inventory/new"
+            className={`${appButtonClass("primary")} ${canCreateInventory ? "" : "pointer-events-none opacity-50"}`}
+            aria-disabled={!canCreateInventory}
+            tabIndex={canCreateInventory ? 0 : -1}
           >
-            {creatingItem ? "Creating..." : "Create Item"}
-          </AppButton>
+            Open Add Item Page
+          </Link>
         </div>
-
         {!canCreateInventory ? (
           <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
             {activeStoreId
               ? "You need inventory edit permission to create items for this store."
               : "Choose an active store before creating items."}
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <AppInput
-            placeholder="Item name"
-            value={manualItemForm.name}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, name: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            placeholder="Barcode / UPC (optional)"
-            value={manualItemForm.upc}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, upc: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            placeholder="Vendor (optional)"
-            value={manualItemForm.vendorName}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, vendorName: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            placeholder="Department (optional)"
-            value={manualItemForm.department}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, department: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            placeholder="Location (optional)"
-            value={manualItemForm.departmentLocation}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, departmentLocation: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="Price"
-            value={manualItemForm.price}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, price: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <AppInput
-            type="number"
-            step="0.001"
-            min="0"
-            placeholder="Minimum quantity"
-            value={manualItemForm.minimumQuantity}
-            onChange={(event) =>
-              setManualItemForm((prev) => ({ ...prev, minimumQuantity: event.target.value }))
-            }
-            disabled={!canCreateInventory}
-          />
-          <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-app-muted">Unit</p>
-            <SegmentedControl
-              options={[
-                { label: "Each", value: "each" },
-                { label: "Lbs", value: "lbs" }
-              ]}
-              value={manualItemForm.unit}
-              onChange={(value) =>
-                setManualItemForm((prev) => ({ ...prev, unit: value as ManualItemUnit }))
-              }
-            />
-          </div>
-          <div className="rounded-2xl border border-app-border bg-app-surface-soft p-3">
-            <AppCheckbox
-              checked={manualItemForm.hasExpiration}
-              onChange={(event) =>
-                setManualItemForm((prev) => ({
-                  ...prev,
-                  hasExpiration: event.target.checked,
-                  defaultExpirationDays: event.target.checked ? (prev.defaultExpirationDays === "0" ? "1" : prev.defaultExpirationDays) : "0"
-                }))
-              }
-              label="Item has expiration"
-            />
-            <AppInput
-              className="mt-2"
-              type="number"
-              step="1"
-              min={manualItemForm.hasExpiration ? "1" : "0"}
-              placeholder="Default expiration days"
-              value={manualItemForm.defaultExpirationDays}
-              onChange={(event) =>
-                setManualItemForm((prev) => ({ ...prev, defaultExpirationDays: event.target.value }))
-              }
-              disabled={!manualItemForm.hasExpiration}
-            />
-          </div>
-        </div>
-
-        {createStatusMessage ? (
-          <div className="mt-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-            {createStatusMessage}
-          </div>
-        ) : null}
-        {createErrorMessage ? (
-          <div className="mt-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-            {createErrorMessage}
           </div>
         ) : null}
       </AppCard>

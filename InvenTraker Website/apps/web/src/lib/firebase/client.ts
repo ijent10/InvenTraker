@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth
+} from "firebase/auth"
 import { initializeFirestore } from "firebase/firestore/lite"
 import { getFunctions } from "firebase/functions"
 import { getStorage } from "firebase/storage"
@@ -21,7 +27,18 @@ const firebaseConfig = env.success
 const app = firebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null
 
 export const firebaseReady = Boolean(app)
-const auth = app ? getAuth(app) : null
+const auth = app
+  ? (() => {
+      try {
+        return initializeAuth(app, {
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+          popupRedirectResolver: undefined
+        })
+      } catch {
+        return getAuth(app)
+      }
+    })()
+  : null
 export const db = app
   ? initializeFirestore(app, {
       ignoreUndefinedProperties: true

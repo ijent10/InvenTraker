@@ -50,7 +50,14 @@ const auth = app
           popupRedirectResolver: undefined
         })
       } catch {
-        return getAuth(app)
+        try {
+          return initializeAuth(app, {
+            persistence: [inMemoryPersistence],
+            popupRedirectResolver: undefined
+          })
+        } catch {
+          return getAuth(app)
+        }
       }
     })()
   : null

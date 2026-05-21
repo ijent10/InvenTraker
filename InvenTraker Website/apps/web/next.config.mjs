@@ -3,8 +3,8 @@ const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "invent
 const firebaseAuthHost = `${firebaseProjectId}.firebaseapp.com`
 
 const scriptSrc = isProd
-  ? "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com"
-  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com"
+  ? "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://apis.google.com https://js.stripe.com"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.gstatic.com https://apis.google.com https://js.stripe.com"
 
 const cspDirectives = [
   "default-src 'self'",
@@ -15,7 +15,7 @@ const cspDirectives = [
   scriptSrc,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.web.app https://*.firestore.googleapis.com https://*.cloudfunctions.net https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://api.stripe.com https://r.stripe.com https://m.stripe.network https://js.stripe.com",
-  "frame-src 'self' https://*.firebaseapp.com https://*.web.app https://checkout.stripe.com https://billing.stripe.com https://js.stripe.com https://hooks.stripe.com",
+  "frame-src 'self' https://*.firebaseapp.com https://*.web.app https://apis.google.com https://checkout.stripe.com https://billing.stripe.com https://js.stripe.com https://hooks.stripe.com",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https://checkout.stripe.com https://billing.stripe.com"

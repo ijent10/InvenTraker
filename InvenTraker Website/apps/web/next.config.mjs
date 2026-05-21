@@ -1,4 +1,6 @@
 const isProd = process.env.NODE_ENV === "production"
+const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "inventracker-f1229"
+const firebaseAuthHost = `${firebaseProjectId}.firebaseapp.com`
 
 const scriptSrc = isProd
   ? "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://js.stripe.com"
@@ -30,6 +32,14 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@inventracker/ui", "@inventracker/shared"],
+  async rewrites() {
+    return [
+      {
+        source: "/__/auth/:path*",
+        destination: `https://${firebaseAuthHost}/__/auth/:path*`
+      }
+    ]
+  },
   async headers() {
     return [
       {

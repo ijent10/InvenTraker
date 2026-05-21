@@ -3,6 +3,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   getAuth,
+  inMemoryPersistence,
   indexedDBLocalPersistence,
   initializeAuth
 } from "firebase/auth"
@@ -31,7 +32,12 @@ const auth = app
   ? (() => {
       try {
         return initializeAuth(app, {
-          persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+          persistence: [
+            indexedDBLocalPersistence,
+            browserLocalPersistence,
+            browserSessionPersistence,
+            inMemoryPersistence
+          ],
           popupRedirectResolver: undefined
         })
       } catch {

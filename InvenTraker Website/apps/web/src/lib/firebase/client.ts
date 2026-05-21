@@ -3,7 +3,6 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   getAuth,
-  inMemoryPersistence,
   indexedDBLocalPersistence,
   initializeAuth
 } from "firebase/auth"
@@ -13,19 +12,10 @@ import { getStorage } from "firebase/storage"
 
 import { env } from "@/lib/env"
 
-const runtimeHostname =
-  typeof window !== "undefined" && typeof window.location?.hostname === "string"
-    ? window.location.hostname.trim().toLowerCase()
-    : ""
-const shouldUseRuntimeAuthDomain =
-  runtimeHostname.length > 0 && runtimeHostname !== "localhost" && runtimeHostname !== "127.0.0.1"
-const resolvedAuthDomain =
-  shouldUseRuntimeAuthDomain && env.success ? runtimeHostname : env.success ? env.data.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN : ""
-
 const firebaseConfig = env.success
   ? {
       apiKey: env.data.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: resolvedAuthDomain,
+      authDomain: env.data.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
       projectId: env.data.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       storageBucket: env.data.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       messagingSenderId: env.data.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
@@ -41,23 +31,11 @@ const auth = app
   ? (() => {
       try {
         return initializeAuth(app, {
-          persistence: [
-            indexedDBLocalPersistence,
-            browserLocalPersistence,
-            browserSessionPersistence,
-            inMemoryPersistence
-          ],
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
           popupRedirectResolver: undefined
         })
       } catch {
-        try {
-          return initializeAuth(app, {
-            persistence: [inMemoryPersistence],
-            popupRedirectResolver: undefined
-          })
-        } catch {
-          return getAuth(app)
-        }
+        return getAuth(app)
       }
     })()
   : null

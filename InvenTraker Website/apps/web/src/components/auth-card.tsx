@@ -25,22 +25,6 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>
 
-async function signInWithRetry(email: string, password: string) {
-  if (!auth) {
-    throw new Error("Authentication service is not initialized.")
-  }
-
-  try {
-    return await signInWithEmailAndPassword(auth, email, password)
-  } catch (error) {
-    if (error instanceof FirebaseError && error.code === "auth/network-request-failed") {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      return signInWithEmailAndPassword(auth, email, password)
-    }
-    throw error
-  }
-}
-
 function mapAuthError(error: unknown): string {
   if (error instanceof FirebaseError) {
     switch (error.code) {
@@ -95,7 +79,7 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
     try {
       const normalizedEmail = values.email.trim().toLowerCase()
       if (mode === "signin") {
-        await signInWithRetry(normalizedEmail, values.password)
+        await signInWithEmailAndPassword(auth, normalizedEmail, values.password)
         document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
         router.replace("/app")
         return

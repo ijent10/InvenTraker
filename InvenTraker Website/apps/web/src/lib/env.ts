@@ -10,25 +10,6 @@ const fallbackFirebaseConfig = {
   NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: "G-F0DDYRXZSD"
 } as const
 
-function resolveFirebaseAuthDomain(projectId: string, rawAuthDomain?: string): string {
-  const canonicalDomain = `${projectId}.firebaseapp.com`
-  const candidate = rawAuthDomain?.trim().toLowerCase()
-  if (!candidate) {
-    return canonicalDomain
-  }
-
-  if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
-    try {
-      const parsed = new URL(candidate)
-      return parsed.hostname.toLowerCase()
-    } catch {
-      return canonicalDomain
-    }
-  }
-
-  return candidate
-}
-
 const envSchema = z.object({
   NEXT_PUBLIC_FIREBASE_API_KEY: z.string().min(1),
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().min(1),
@@ -39,16 +20,13 @@ const envSchema = z.object({
   NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: z.string().optional()
 })
 
-const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-
 const clientEnv = {
   NEXT_PUBLIC_FIREBASE_API_KEY:
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: resolveFirebaseAuthDomain(
-    projectId,
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-  ),
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: projectId,
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID:
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:
     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? fallbackFirebaseConfig.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:

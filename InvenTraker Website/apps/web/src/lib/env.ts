@@ -17,15 +17,16 @@ function resolveFirebaseAuthDomain(projectId: string, rawAuthDomain?: string): s
     return canonicalDomain
   }
 
-  if (candidate === "localhost" || candidate === "127.0.0.1") {
-    return candidate
+  if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+    try {
+      const parsed = new URL(candidate)
+      return parsed.hostname.toLowerCase()
+    } catch {
+      return canonicalDomain
+    }
   }
 
-  if (candidate.endsWith(".firebaseapp.com") || candidate.endsWith(".web.app")) {
-    return candidate
-  }
-
-  return canonicalDomain
+  return candidate
 }
 
 const envSchema = z.object({

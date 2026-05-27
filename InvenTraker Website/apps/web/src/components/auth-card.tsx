@@ -25,6 +25,64 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>
 
+const DIAGNOSTIC_TIMEOUT_MS = 7_500
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+async function runAuthNetworkDiagnostic(email: string, password: string): Promise<string> {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  if (!apiKey) return "diag:missing-api-key"
+
+  const tryRequest = async (label: string, url: string, body: unknown, contentType: string) => {
+    try {
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": contentType },
+          body: contentType.includes("json") ? JSON.stringify(body) : String(body)
+        },
+        DIAGNOSTIC_TIMEOUT_MS
+      )
+      return `${label}:${response.status}`
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown"
+      return `${label}:fetch-failed:${reason}`
+    }
+  }
+
+  const checks = await Promise.all([
+    tryRequest(
+      "createAuthUri",
+      `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${encodeURIComponent(apiKey)}`,
+      { identifier: email, continueUri: window.location.origin },
+      "application/json"
+    ),
+    tryRequest(
+      "signInWithPassword",
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`,
+      { email, password, returnSecureToken: true },
+      "application/json"
+    ),
+    tryRequest(
+      "securetoken",
+      `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(apiKey)}`,
+      "grant_type=refresh_token&refresh_token=diagnostic",
+      "application/x-www-form-urlencoded"
+    )
+  ])
+
+  return checks.join(";")
+}
+
 function mapAuthError(error: unknown): string {
   if (error instanceof FirebaseError) {
     switch (error.code) {
@@ -102,6 +160,18 @@ export function AuthCard({ mode }: { mode: "signin" | "signup" }) {
       document.cookie = "it_session=1; path=/; max-age=2592000; samesite=lax"
       router.replace("/app")
     } catch (error) {
+      if (error instanceof FirebaseError && error.code === "auth/network-request-failed") {
+        const normalizedEmail = values.email.trim().toLowerCase()
+        const host = typeof window !== "undefined" ? window.location.host : "unknown-host"
+        let diag = "diag:unavailable"
+        try {
+          diag = await runAuthNetworkDiagnostic(normalizedEmail, values.password)
+        } catch {
+          diag = "diag:exception"
+        }
+        setSubmitError(`${mapAuthError(error)} [${error.code}] Host:${host}. ${diag}`)
+        return
+      }
       setSubmitError(mapAuthError(error))
     }
   }

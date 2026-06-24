@@ -20,11 +20,35 @@ function credential() {
   return applicationDefault()
 }
 
+function readFirebaseProjectId() {
+  if (process.env.FIREBASE_PROJECT_ID) return process.env.FIREBASE_PROJECT_ID
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT
+  if (process.env.GOOGLE_CLOUD_PROJECT) return process.env.GOOGLE_CLOUD_PROJECT
+
+  const firebaseRcPath = `${process.cwd()}/.firebaserc`
+  if (fs.existsSync(firebaseRcPath)) {
+    const firebaseRc = JSON.parse(fs.readFileSync(firebaseRcPath, "utf8"))
+    return firebaseRc.projects?.default
+  }
+
+  return undefined
+}
+
+function storageBucket(projectId) {
+  return process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`
+}
+
 function app() {
   if (getApps().length > 0) return getApps()[0]
+  const projectId = readFirebaseProjectId()
+  if (!projectId) {
+    throw new Error("Unable to detect Firebase project id. Set FIREBASE_PROJECT_ID or configure .firebaserc.")
+  }
+
   return initializeApp({
     credential: credential(),
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    projectId,
+    storageBucket: storageBucket(projectId)
   })
 }
 
@@ -55,7 +79,7 @@ async function resetAuth() {
 }
 
 async function resetStorage() {
-  const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  const bucketName = storageBucket(app().options.projectId)
   if (!bucketName) {
     console.log("[storage] skipped; FIREBASE_STORAGE_BUCKET is not set")
     return

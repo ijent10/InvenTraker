@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function orgRole(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function orgMember(orgId) {
+      return signedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function orgManager(orgId) {
+      return orgMember(orgId) && orgRole(orgId) in ["owner", "admin", "manager"];
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /orgs/{orgId} {
+      allow read: if orgMember(orgId);
+      allow create: if signedIn();
+      allow update, delete: if orgRole(orgId) == "owner";
+
+      match /members/{memberId} {
+        allow read: if orgMember(orgId);
+        allow create, update, delete: if orgManager(orgId);
+      }
+
+      match /locations/{locationId} {
+        allow read: if orgMember(orgId);
+        allow write: if orgManager(orgId);
+      }
+
+      match /products/{productId} {
+        allow read: if orgMember(orgId);
+        allow write: if orgManager(orgId);
+      }
+
+      match /inventory/{itemId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if orgMember(orgId);
+        allow delete: if orgManager(orgId);
+      }
+
+      match /orders/{orderId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if orgMember(orgId);
+        allow delete: if orgManager(orgId);
+      }
+
+      match /vendors/{vendorId} {
+        allow read: if orgMember(orgId);
+        allow write: if orgManager(orgId);
+      }
+    }
+  }
+}

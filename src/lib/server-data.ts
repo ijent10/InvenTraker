@@ -52,8 +52,14 @@ type FirestoreRecord = {
 }
 
 function serializeFirestoreValue(value: unknown): unknown {
+  if (value == null) return value
+
   if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
-    return value.toDate().toLocaleString()
+    return value.toDate().toISOString()
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
   }
 
   if (Array.isArray(value)) return value.map(serializeFirestoreValue)
@@ -188,7 +194,7 @@ export async function getOrganizationBranding(orgId = DEFAULT_ORG_ID): Promise<O
     if (!snapshot.exists) return organizationBranding
     const data = snapshot.data() ?? {}
     const branding = "branding" in data && typeof data.branding === "object" && data.branding ? data.branding : data
-    return { ...organizationBranding, ...(branding as Partial<OrganizationBranding>) }
+    return { ...organizationBranding, ...(serializeFirestoreValue(branding) as Partial<OrganizationBranding>) }
   } catch {
     return organizationBranding
   }

@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   description: "Inventory, ordering, vendor, and product operations for modern stores."
 }
 
+function toClientValue<T>(value: T): T {
+  const serialized = JSON.stringify(value)
+  return serialized ? (JSON.parse(serialized) as T) : value
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [initialBranding, employees, notifications] = await Promise.all([getOrganizationBranding(), getEmployees(), getNotifications()])
   const initialEmployee = employees[0]
@@ -19,7 +24,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="/app.css" />
       </head>
       <body>
-        <AppShell initialBranding={initialBranding} initialEmployee={initialEmployee} notifications={notifications}>
+        <AppShell
+          initialBranding={toClientValue(initialBranding)}
+          initialEmployee={toClientValue(initialEmployee)}
+          notifications={toClientValue(notifications)}
+        >
           {children}
         </AppShell>
       </body>

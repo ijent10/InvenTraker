@@ -38,7 +38,7 @@ export const navigation: NavigationItem[] = [
   { href: "/stores", label: "Stores", icon: Store, permission: "stores.view" }
 ]
 
-const publicPaths = new Set(["/", "/signin"])
+const publicPaths = new Set(["/", "/signin", "/demo"])
 
 export function requiredPermissionForPath(pathname: string): PermissionKey | undefined {
   if (publicPaths.has(pathname)) return undefined

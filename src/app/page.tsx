@@ -123,6 +123,7 @@ export default function HomePage() {
             <a href="#features" className="transition hover:text-white">Features</a>
             <a href="#workflow" className="transition hover:text-white">Workflow</a>
             <a href="#assistant" className="transition hover:text-white">Assistant</a>
+            <Link href="/demo" className="transition hover:text-white">Demo</Link>
           </nav>
           <HomeAuthActions />
         </header>
@@ -147,6 +148,12 @@ export default function HomePage() {
               >
                 See what it handles
               </a>
+              <Link
+                href="/demo"
+                className="inline-flex min-h-12 items-center rounded-md border border-[#93c5fd]/35 bg-[#2563eb]/25 px-5 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-[#2563eb]/35"
+              >
+                Try the demo
+              </Link>
             </div>
             <div className="landing-mobile-preview mt-8">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -278,6 +285,12 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <HomeAuthActions variant="final" />
+            <Link
+              href="/demo"
+              className="inline-flex min-h-12 items-center rounded-md border border-white/15 bg-white/8 px-5 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/12"
+            >
+              Open demo workspace
+            </Link>
           </div>
         </div>
       </section>

@@ -12,10 +12,26 @@ import { askOpenAiStructured } from "@/lib/ai/openai-provider"
 import { runRetailAssistantTools } from "@/lib/ai/tool-orchestrator"
 import { retailAnswerToAiAnswer } from "@/lib/intelligence/assistant-adapter"
 import { answerRetailIntelligenceQuery } from "@/lib/intelligence/engine"
+import type { RetailAssistantIntent } from "@/lib/ai/types"
 
 const requestSchema = z.object({
   question: z.string().trim().min(2).max(1000)
 })
+
+function inferRetailIntent(question: string, answer: Awaited<ReturnType<typeof answerRetailIntelligenceQuery>>): RetailAssistantIntent {
+  const text = question.toLowerCase()
+  if (/(nutrition|nutritional|calorie|calories|protein|carb|carbs|sodium|salt|fat|sugar|fiber|ingredient|ingredients)/.test(text)) {
+    return "nutrition_lookup"
+  }
+  if (/(allergen|allergens|gluten|dairy|nuts|soy)/.test(text)) return "allergen_lookup"
+  if (/(image|photo|picture|label|barcode|enrich|autofill)/.test(text)) return "external_enrichment"
+  if (/(vendor|supplier|comes from|lead time)/.test(text)) return "vendor_lookup"
+  if (/(order|reorder|buy|delivery|minimum)/.test(text)) return "reorder_recommendation"
+  if (/(waste|shrink|spoiled|expired|loss)/.test(text)) return "waste_risk_analysis"
+  if (/(stockout|low stock|out of stock|running out|restock|front|backstock|par)/.test(text)) return "stock_risk_analysis"
+  if (answer.recommendations?.length) return "reorder_recommendation"
+  return "product_lookup"
+}
 
 export async function POST(request: Request) {
   const requestId = randomUUID()
@@ -125,10 +141,7 @@ export async function POST(request: Request) {
               : documentResult.answerMode === "simplified_explanation"
                 ? "document_simplify"
                 : "document_lookup"
-          : (fallbackAnswer.intent ??
-            (intelligenceAnswer.recommendations?.length
-              ? "reorder_recommendation"
-              : "product_lookup")),
+          : (fallbackAnswer.intent ?? inferRetailIntent(parsed.data.question, intelligenceAnswer)),
       answerMode: documentResult?.answerMode ?? "direct_answer",
       documentCitations: documentResult?.citations,
       documentCandidates: documentResult?.candidates,

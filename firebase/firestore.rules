@@ -6,57 +6,432 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function platformAdminPath() {
+      return /databases/$(database)/documents/platformAdmins/$(request.auth.uid);
+    }
+
+    function bootstrapPlatformAdminEmail() {
+      return signedIn() && request.auth.token.email in ["ianjjent@icloud.com"];
+    }
+
+    function platformAdmin() {
+      return signedIn() &&
+        (bootstrapPlatformAdminEmail() || request.auth.token.platformAdmin == true || exists(platformAdminPath()));
+    }
+
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid);
+    }
+
+    function orgPath(orgId) {
+      return /databases/$(database)/documents/orgs/$(orgId);
+    }
+
+    function orgData(orgId) {
+      return get(orgPath(orgId)).data;
+    }
+
+    function memberData(orgId) {
+      return get(memberPath(orgId)).data;
+    }
+
     function orgRole(orgId) {
-      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role;
+      return signedIn() ? memberData(orgId).role : null;
     }
 
     function orgMember(orgId) {
-      return signedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+      return signedIn() && exists(memberPath(orgId));
     }
 
     function orgManager(orgId) {
-      return orgMember(orgId) && orgRole(orgId) in ["owner", "admin", "manager"];
+      return orgMember(orgId) && orgRole(orgId) in ["owner", "Owner", "Organization owner", "admin", "Admin", "Administrator", "manager", "Manager"];
+    }
+
+    function orgOwner(orgId) {
+      return orgMember(orgId) && orgRole(orgId) in ["owner", "Owner", "Organization owner"];
+    }
+
+    function hasPermission(orgId, permission) {
+      return orgMember(orgId) &&
+        memberData(orgId).permissions is list &&
+        ("*" in memberData(orgId).permissions || permission in memberData(orgId).permissions);
+    }
+
+    function canManage(orgId, permission) {
+      return orgManager(orgId) || hasPermission(orgId, permission);
     }
 
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
+
+      match /preferences/{preferenceId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /platformAdmins/{adminId} {
+      allow read: if platformAdmin() || (signedIn() && adminId == request.auth.uid);
+      allow create: if platformAdmin() ||
+        (
+          bootstrapPlatformAdminEmail() &&
+          adminId == request.auth.uid &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.role == "platformAdmin"
+        );
+      allow update, delete: if platformAdmin();
+    }
+
+    match /platformLegal/{documentId} {
+      allow read: if resource.data.status == "Published" || platformAdmin();
+      allow create, update, delete: if platformAdmin();
+    }
+
+    match /platformFeatureRequests/{requestId} {
+      allow read, write: if platformAdmin();
+    }
+
+    match /platformFaqs/{faqId} {
+      allow read: if resource.data.status == "Published" || platformAdmin();
+      allow create, update, delete: if platformAdmin();
+    }
+
+    match /platformSubscriptions/{subscriptionId} {
+      allow read, write: if platformAdmin();
+    }
+
+    match /platformProductApprovals/{requestId} {
+      allow read: if platformAdmin() ||
+        (signedIn() && resource.data.submittedByUid == request.auth.uid);
+      allow create: if signedIn() &&
+        request.resource.data.submittedByUid == request.auth.uid &&
+        request.resource.data.status in ["pending", "Pending"];
+      allow update: if platformAdmin() ||
+        (
+          signedIn() &&
+          resource.data.submittedByUid == request.auth.uid &&
+          resource.data.status in ["pending", "Pending"] &&
+          request.resource.data.submittedByUid == request.auth.uid &&
+          request.resource.data.status in ["pending", "Pending"]
+        );
+      allow delete: if platformAdmin();
+    }
+
+    match /centralCatalog/{centralProductId} {
+      allow read: if signedIn();
+      allow create, update: if platformAdmin();
+      allow delete: if platformAdmin();
+    }
+
+    match /assistantProductMemory/{memoryId} {
+      allow read, write: if false;
     }
 
     match /orgs/{orgId} {
-      allow read: if orgMember(orgId);
-      allow create: if signedIn();
-      allow update, delete: if orgRole(orgId) == "owner";
+      allow read: if platformAdmin() || orgMember(orgId);
+      allow create: if platformAdmin() ||
+        (bootstrapPlatformAdminEmail() && request.resource.data.ownerId == request.auth.uid);
+      allow update, delete: if platformAdmin() || orgOwner(orgId);
+
+      match /{orgDocument=**} {
+        allow read, write: if platformAdmin();
+      }
 
       match /members/{memberId} {
+        allow read: if platformAdmin() || orgMember(orgId);
+        allow create: if platformAdmin() || canManage(orgId, "employees.permissions") ||
+          (
+            signedIn() &&
+            bootstrapPlatformAdminEmail() &&
+            memberId == request.auth.uid &&
+            orgData(orgId).ownerId == request.auth.uid &&
+            request.resource.data.role == "owner"
+          );
+        allow update, delete: if platformAdmin() || canManage(orgId, "employees.permissions");
+      }
+
+      match /stores/{storeId} {
         allow read: if orgMember(orgId);
-        allow create, update, delete: if orgManager(orgId);
+        allow write: if canManage(orgId, "stores.manage");
+
+        match /settings/{settingId} {
+          allow read: if orgMember(orgId);
+          allow write: if canManage(orgId, "stores.manage");
+        }
+
+        match /productDetails/{storeProductId} {
+          allow read: if orgMember(orgId);
+          allow create, update: if canManage(orgId, "inventory.edit") || canManage(orgId, "stores.manage");
+          allow delete: if canManage(orgId, "inventory.archive") || canManage(orgId, "stores.manage");
+        }
+
+        match /vendorProducts/{vendorProductId} {
+          allow read: if orgMember(orgId);
+          allow write: if canManage(orgId, "vendors.edit") || canManage(orgId, "stores.manage");
+        }
       }
 
       match /locations/{locationId} {
         allow read: if orgMember(orgId);
-        allow write: if orgManager(orgId);
+        allow write: if canManage(orgId, "stores.manage");
+      }
+
+      match /departments/{departmentId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
+      }
+
+      match /categories/{categoryId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
+      }
+
+      match /displays/{displayId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "stores.manage");
+      }
+
+      match /fileCategories/{categoryId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "files.view") || orgOwner(orgId) || platformAdmin());
+        allow write: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.manage");
+      }
+
+      match /companyFiles/{documentId} {
+        allow read: if platformAdmin() ||
+          (
+            orgMember(orgId) &&
+            (hasPermission(orgId, "files.view") || orgOwner(orgId)) &&
+            (
+              resource.data.approvedStatus == "approved" ||
+              orgOwner(orgId) ||
+              hasPermission(orgId, "files.manage")
+            )
+          );
+        allow create: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.upload") || hasPermission(orgId, "files.manage");
+        allow update, delete: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.manage");
+      }
+
+      match /documentChunks/{chunkId} {
+        allow read: if platformAdmin() ||
+          (
+            orgMember(orgId) &&
+            (hasPermission(orgId, "files.view") || orgOwner(orgId)) &&
+            (
+              resource.data.approvedStatus == "approved" ||
+              orgOwner(orgId) ||
+              hasPermission(orgId, "files.manage")
+            )
+          );
+        allow create, update, delete: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.manage");
+      }
+
+      match /documentAccessEvents/{eventId} {
+        allow read: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.manage");
+        allow create: if orgMember(orgId) && (hasPermission(orgId, "files.view") || orgOwner(orgId));
+        allow update, delete: if platformAdmin() || orgOwner(orgId) || hasPermission(orgId, "files.manage");
+      }
+
+      match /settings/{settingId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
+      }
+
+      match /formSaves/{formSaveId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if orgMember(orgId);
+        allow delete: if orgManager(orgId);
+      }
+
+      match /themes/{themeId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
+      }
+
+      match /dashboardWidgets/{widgetId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
       }
 
       match /products/{productId} {
         allow read: if orgMember(orgId);
-        allow write: if orgManager(orgId);
+        allow write: if canManage(orgId, "products.edit");
       }
 
       match /inventory/{itemId} {
         allow read: if orgMember(orgId);
-        allow create, update: if orgMember(orgId);
-        allow delete: if orgManager(orgId);
+        allow create, update: if canManage(orgId, "inventory.edit");
+        allow delete: if canManage(orgId, "inventory.archive");
       }
 
       match /orders/{orderId} {
-        allow read: if orgMember(orgId);
-        allow create, update: if orgMember(orgId);
-        allow delete: if orgManager(orgId);
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "orders.view") || canManage(orgId, "orders.create"));
+        allow create, update: if canManage(orgId, "orders.create") || hasPermission(orgId, "orders.approve");
+        allow delete: if canManage(orgId, "orders.approve");
       }
 
       match /vendors/{vendorId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "vendors.view") || canManage(orgId, "vendors.edit"));
+        allow write: if canManage(orgId, "vendors.edit");
+      }
+
+      match /healthChecks/{checkId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "health.view") || canManage(orgId, "health.manage"));
+        allow write: if canManage(orgId, "health.manage");
+      }
+
+      match /healthCheckDrafts/{draftId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "health.view") || canManage(orgId, "health.manage"));
+        allow write: if canManage(orgId, "health.manage");
+      }
+
+      match /healthCheckResponses/{responseId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "health.view") || canManage(orgId, "health.manage"));
+        allow create: if hasPermission(orgId, "health.complete") || canManage(orgId, "health.manage");
+        allow update, delete: if canManage(orgId, "health.manage");
+      }
+
+      match /history/{recordId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "history.view") || hasPermission(orgId, "history.viewAll") || orgManager(orgId));
+        allow create: if orgMember(orgId);
+        allow update, delete: if orgManager(orgId);
+      }
+
+      match /shiftNotes/{noteId} {
         allow read: if orgMember(orgId);
-        allow write: if orgManager(orgId);
+        allow create, update: if orgMember(orgId);
+        allow delete: if orgManager(orgId) || resource.data.authorId == request.auth.uid;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if orgManager(orgId);
+        allow delete: if orgManager(orgId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "organization.manage");
+      }
+
+      match /waste/{wasteId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if canManage(orgId, "inventory.edit");
+        allow delete: if orgManager(orgId);
+      }
+
+      match /restocks/{restockId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if canManage(orgId, "inventory.edit");
+        allow delete: if orgManager(orgId);
+      }
+
+      match /receiving/{receivingId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if canManage(orgId, "inventory.edit");
+        allow delete: if orgManager(orgId);
+      }
+
+      match /portions/{portionId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if canManage(orgId, "inventory.edit");
+        allow delete: if orgManager(orgId);
+      }
+
+      match /sales/{saleId} {
+        allow read: if orgMember(orgId);
+        allow create, update: if canManage(orgId, "organization.manage");
+        allow delete: if orgManager(orgId);
+      }
+
+      match /insights/{insightId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "insights.view") || orgManager(orgId));
+        allow write: if orgManager(orgId) || hasPermission(orgId, "ai.manage");
+      }
+
+      match /aiProductKnowledge/{recordId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.manage") || hasPermission(orgId, "ai.verifyAutofill");
+      }
+
+      match /aiLearningRuns/{runId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.manage");
+      }
+
+      match /aiSources/{sourceId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.manage");
+      }
+
+      match /aiPendingAutofills/{batchId} {
+        allow read: if orgMember(orgId);
+        allow create: if hasPermission(orgId, "ai.use") || canManage(orgId, "ai.manage");
+        allow update, delete: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /user_phrase_mappings/{mappingId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /product_aliases/{aliasId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /rejected_aliases/{aliasId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /intent_patterns/{patternId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /verified_corrections/{correctionId} {
+        allow read: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /accepted_answers/{answerId} {
+        allow read: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /rejected_answers/{answerId} {
+        allow read: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /store_specific_terminology/{termId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /organization_specific_terminology/{termId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /product_fact_notes/{noteId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /operational_notes/{noteId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /ambiguous_phrase_history/{phraseId} {
+        allow read: if orgMember(orgId);
+        allow write: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
+      }
+
+      match /product_enrichment_suggestions/{suggestionId} {
+        allow read: if orgMember(orgId);
+        allow create: if hasPermission(orgId, "ai.use") || canManage(orgId, "ai.manage");
+        allow update, delete: if canManage(orgId, "ai.verifyAutofill") || canManage(orgId, "ai.manage");
       }
     }
   }

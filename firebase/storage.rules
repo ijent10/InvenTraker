@@ -2,8 +2,34 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function orgMember(orgId) {
+      return signedIn() &&
+        firestore.exists(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function platformAdmin() {
+      return signedIn() &&
+        (
+          request.auth.token.platformAdmin == true ||
+          firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid))
+        );
+    }
+
+    match /platform/{allPaths=**} {
+      allow read, write: if platformAdmin();
+    }
+
+    match /orgs/{orgId}/public/{allPaths=**} {
+      allow read: if true;
+      allow write: if platformAdmin() || orgMember(orgId);
+    }
+
     match /orgs/{orgId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if platformAdmin() || orgMember(orgId);
     }
   }
 }

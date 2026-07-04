@@ -4,21 +4,33 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
+    "build:css": "tailwindcss -i ./src/app/globals.css -o ./public/app.css --minify",
+    "dev": "npm run build:css && next dev",
+    "build": "npm run build:css && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "validate": "npm run lint && npm run typecheck && npm run build",
-    "firebase:reset": "node scripts/reset-firebase.mjs"
+    "assistant:eval": "node scripts/eval-assistant.mjs",
+    "firebase:reset": "node scripts/reset-firebase.mjs",
+    "firebase:seed": "node scripts/seed-firebase.mjs",
+    "firebase:seed-admin": "node scripts/seed-platform-admin.mjs",
+    "firebase:seed-test-users": "node scripts/seed-auth-test-users.mjs"
   },
   "dependencies": {
+    "@types/pdf-parse": "^1.1.5",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.4.0",
+    "fuse.js": "^7.4.2",
     "lucide-react": "^0.468.0",
+    "mammoth": "^1.12.0",
     "next": "^14.2.35",
+    "pdf-parse": "^2.4.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "stripe": "^22.3.0",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.67"
   },
   "devDependencies": {

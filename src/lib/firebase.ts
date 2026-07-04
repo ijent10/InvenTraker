@@ -29,5 +29,10 @@ export const firebaseApp = firebaseConfigured
   : null
 
 export const auth = firebaseApp ? getAuth(firebaseApp) : null
-export const db = firebaseApp ? getFirestore(firebaseApp) : null
+export function clientDb(databaseId = "(default)") {
+  if (!firebaseApp) return null
+  return databaseId === "(default)" ? getFirestore(firebaseApp) : getFirestore(firebaseApp, databaseId)
+}
+
+export const db = clientDb()
 export const storage = firebaseApp ? getStorage(firebaseApp) : null

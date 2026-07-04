@@ -9,7 +9,7 @@ export function DataTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-800 text-xs uppercase text-slate-500">
+          <tr className="border-b border-[var(--app-border)] text-xs uppercase text-[var(--app-subtle)]">
             {columns.map((column) => (
               <th key={column} className="px-4 py-3 font-semibold">
                 {column}
@@ -19,9 +19,9 @@ export function DataTable({
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-b border-slate-800/70 last:border-0">
+            <tr key={index} className="border-b border-[var(--app-border)] last:border-0">
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-4 py-4 align-middle text-slate-200">
+                <td key={cellIndex} className="px-4 py-4 align-middle text-[var(--app-muted)]">
                   {cell}
                 </td>
               ))}

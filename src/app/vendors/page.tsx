@@ -1,15 +1,20 @@
+import { Plus } from "lucide-react"
+
+import { ActionButton } from "@/components/action-button"
 import { DataTable } from "@/components/data-table"
 import { PageHeader } from "@/components/page-header"
-import { Button, Panel } from "@/components/ui"
-import { vendors } from "@/lib/demo-data"
+import { Panel } from "@/components/ui"
+import { getVendors } from "@/lib/server-data"
 
-export default function VendorsPage() {
+export default async function VendorsPage() {
+  const vendors = await getVendors()
+
   return (
     <>
       <PageHeader
         title="Vendors"
         description="Vendor profiles, ordering rules, lead times, contacts, and minimums."
-        actions={<Button>Add vendor</Button>}
+        actions={<ActionButton doneLabel="Vendor staged" icon={<Plus className="h-4 w-4" />}>Add vendor</ActionButton>}
       />
 
       <Panel>

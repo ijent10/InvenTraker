@@ -52,7 +52,7 @@ final class AppSession: ObservableObject {
             let data = try await api.bootstrap(storeId: storeId)
             workspace = data
             selectedStoreId = data.selectedStoreId
-            phase = data.stores.isEmpty ? .noAccess("Your account is active, but no store has been assigned yet.") : .ready
+            phase = .ready
         } catch let error as APIClientError where error.code == "membership_required" || error.code == "store_access_denied" {
             phase = .noAccess(error.localizedDescription)
         } catch let error as APIClientError where error.code == "invalid_session" || error.code == "unauthenticated" {

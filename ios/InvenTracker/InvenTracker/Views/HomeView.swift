@@ -129,7 +129,7 @@ struct HomeView: View {
     }
 
     private var selectedStoreName: String {
-        workspace?.stores.first(where: { $0.id == session.selectedStoreId })?.name ?? "Store"
+        workspace?.stores.first(where: { $0.id == session.selectedStoreId })?.name ?? "Organization"
     }
 }
 

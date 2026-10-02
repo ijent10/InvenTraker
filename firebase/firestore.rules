@@ -40,7 +40,9 @@ service cloud.firestore {
     }
 
     function orgMember(orgId) {
-      return signedIn() && exists(memberPath(orgId));
+      return signedIn() &&
+        exists(memberPath(orgId)) &&
+        !(memberData(orgId).status in ["Suspended", "suspended", "Disabled", "disabled"]);
     }
 
     function orgManager(orgId) {

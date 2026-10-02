@@ -8,7 +8,8 @@ service firebase.storage {
 
     function orgMember(orgId) {
       return signedIn() &&
-        firestore.exists(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+        firestore.exists(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)) &&
+        !(firestore.get(/databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.status in ["Suspended", "suspended", "Disabled", "disabled"]);
     }
 
     function platformAdmin() {

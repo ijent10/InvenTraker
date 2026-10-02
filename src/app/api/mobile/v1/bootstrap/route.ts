@@ -3,6 +3,7 @@ import { firestoreCollections, userPreferencesPath } from "@/lib/firestore-schem
 import {
   assertStoreAccess,
   canAccessMobileStore,
+  mobileAssignedStores,
   MOBILE_WORK_SHORTCUTS,
   mobileCapabilities,
   mobileEnvelope,
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
       orgCollection(principal, firestoreCollections.operationalIssues).get()
     ])
 
-    const storeRecords = stores.docs
+    let storeRecords = stores.docs
       .map((document) => mobileRecord(document.id, document.data()))
       .filter((store) => canAccessMobileStore(
         principal,
@@ -50,6 +51,15 @@ export async function GET(request: Request) {
         store.address,
         store.location
       ))
+    // Some existing organizations predate the stores directory and keep the
+    // assignment only on the member. Preserve the store requirement while
+    // allowing those assigned members to enter their scoped workspace.
+    if (storeRecords.length === 0) {
+      storeRecords = mobileAssignedStores(principal.member).map((store) => ({
+        ...store,
+        assignmentSource: "member"
+      }))
+    }
     const memberStoreId = String(principal.member.storeId ?? "").trim()
     const accessibleMemberStore = storeRecords.find((store) => String(store.id) === memberStoreId)
     const selectedStoreId = requireMobileStoreId(

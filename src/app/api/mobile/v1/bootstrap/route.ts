@@ -59,24 +59,31 @@ export async function GET(request: Request) {
       const legacyOrganizations = await principal.db
         .collection("organizations")
         .where("ownerUid", "==", principal.uid)
-        .limit(1)
         .get()
-      const legacyOrganization = legacyOrganizations.docs[0]
-      if (legacyOrganization) {
-        const legacyStores = await legacyOrganization.ref.collection(firestoreCollections.stores).get()
-        storeRecords = legacyStores.docs.map((document) => mobileRecord(document.id, document.data()))
-        if (legacyStores.docs.length > 0) {
+      const legacyDirectories = await Promise.all(legacyOrganizations.docs.map(async (legacyOrganization) => ({
+        organization: legacyOrganization,
+        stores: await legacyOrganization.ref.collection(firestoreCollections.stores).get()
+      })))
+      const legacyStoreDocuments = legacyDirectories.flatMap(({ organization: legacyOrganization, stores: legacyStores }) =>
+        legacyStores.docs.map((document) => ({ document, legacyOrganizationId: legacyOrganization.id }))
+      )
+      const uniqueLegacyStores = Array.from(
+        new Map(legacyStoreDocuments.map((entry) => [entry.document.id, entry])).values()
+      )
+      storeRecords = uniqueLegacyStores.map(({ document }) => mobileRecord(document.id, document.data()))
+      if (uniqueLegacyStores.length > 0) {
+        for (let index = 0; index < uniqueLegacyStores.length; index += 400) {
           const migration = principal.db.batch()
-          legacyStores.docs.forEach((document) => {
+          uniqueLegacyStores.slice(index, index + 400).forEach(({ document, legacyOrganizationId }) => {
             migration.set(orgRef.collection(firestoreCollections.stores).doc(document.id), {
               ...document.data(),
               id: document.id,
-              legacyOrganizationId: legacyOrganization.id,
+              legacyOrganizationId,
               schemaVersion: Number(document.data().schemaVersion ?? 1)
             }, { merge: true })
           })
           migration.set(orgRef, {
-            legacyOrganizationId: legacyOrganization.id,
+            legacyOrganizationIds: legacyOrganizations.docs.map((document) => document.id),
             storeDirectoryMigratedAt: FieldValue.serverTimestamp()
           }, { merge: true })
           await migration.commit()

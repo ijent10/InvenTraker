@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { adminFieldValue } from "@/lib/firebase-admin"
 import { firestoreCollections } from "@/lib/firestore-schema"
-import { mobileEnvelope, mobileError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
+import { MobileApiError, mobileEnvelope, mobileError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -16,9 +16,14 @@ export async function POST(request: Request) {
     if (!parsed.success) return Response.json({ error: { code: "invalid_request", message: "Notification ids are required." } }, { status: 400 })
     const FieldValue = await adminFieldValue()
     const collection = orgCollection(principal, firestoreCollections.notifications)
-    const batch = principal.db.batch()
-    parsed.data.ids.forEach((id) => batch.set(collection.doc(id), { read: true, readBy: principal.uid, readAt: FieldValue.serverTimestamp() }, { merge: true }))
-    await batch.commit()
+    await principal.db.runTransaction(async (transaction) => {
+      const refs = parsed.data.ids.map((id) => collection.doc(id))
+      const snapshots = await Promise.all(refs.map((reference) => transaction.get(reference)))
+      snapshots.forEach((snapshot) => {
+        if (!snapshot.exists) throw new MobileApiError("A notification was not found.", 404, "notification_not_found")
+        transaction.update(snapshot.ref, { read: true, readBy: principal.uid, readAt: FieldValue.serverTimestamp() })
+      })
+    })
     return Response.json(mobileEnvelope({ readIds: parsed.data.ids }))
   } catch (error) {
     return mobileError(error)

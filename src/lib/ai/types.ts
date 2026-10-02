@@ -308,6 +308,14 @@ export type AiOperationalContext = {
     category: string
     defaultUnit: string
     expires: boolean
+    location?: string
+    displayAssignment?: {
+      isOnDisplay: boolean
+      displayName: string
+      quantityNeeded: number
+      startDate: string
+      endDate?: string
+    }
     nutrition?: ProductNutritionSnapshot
   }>
   inventory: Array<{
@@ -319,6 +327,7 @@ export type AiOperationalContext = {
     sku: string
     department: string
     category: string
+    location?: string
     onHand: number
     frontStock: number
     backStock: number

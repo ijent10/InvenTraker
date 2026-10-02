@@ -130,6 +130,19 @@ export async function activateSignupWorkspace({ signup, password, billing }: Sig
     { merge: true }
   )
 
+  // The web portal owns initial account setup. Mobile can only update this existing preference record.
+  batch.set(
+    db.collection("users").doc(ownerUser.uid).collection("preferences").doc("workspace"),
+    {
+      mobileWorkShortcut: "work",
+      showTips: true,
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now
+    },
+    { merge: true }
+  )
+
   signup.stores.forEach((store, index) => {
     const storeId = slugifySignupId(store.nickname || store.location) || `store-${index + 1}`
     batch.set(

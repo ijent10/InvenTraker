@@ -61,6 +61,14 @@ service cloud.firestore {
       return orgManager(orgId) || hasPermission(orgId, permission);
     }
 
+    function inventoryMetadataFields() {
+      return [
+        "centralProductId", "orgProductId", "name", "sku", "department", "category",
+        "location", "vendor", "price", "quantityInCase", "unit", "expires", "notes",
+        "source", "updatedAt"
+      ];
+    }
+
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
 
@@ -160,7 +168,13 @@ service cloud.firestore {
 
         match /productDetails/{storeProductId} {
           allow read: if orgMember(orgId);
-          allow create, update: if canManage(orgId, "inventory.edit") || canManage(orgId, "stores.manage");
+          allow create: if (canManage(orgId, "inventory.edit") || canManage(orgId, "stores.manage")) &&
+            !request.resource.data.keys().hasAny(["par", "reorderPoint", "updatedBy", "updatedByOperationId"]);
+          allow update: if (canManage(orgId, "inventory.edit") || canManage(orgId, "stores.manage")) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "centralProductId", "orgProductId", "name", "sku", "vendor", "price",
+              "quantityInCase", "expires", "location", "notes", "source", "updatedAt"
+            ]);
           allow delete: if canManage(orgId, "inventory.archive") || canManage(orgId, "stores.manage");
         }
 
@@ -258,14 +272,57 @@ service cloud.firestore {
 
       match /inventory/{itemId} {
         allow read: if orgMember(orgId);
-        allow create, update: if canManage(orgId, "inventory.edit");
+        allow create: if canManage(orgId, "inventory.edit") &&
+          request.resource.data.frontStock == 0 &&
+          request.resource.data.backStock == 0 &&
+          request.resource.data.onHand == 0 &&
+          request.resource.data.par == 0 &&
+          request.resource.data.reorderPoint == 0 &&
+          request.resource.data.revision == 0 &&
+          request.resource.data.status == "Low" &&
+          !request.resource.data.keys().hasAny(["updatedBy", "updatedByOperationId"]);
+        allow update: if
+          (
+            canManage(orgId, "inventory.edit") &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(inventoryMetadataFields())
+          ) ||
+          (
+            canManage(orgId, "inventory.archive") &&
+            request.resource.data.status == "Archived" &&
+            request.resource.data.archived == true &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["archived", "archivedAt", "status", "updatedAt"])
+          );
         allow delete: if canManage(orgId, "inventory.archive");
+      }
+
+      match /stockOperations/{operationId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "history.view") || hasPermission(orgId, "history.viewAll") || orgManager(orgId));
+        allow write: if false;
+      }
+
+      match /orderOperations/{operationId} {
+        allow read: if orgMember(orgId) && (hasPermission(orgId, "history.view") || hasPermission(orgId, "history.viewAll") || orgManager(orgId));
+        allow write: if false;
+      }
+
+      match /operationalIssues/{issueId} {
+        allow read: if orgMember(orgId);
+        allow write: if false;
+      }
+
+      match /inventoryBatches/{batchId} {
+        allow read: if orgMember(orgId);
+        allow write: if false;
+      }
+
+      match /batchMigrationReviews/{reviewId} {
+        allow read: if orgManager(orgId) || hasPermission(orgId, "history.viewAll");
+        allow write: if false;
       }
 
       match /orders/{orderId} {
         allow read: if orgMember(orgId) && (hasPermission(orgId, "orders.view") || canManage(orgId, "orders.create"));
-        allow create, update: if canManage(orgId, "orders.create") || hasPermission(orgId, "orders.approve");
-        allow delete: if canManage(orgId, "orders.approve");
+        allow write: if false;
       }
 
       match /vendors/{vendorId} {

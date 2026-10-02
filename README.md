@@ -31,7 +31,7 @@ Create `.env.local` from `.env.example` and fill in the Firebase web config for 
 cp .env.example .env.local
 ```
 
-Set `NEXT_PUBLIC_DEFAULT_ORG_ID` to the organization id the web portal should use by default. Local demo mode uses `demo-org`.
+Set `NEXT_PUBLIC_DEFAULT_ORG_ID` to the organization id the web portal should use by default. Live reads now return an empty state when Firebase Admin is unavailable or a read fails, so sample records cannot be mistaken for real inventory. To intentionally run the local sample workspace, set `INVENTRAKER_DEMO_MODE=true`; demo mode uses `demo-org`.
 
 This workspace is configured for the `inventracker-f1229` Firebase project in `.firebaserc`. The browser web config belongs in `.env.local`, which is ignored by git.
 
@@ -152,6 +152,53 @@ The current rebuild still keeps demo fallback records in `src/lib/demo-data.ts` 
 
 Personal theme choices, saved themes, and dashboard layout are already synced to `users/{uid}/preferences/workspace` when Firebase Auth is available.
 Personal tip visibility is also synced there as `showTips`, so users can hide or show helper summaries across devices.
+
+## Batch opening-balance migration
+
+Existing inventory snapshots can be converted into explicit unknown-date opening batches. Always preview first:
+
+```bash
+npm run firebase:migrate-batches -- --org-id=your-org-id
+```
+
+The preview reports how many opening batches would be created and quarantines any item whose existing active batches disagree with its front/back snapshot. Applying requires a new backup file path; the script writes the complete inventory and batch backup before committing any Firestore writes:
+
+```bash
+npm run firebase:migrate-batches -- --org-id=your-org-id --apply --backup-file=/absolute/path/inventory-batch-backup.json
+```
+
+Opening balances retain their sales-floor or backstock area and use an explicit unknown expiration. Review quarantined items in `orgs/{orgId}/batchMigrationReviews` before correcting them through counted operations.
+
+## Ordering verification
+
+The ordering engine and lifecycle checks run independently of Firebase:
+
+```bash
+npm run orders:check
+```
+
+The suite verifies zero recommendations when usable and confirmed incoming stock are sufficient, explicit case conversion, single application of expiration adjustments, required override explanations, controlled state transitions, and partial receipt reconciliation. Order and inventory mutations use server endpoints; browser Firestore rules reject direct writes to orders, order operations, batches, and stock operations.
+
+## Today and pilot verification
+
+Calculated Today issues and the end-to-end pilot workflow have separate deterministic checks:
+
+```bash
+npm run today:check
+npm run pilot:check
+```
+
+Today issues are stored under `orgs/{orgId}/operationalIssues` with stable IDs and open/resolved lifecycle records. The pilot monitor reports inventory-to-batch mismatches, duplicate operation IDs, unresolved count variances, and recorded manager overrides. Health-check assignments remain separate from calculated inventory and ordering issues.
+
+## Grounded operational intelligence verification
+
+Inventraker's deterministic, privacy-filtered operational tools can be checked without connecting an AI provider:
+
+```bash
+npm run intelligence:check
+```
+
+The suite checks store isolation, evidence and application links, identity redaction, explicit missing-usage behavior, draft-only actions, and usage-quality-gated baselines. The current implementation audit and remaining production gates are recorded in `docs/implementation-cross-reference-2026-10-01.md`.
 
 ## Reset Firebase
 

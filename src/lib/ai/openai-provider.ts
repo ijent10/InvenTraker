@@ -101,6 +101,33 @@ function responseStorageAndInclude(enableWebSearch: boolean) {
   }
 }
 
+async function describeOpenAiFailure(response: Response) {
+  const fallback = `OpenAI returned HTTP ${response.status}`
+
+  try {
+    const payload = await response.json()
+    const error = payload?.error
+    const code = typeof error?.code === "string" ? error.code : undefined
+    const type = typeof error?.type === "string" ? error.type : undefined
+
+    if (response.status === 429 && (code === "insufficient_quota" || /quota|billing|credits/i.test(String(error?.message ?? "")))) {
+      return "OpenAI is reachable, but API billing/quota is blocking requests (429 insufficient_quota). Check API billing or project spend limits; local retrieval is still active."
+    }
+
+    if (response.status === 401 || code === "invalid_api_key") {
+      return "OpenAI rejected the API key. Check the local OPENAI_API_KEY value and project access; local retrieval is still active."
+    }
+
+    if (response.status === 403 || code === "model_not_found") {
+      return `OpenAI is reachable, but this key/project does not have access to the configured model (${process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL}); local retrieval is still active.`
+    }
+
+    return [fallback, code || type].filter(Boolean).join(" ")
+  } catch {
+    return fallback
+  }
+}
+
 function readOutputText(payload: unknown) {
   if (!payload || typeof payload !== "object") return undefined
   const direct = "output_text" in payload ? payload.output_text : undefined
@@ -336,11 +363,12 @@ export async function askOpenAiStructured({
   })
 
   if (!response.ok) {
+    const failure = await describeOpenAiFailure(response)
     return {
       ...structuredResponseToAiAnswer({ response: deterministic, fallback, mode: "local" }),
       recommendedActions: [
         ...fallback.recommendedActions,
-        `OpenAI provider returned ${response.status}; using deterministic retrieval until credentials/model settings are fixed.`
+        failure
       ].slice(0, 6)
     }
   }
@@ -460,11 +488,12 @@ export async function askOpenAi({
   })
 
   if (!response.ok) {
+    const failure = await describeOpenAiFailure(response)
     return {
       ...fallback,
       recommendedActions: [
         ...fallback.recommendedActions,
-        `OpenAI provider returned ${response.status}; using local answer until credentials/model settings are fixed.`
+        failure
       ]
     }
   }

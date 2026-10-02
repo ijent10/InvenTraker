@@ -39,6 +39,8 @@ private struct OrderDetailView: View {
     @EnvironmentObject private var session: AppSession
     let order: OrderDraft
     @State private var confirmSubmit = false
+    @State private var approvalReason = ""
+    @State private var recommendation: MobileOrderRecommendation?
     @State private var error = ""
 
     var body: some View {
@@ -59,16 +61,51 @@ private struct OrderDetailView: View {
                             Text("\(line.quantity.formattedQuantity) \(line.unit)")
                         }
                         Text(line.reason).font(.caption).foregroundStyle(.secondary)
+                        if line.receivedQuantity > 0 {
+                            Text("Received \(line.receivedQuantity.formattedQuantity) of \(line.finalQuantity.formattedQuantity)").font(.caption).foregroundStyle(.secondary)
+                        }
+                        if line.finalQuantity != line.suggestedQuantity {
+                            Text("Suggested \(line.suggestedQuantity.formattedQuantity) • Override: \(line.overrideReason)").font(.caption).foregroundStyle(AppTheme.amber)
+                        }
                     }
                     .padding(.vertical, 3)
                 }
             }
+            Section("Server recommendation") {
+                if let recommendation {
+                    Text("Engine \(recommendation.engineVersion) • \(recommendation.rulePath)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(recommendation.lines) { line in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(line.itemName): \(line.suggestedQuantity.formattedQuantity) \(line.orderUnit)").font(.subheadline.weight(.semibold))
+                            Text(line.calculation).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if !recommendation.degradedFlags.isEmpty {
+                        Text("Data limits: \(recommendation.degradedFlags.joined(separator: ", "))").font(.caption).foregroundStyle(AppTheme.amber)
+                    }
+                }
+                Button(recommendation == nil ? "Load current recommendation" : "Refresh recommendation") { loadRecommendation() }
+                    .disabled(session.isWorking)
+            }
             if !order.notes.isEmpty { Section("Notes") { Text(order.notes) } }
-            if !["Submitted", "Auto-submitted"].contains(order.status) {
+            if session.canSubmitOrders && ["Draft", "Needs review", "Ready"].contains(order.status) {
                 Section {
-                    Button("Submit order") { confirmSubmit = true }
+                    if order.minimumGapAmount > 0 {
+                        TextField("Below-minimum approval reason", text: $approvalReason, axis: .vertical)
+                    }
+                    Button("Approve order") { approve() }
+                        .disabled(order.minimumGapAmount > 0 && approvalReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            if session.canSubmitOrders && order.status == "Approved" {
+                Section {
+                    Button("Record as submitted") { confirmSubmit = true }
                         .disabled(session.isWorking)
                 }
+            }
+            if session.canSubmitOrders && order.status == "Received" {
+                Section { Button("Reconcile and close") { reconcile() }.disabled(session.isWorking) }
             }
         }
         .navigationTitle(order.vendor)
@@ -82,7 +119,28 @@ private struct OrderDetailView: View {
 
     private func submit() {
         Task {
-            do { try await session.submitOrder(order.id) }
+            do { try await session.transitionOrder(order, action: "submit", sentMethod: "recorded") }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func approve() {
+        Task {
+            do { try await session.transitionOrder(order, action: "approve", reason: approvalReason.isEmpty ? nil : approvalReason) }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func reconcile() {
+        Task {
+            do { try await session.transitionOrder(order, action: "reconcile") }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func loadRecommendation() {
+        Task {
+            do { recommendation = try await session.recommendOrder(order) }
             catch { self.error = error.localizedDescription }
         }
     }

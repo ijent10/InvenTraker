@@ -4,7 +4,21 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { DEFAULT_ORG_ID, firestoreCollections } from "@/lib/firestore-schema"
 import type { PermissionKey } from "@/lib/permissions"
 
-export const MOBILE_API_VERSION = "2026-07-10"
+export const MOBILE_API_VERSION = "2026-09-30"
+export const MOBILE_WORK_SHORTCUTS = ["work", "inventory", "spotCheck", "restock", "receiving", "waste", "transfer", "orders", "healthChecks", "insights"] as const
+
+export type MobileWorkShortcut = (typeof MOBILE_WORK_SHORTCUTS)[number]
+
+export type MobileCapabilities = {
+  canViewInventory: boolean
+  canUpdateInventory: boolean
+  canTransferInventory: boolean
+  canViewOrders: boolean
+  canSubmitOrders: boolean
+  canViewHealthChecks: boolean
+  canCompleteHealthChecks: boolean
+  canViewInsights: boolean
+}
 
 export class MobileApiError extends Error {
   constructor(
@@ -93,6 +107,45 @@ export function canMobile(principal: MobilePrincipal, permission: PermissionKey)
   return principal.isManager || principal.permissions.includes("*") || principal.permissions.includes(permission)
 }
 
+export function mobileCapabilities(principal: MobilePrincipal): MobileCapabilities {
+  const canUpdateInventory = canMobile(principal, "inventory.edit")
+  const canSubmitOrders = canMobile(principal, "orders.approve")
+  const canCompleteHealthChecks = canMobile(principal, "health.complete")
+
+  return {
+    canViewInventory: canMobile(principal, "inventory.view") || canUpdateInventory,
+    canUpdateInventory,
+    canTransferInventory: canUpdateInventory,
+    canViewOrders: canMobile(principal, "orders.view") || canSubmitOrders,
+    canSubmitOrders,
+    canViewHealthChecks: canMobile(principal, "health.view") || canCompleteHealthChecks,
+    canCompleteHealthChecks,
+    canViewInsights: canMobile(principal, "insights.view")
+  }
+}
+
+export function canUseMobileWorkShortcut(principal: MobilePrincipal, shortcut: MobileWorkShortcut) {
+  const capabilities = mobileCapabilities(principal)
+  switch (shortcut) {
+    case "work":
+      return capabilities.canViewInventory || capabilities.canUpdateInventory || capabilities.canViewOrders || capabilities.canViewHealthChecks || capabilities.canViewInsights
+    case "inventory":
+      return capabilities.canViewInventory
+    case "spotCheck":
+    case "restock":
+    case "receiving":
+    case "waste":
+    case "transfer":
+      return capabilities.canUpdateInventory
+    case "orders":
+      return capabilities.canViewOrders
+    case "healthChecks":
+      return capabilities.canViewHealthChecks
+    case "insights":
+      return capabilities.canViewInsights
+  }
+}
+
 function permittedStoreValues(member: DocumentData) {
   const values = new Set<string>()
   for (const key of ["storeId", "store", "location"]) {
@@ -106,8 +159,8 @@ function permittedStoreValues(member: DocumentData) {
   return values
 }
 
-export async function assertStoreAccess(principal: MobilePrincipal, storeId?: string) {
-  if (!storeId || principal.isManager || principal.permissions.includes("*")) return
+export async function assertStoreAccess(principal: MobilePrincipal, storeId: string) {
+  if (principal.isManager || principal.permissions.includes("*")) return
 
   const allowed = permittedStoreValues(principal.member)
   if (["all", "all stores", "all locations"].some((value) => allowed.has(value)) || allowed.has(storeId.toLowerCase())) return
@@ -122,6 +175,18 @@ export async function assertStoreAccess(principal: MobilePrincipal, storeId?: st
   if (storeName && allowed.has(storeName)) return
 
   throw new MobileApiError("You do not have access to this store.", 403, "store_access_denied")
+}
+
+export function requireMobileStoreId(value: string | null | undefined) {
+  const storeId = value?.trim()
+  if (!storeId) {
+    throw new MobileApiError("A store is required.", 400, "store_required")
+  }
+  return storeId
+}
+
+export function mobileRecordMatchesStore(record: Record<string, unknown>, storeId: string) {
+  return String(record.storeId ?? "").trim() === storeId
 }
 
 export function canAccessMobileStore(principal: MobilePrincipal, storeId: string, storeName = "") {

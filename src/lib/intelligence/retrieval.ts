@@ -16,6 +16,55 @@ import type {
   VerifiedLearningRecords
 } from "@/lib/intelligence/types"
 
+const SEARCH_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "any",
+  "are",
+  "as",
+  "at",
+  "be",
+  "can",
+  "could",
+  "do",
+  "does",
+  "for",
+  "from",
+  "have",
+  "how",
+  "i",
+  "in",
+  "is",
+  "it",
+  "item",
+  "many",
+  "me",
+  "more",
+  "much",
+  "of",
+  "on",
+  "or",
+  "our",
+  "should",
+  "stuff",
+  "that",
+  "the",
+  "thing",
+  "this",
+  "to",
+  "we",
+  "what",
+  "whats",
+  "which",
+  "with",
+  "you"
+])
+
+function meaningfulSearchTokens(value: string | undefined) {
+  return textTokens(value).filter((token) => !SEARCH_STOP_WORDS.has(token))
+}
+
 function stageResult(stage: RetrievalStage, matched: boolean, confidenceScore: number, reason: string): RetrievalStageResult {
   return {
     stage,
@@ -106,12 +155,12 @@ function fuzzyCandidates(query: string, records: ProductLookupRecord[]) {
 }
 
 function semanticCandidates(query: string, records: ProductLookupRecord[]) {
-  const queryTokens = textTokens(query)
+  const queryTokens = meaningfulSearchTokens(query)
   if (queryTokens.length === 0) return []
 
   return records
     .map((record) => {
-      const recordTokens = new Set(textTokens(productDescriptionPieces(record).join(" ")))
+      const recordTokens = new Set(meaningfulSearchTokens(productDescriptionPieces(record).join(" ")))
       const overlap = queryTokens.filter((token) => recordTokens.has(token)).length
       const prefixOverlap = queryTokens.filter((token) => Array.from(recordTokens).some((recordToken) => recordToken.startsWith(token) || token.startsWith(recordToken))).length
       const score = Math.max(overlap / queryTokens.length, prefixOverlap > 0 ? 0.48 + prefixOverlap / Math.max(queryTokens.length, 4) : 0)
@@ -122,7 +171,10 @@ function semanticCandidates(query: string, records: ProductLookupRecord[]) {
 }
 
 function vectorCandidates(query: string, records: ProductLookupRecord[]) {
-  return vectorSearchProducts(query, records).map(({ record, score }) =>
+  const meaningfulQuery = meaningfulSearchTokens(query).join(" ")
+  if (!meaningfulQuery) return []
+
+  return vectorSearchProducts(meaningfulQuery, records).map(({ record, score }) =>
     scoreCandidate(record, Math.min(0.84, 0.42 + score), "vector_similarity", "Vector similarity across product names, aliases, descriptions, ingredients, categories, and verified learning records.")
   )
 }
@@ -233,9 +285,27 @@ export function buildProductLookupRecords(context: AiOperationalContext, learnin
     department: product.department,
     category: product.category,
     nutrition: product.nutrition,
-    aliases: uniqueStrings([product.name, product.sku, product.department, product.category, product.centralProductId]),
+    aliases: uniqueStrings([
+      product.name,
+      product.sku,
+      product.department,
+      product.category,
+      product.location,
+      product.displayAssignment?.displayName,
+      product.displayAssignment?.isOnDisplay ? "on display" : undefined,
+      product.centralProductId
+    ]),
     source: "organization_product" as const,
-    description: `${product.department} ${product.category} default unit ${product.defaultUnit} ${product.expires ? "expires" : "does not expire"}`
+    description: [
+      product.department,
+      product.category,
+      product.location ? `location ${product.location}` : undefined,
+      product.displayAssignment?.isOnDisplay ? `on display at ${product.displayAssignment.displayName}` : undefined,
+      `default unit ${product.defaultUnit}`,
+      product.expires ? "expires" : "does not expire"
+    ]
+      .filter(Boolean)
+      .join("; ")
   }))
 
   const inventoryRecords = context.inventory.map((item) => ({
@@ -246,9 +316,9 @@ export function buildProductLookupRecords(context: AiOperationalContext, learnin
     barcode: /^\d{8,14}$/.test(item.sku) ? item.sku : undefined,
     department: item.department,
     category: item.category,
-    aliases: uniqueStrings([item.name, item.sku, item.department, item.category, item.vendor, item.unit]),
+    aliases: uniqueStrings([item.name, item.sku, item.department, item.category, item.location, item.vendor, item.unit]),
     source: "inventory" as const,
-    description: `${item.onHand} ${item.unit} on hand; front ${item.frontStock}; back ${item.backStock}; vendor ${item.vendor}`
+    description: `${item.onHand} ${item.unit} on hand; front ${item.frontStock}; back ${item.backStock}; location ${item.location ?? "not recorded"}; vendor ${item.vendor}`
   }))
 
   const evidenceRecords = context.products.map((product) => ({

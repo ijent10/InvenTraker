@@ -3,8 +3,10 @@ import { ArrowLeft } from "lucide-react"
 import { InventoryForm } from "@/components/inventory-form"
 import { PageHeader } from "@/components/page-header"
 import { ButtonLink } from "@/components/ui"
+import { getStores } from "@/lib/server-data"
 
-export default function NewInventoryItemPage() {
+export default async function NewInventoryItemPage() {
+  const stores = await getStores()
   return (
     <>
       <PageHeader
@@ -18,7 +20,7 @@ export default function NewInventoryItemPage() {
       />
 
       <div className="max-w-5xl">
-        <InventoryForm />
+        <InventoryForm stores={stores} />
       </div>
     </>
   )

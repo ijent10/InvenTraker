@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2, ClipboardList, Clock3, Loader2, Save, Send, X } from "lucide-react"
 
 import { Button, Field, Panel, SelectInput, StatusPill, TextArea, TextInput } from "@/components/ui"
-import { writeOrgRecord } from "@/lib/cloud-records"
 import { useAuthSession } from "@/lib/auth-session"
 import type { InventoryItem, OrderDraft, OrderLine, Product, Vendor } from "@/lib/demo-data"
+import { recommendWebOrder, saveWebOrder, transitionWebOrder } from "@/lib/web-order-operations"
 
 function moneyToNumber(value: string) {
   const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""))
@@ -99,18 +99,12 @@ export function OrderDraftBuilder({
   const [savedMessage, setSavedMessage] = useState("")
   const [saveError, setSaveError] = useState("")
   const [saving, setSaving] = useState(false)
+  const [approvalReason, setApprovalReason] = useState("")
 
   const selectedVendor = vendors.find((vendor) => vendor.id === selectedVendorId) ?? vendors[0]
   const activeVendor = vendors.find((vendor) => vendor.id === activeDraft?.vendorId || vendor.name === activeDraft?.vendor) ?? selectedVendor
 
-  const productCostByKey = useMemo(() => {
-    const costs = new Map<string, string>()
-    products.forEach((product) => {
-      costs.set(product.name.toLowerCase(), product.lastCost)
-      if (product.sku) costs.set(product.sku.toLowerCase(), product.lastCost)
-    })
-    return costs
-  }, [products])
+  void products
 
   const estimatedTotal = useMemo(() => (activeDraft?.lines ?? []).reduce((total, line) => total + lineTotal(line), 0), [activeDraft?.lines])
   const minimumTotal = moneyToNumber(activeDraft?.minimum ?? activeVendor?.minimum ?? "$0")
@@ -118,8 +112,8 @@ export function OrderDraftBuilder({
   const meetsMinimum = estimatedTotal >= minimumTotal || minimumTotal === 0
   const canCreateOrders = session.can("orders.create")
   const canApproveOrders = session.can("orders.approve")
-  const submittedDraft = activeDraft?.status === "Submitted" || activeDraft?.status === "Auto-submitted"
-  const effectiveStatus = submittedDraft ? activeDraft.status : meetsMinimum ? "Ready" : "Needs review"
+  const submittedDraft = Boolean(activeDraft && ["Submitted", "Partially received", "Received", "Reconciled", "Cancelled", "Auto-submitted"].includes(activeDraft.status))
+  const effectiveStatus = activeDraft && ["Draft", "Needs review"].includes(activeDraft.status) ? (meetsMinimum ? "Draft" : "Needs review") : activeDraft?.status ?? "Draft"
 
   const minimumRecommendation = useMemo(() => {
     if (!activeDraft || !activeVendor) return ""
@@ -141,78 +135,40 @@ export function OrderDraftBuilder({
     setActiveDraft(draft)
   }, [initialDraftId, orderDrafts])
 
-  function buildSuggestedDraft(vendor: Vendor): OrderDraft {
-    const vendorCatalog = new Set((vendor.catalog ?? []).map((sku) => sku.toLowerCase()))
-    const offeredItems = inventoryItems.filter((item) => item.vendor === vendor.name && (vendorCatalog.size === 0 || vendorCatalog.has(item.sku.toLowerCase())))
-    const seedItems = offeredItems.length > 0 ? offeredItems : inventoryItems.filter((item) => item.vendor === vendor.name)
-    const lines: OrderLine[] = seedItems.map((item) => {
-      const productCost = productCostByKey.get(item.sku.toLowerCase()) ?? productCostByKey.get(item.name.toLowerCase()) ?? "$0.00"
-      const shortage = Math.max(item.par - item.onHand, item.reorderPoint - item.onHand, 0)
-      const recommendedQuantity = Math.max(shortage, item.status === "Low" ? item.reorderPoint : 1)
-
-      return {
-        id: `${vendor.id}-${item.id}`,
-        itemName: item.name,
-        sku: item.sku,
-        quantity: recommendedQuantity,
-        unit: item.unit,
-        unitCost: productCost,
-        reason:
-          item.status === "Low"
-            ? `${item.name} is below reorder point. Suggested quantity restores store stock toward par.`
-            : `${item.name} is vendor-offered and can be ordered based on par, on-hand stock, and lead time.`,
-        vendorOffered: true,
-        aiRecommendedQuantity: recommendedQuantity
-      }
-    })
-
-    const subtotal = lines.reduce((total, line) => total + lineTotal(line), 0)
-    const minimum = moneyToNumber(vendor.minimum)
-    const gap = Math.max(minimum - subtotal, 0)
-    const stableLine = lines.find((line) => {
-      const matchingItem = inventoryItems.find((item) => item.sku === line.sku)
-      return matchingItem && !matchingItem.expires && moneyToNumber(line.unitCost) > 0
-    })
-
-    if (gap > 0 && stableLine && gap <= minimum * 0.35) {
-      const extraQuantity = Math.ceil(gap / moneyToNumber(stableLine.unitCost))
-      stableLine.quantity += extraQuantity
-      stableLine.minimumFillCandidate = true
-      stableLine.reason = `${stableLine.reason} Added ${extraQuantity} extra to responsibly reach ${vendor.minimum} minimum; item does not expire.`
-    }
-
-    const nextTotal = lines.reduce((total, line) => total + lineTotal(line), 0)
-    const dueAt = vendor.orderDueAt ?? new Date(Date.now() + 86_400_000).toISOString()
-
-    return {
-      id: `draft-${vendor.id}`,
-      vendorId: vendor.id,
-      vendor: vendor.name,
-      lines,
-      items: lines.length,
-      estimatedTotal: formatMoney(nextTotal),
-      minimum: vendor.minimum,
-      status: nextTotal >= minimum ? "Ready" : "Needs review",
-      dueBy: orderDueLabel(vendor),
-      dueAt,
-      expectedArrival: expectedArrival(vendor),
-      notes: `Generated from vendor catalog, store par, stock on hand, and ${vendor.minimum} minimum.`,
-      autoSubmitAllowed: vendor.autoSubmitAllowed
-    }
-  }
-
-  function generateDraft() {
+  async function generateDraft() {
     if (!selectedVendor) return
     const existingDraft = orderDrafts.find((draft) => draft.vendorId === selectedVendor.id || draft.vendor === selectedVendor.name)
-    setActiveDraft(existingDraft ?? buildSuggestedDraft(selectedVendor))
-    setSavedMessage(existingDraft ? `${selectedVendor.name} draft resumed.` : `${selectedVendor.name} draft generated.`)
-    setSaveError("")
+    if (existingDraft?.recommendation && existingDraft.lines.every((line) => line.itemId)) {
+      setActiveDraft(existingDraft)
+      setSavedMessage(`${selectedVendor.name} draft resumed.`)
+      setSaveError("")
+      return
+    }
+    const storeId = session.member?.storeId || inventoryItems.find((item) => item.vendor === selectedVendor.name)?.storeId
+    if (!storeId) { setSaveError("Choose a store with inventory for this vendor."); return }
+    setSaving(true); setSaveError(""); setSavedMessage("")
+    try {
+      const run = await recommendWebOrder(session.orgId, storeId, selectedVendor.id)
+      const lines: OrderLine[] = run.lines.map((line) => ({
+        ...line, quantity: line.finalQuantity, aiRecommendedQuantity: line.suggestedQuantity,
+        unitCost: formatMoney(line.unitCostAmount), reason: line.calculation
+      }))
+      setActiveDraft({
+        id: `draft-${selectedVendor.id}-${storeId}`, storeId, vendorId: selectedVendor.id, vendor: selectedVendor.name,
+        lines, items: lines.length, estimatedTotal: formatMoney(run.subtotalAmount), minimum: formatMoney(run.minimumAmount),
+        status: run.minimumGapAmount > 0 ? "Needs review" : "Draft", dueBy: run.vendor.orderDueAt ?? orderDueLabel(selectedVendor),
+        dueAt: run.vendor.orderDueAt ?? selectedVendor.orderDueAt ?? "", expectedArrival: run.vendor.expectedArrival,
+        notes: "Generated by the server ordering engine. Review degraded-data flags and every line calculation before approval.", recommendation: run
+      })
+      setSavedMessage(`${selectedVendor.name} recommendation generated by ${run.engineVersion}.`)
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Recommendation could not be generated.") }
+    finally { setSaving(false) }
   }
 
   function updateLine(lineId: string, nextFields: Partial<OrderLine>) {
     setActiveDraft((current) => {
       if (!current) return current
-      const lines = current.lines.map((line) => (line.id === lineId ? { ...line, ...nextFields } : line))
+      const lines = current.lines.map((line) => (line.id === lineId ? { ...line, ...nextFields, ...(nextFields.quantity !== undefined ? { finalQuantity: nextFields.quantity } : {}) } : line))
       return { ...current, lines, items: lines.length, estimatedTotal: formatMoney(lines.reduce((total, line) => total + lineTotal(line), 0)) }
     })
   }
@@ -231,7 +187,7 @@ export function OrderDraftBuilder({
     setSaveError("")
   }
 
-  async function persistDraft(nextStatus: OrderDraft["status"], autoSubmitted = false) {
+  async function persistDraft(nextStatus: OrderDraft["status"]) {
     if (!activeDraft || !activeVendor) return
     if (nextStatus === "Draft" && !canCreateOrders) {
       setSaveError("You need orders.create permission to save an order draft.")
@@ -243,36 +199,30 @@ export function OrderDraftBuilder({
       return
     }
 
-    if ((nextStatus === "Submitted" || nextStatus === "Auto-submitted") && !meetsMinimum) {
-      setSaveError(`Submit is locked until the draft reaches ${activeDraft.minimum}.`)
-      return
-    }
-
     setSaving(true)
     setSaveError("")
     setSavedMessage("")
 
-    const payload: OrderDraft = {
-      ...activeDraft,
-      status: nextStatus,
-      estimatedTotal: formatMoney(estimatedTotal),
-      items: activeDraft.lines.length,
-      submittedAt: nextStatus === "Submitted" || nextStatus === "Auto-submitted" ? "Just now" : activeDraft.submittedAt,
-      submittedBy: nextStatus === "Submitted" || nextStatus === "Auto-submitted" ? "Ian Jenkins" : activeDraft.submittedBy,
-      approvedBy: nextStatus === "Submitted" || nextStatus === "Auto-submitted" ? "Ian Jenkins" : activeDraft.approvedBy,
-      autoSubmitAllowed: activeVendor.autoSubmitAllowed
-    }
-
     try {
-      await writeOrgRecord("orders", activeDraft.id, { ...payload, source: "web" })
-      setActiveDraft(payload)
-      setSavedMessage(
-        autoSubmitted
-          ? `${activeDraft.vendor} order auto-submitted because the cutoff was reached.`
-          : nextStatus === "Draft"
-            ? `${activeDraft.vendor} draft saved.`
-            : `${activeDraft.vendor} order submitted.`
-      )
+      const storeId = activeDraft.storeId || session.member?.storeId || ""
+      if (nextStatus !== "Submitted") {
+        await saveWebOrder(session.orgId, activeDraft.id, {
+          storeId, vendorId: activeDraft.vendorId, lines: activeDraft.lines, recommendation: activeDraft.recommendation ?? {},
+          notes: activeDraft.notes, dueAt: activeDraft.dueAt, expectedArrival: activeDraft.expectedArrival
+        })
+      }
+      if (nextStatus === "Approved") {
+        await transitionWebOrder(session.orgId, activeDraft.id, { storeId, action: "approve", reason: approvalReason || undefined })
+        setActiveDraft({ ...activeDraft, status: "Approved", approvedBy: session.member?.name })
+        setSavedMessage(`${activeDraft.vendor} order approved.`)
+      } else if (nextStatus === "Submitted") {
+        await transitionWebOrder(session.orgId, activeDraft.id, { storeId, action: "submit", sentMethod: "recorded" })
+        setActiveDraft({ ...activeDraft, status: "Submitted", submittedAt: "Just now", submittedBy: session.member?.name })
+        setSavedMessage(`${activeDraft.vendor} order recorded as submitted.`)
+      } else {
+        setActiveDraft({ ...activeDraft, status: meetsMinimum ? "Draft" : "Needs review", estimatedTotal: formatMoney(estimatedTotal) })
+        setSavedMessage(`${activeDraft.vendor} draft saved.`)
+      }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Order could not be saved.")
     } finally {
@@ -282,19 +232,7 @@ export function OrderDraftBuilder({
 
   function handleExpired() {
     if (!activeDraft || activeDraft.status === "Submitted" || activeDraft.status === "Auto-submitted") return
-    if (!activeDraft.autoSubmitAllowed) {
-      setSavedMessage("Cutoff reached. Auto-submit is off for this vendor, so the draft still needs manual review.")
-      return
-    }
-    if (!meetsMinimum) {
-      setSaveError(`Cutoff reached, but submit is locked until the draft reaches ${activeDraft.minimum}.`)
-      return
-    }
-    if (!canApproveOrders) {
-      setSaveError("Cutoff reached, but orders.approve permission is required before auto-submit can run.")
-      return
-    }
-    void persistDraft("Auto-submitted", true)
+    setSavedMessage("Cutoff reached. The order remains unchanged until an authorized manager reviews it.")
   }
 
   return (
@@ -309,7 +247,7 @@ export function OrderDraftBuilder({
             Select a vendor, generate or resume its draft, review every reason, then save or submit.
           </p>
         </div>
-        {activeDraft ? <StatusPill tone={effectiveStatus === "Ready" || effectiveStatus.includes("Submitted") ? "green" : "amber"}>{effectiveStatus}</StatusPill> : null}
+        {activeDraft ? <StatusPill tone={["Approved", "Submitted", "Partially received", "Received", "Reconciled", "Ready"].includes(effectiveStatus) ? "green" : "amber"}>{effectiveStatus}</StatusPill> : null}
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[360px_1fr]">
@@ -343,7 +281,7 @@ export function OrderDraftBuilder({
             </div>
           ) : null}
 
-          <Button className="mt-4 w-full" onClick={generateDraft} disabled={!canCreateOrders} icon={<ClipboardList className="h-4 w-4" />}>
+          <Button className="mt-4 w-full" onClick={generateDraft} disabled={!canCreateOrders || saving} icon={<ClipboardList className="h-4 w-4" />}>
             Generate order
           </Button>
           {!canCreateOrders ? <p className="mt-2 text-xs font-semibold text-amber-300">You need orders.create to generate drafts.</p> : null}
@@ -419,6 +357,26 @@ export function OrderDraftBuilder({
                 ))}
               </div>
 
+              {activeDraft.lines.some((line) => Number(line.quantity) !== Number(line.suggestedQuantity ?? line.aiRecommendedQuantity)) ? (
+                <div className="grid gap-3 rounded-md border border-amber-400/30 bg-amber-400/10 p-3">
+                  <p className="text-sm font-semibold text-amber-100">Explain quantity overrides</p>
+                  {activeDraft.lines.filter((line) => Number(line.quantity) !== Number(line.suggestedQuantity ?? line.aiRecommendedQuantity)).map((line) => (
+                    <Field key={`${line.id}-override`} label={line.itemName}>
+                      <TextInput value={line.overrideReason ?? ""} placeholder="Why should this quantity differ from the suggestion?" onChange={(event) => updateLine(line.id, { overrideReason: event.target.value })} />
+                    </Field>
+                  ))}
+                </div>
+              ) : null}
+
+              {activeDraft.recommendation ? (
+                <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-panel)] p-3 text-xs leading-5 text-[var(--app-muted)]">
+                  <p className="font-semibold text-[var(--app-text)]">Calculation evidence</p>
+                  <p>Run {activeDraft.recommendation.runId} • engine {activeDraft.recommendation.engineVersion} • generated {activeDraft.recommendation.generatedAt}</p>
+                  <p>Rule: {activeDraft.recommendation.rulePath}</p>
+                  {activeDraft.recommendation.degradedFlags.length ? <p className="text-amber-300">Data limits: {activeDraft.recommendation.degradedFlags.join(", ")}</p> : null}
+                </div>
+              ) : null}
+
               <Field label="Order notes">
                 <TextArea
                   value={activeDraft.notes ?? ""}
@@ -426,6 +384,12 @@ export function OrderDraftBuilder({
                   onChange={(event) => setActiveDraft((current) => (current ? { ...current, notes: event.target.value } : current))}
                 />
               </Field>
+
+              {!meetsMinimum && !submittedDraft ? (
+                <Field label="Below-minimum approval reason">
+                  <TextArea value={approvalReason} placeholder="Explain why the vendor minimum should be overridden instead of adding stock." onChange={(event) => setApprovalReason(event.target.value)} />
+                </Field>
+              ) : null}
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -447,13 +411,15 @@ export function OrderDraftBuilder({
                     <Button variant="secondary" onClick={() => persistDraft("Draft")} disabled={saving || !canCreateOrders} icon={<Save className="h-4 w-4" />}>
                       Save draft
                     </Button>
-                    <Button
-                      onClick={() => persistDraft("Submitted")}
-                      disabled={saving || !meetsMinimum || !canApproveOrders}
-                      icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    >
-                      Submit
-                    </Button>
+                    {activeDraft.status === "Approved" ? (
+                      <Button onClick={() => persistDraft("Submitted")} disabled={saving || !canApproveOrders} icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}>
+                        Record submitted
+                      </Button>
+                    ) : (
+                      <Button onClick={() => persistDraft("Approved")} disabled={saving || (!meetsMinimum && !approvalReason.trim()) || !canApproveOrders} icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}>
+                        Approve
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

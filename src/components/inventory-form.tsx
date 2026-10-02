@@ -6,7 +6,9 @@ import { Save } from "lucide-react"
 import { ActionButton } from "@/components/action-button"
 import { Field, Panel, SelectInput, TextArea, TextInput } from "@/components/ui"
 import { archiveOrgRecord, centralProductId, submitPlatformProductApproval, writeOrgRecord, writeStoreProductDetail } from "@/lib/cloud-records"
-import type { InventoryItem } from "@/lib/demo-data"
+import type { InventoryItem, StoreRecord } from "@/lib/demo-data"
+import { useAuthSession } from "@/lib/auth-session"
+import { saveWebParChange, saveWebSpotCheck } from "@/lib/web-stock-operations"
 
 function numericField(formData: FormData, name: string) {
   const value = Number(formData.get(name) ?? 0)
@@ -38,8 +40,9 @@ function optionalNumericField(formData: FormData, name: string) {
   return Number.isFinite(value) ? value : undefined
 }
 
-export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem; mode?: "create" | "edit" }) {
+export function InventoryForm({ item, stores, mode = "create" }: { item?: InventoryItem; stores: StoreRecord[]; mode?: "create" | "edit" }) {
   const formRef = useRef<HTMLFormElement>(null)
+  const session = useAuthSession()
 
   async function saveItem() {
     if (!formRef.current) throw new Error("Inventory form is not ready.")
@@ -47,9 +50,7 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
     const formData = new FormData(formRef.current)
     const frontStock = numericField(formData, "frontStock")
     const backStock = numericField(formData, "backStock")
-    const onHand = frontStock + backStock
     const reorderPoint = numericField(formData, "reorderPoint")
-    const status = onHand <= reorderPoint ? "Low" : "Active"
     const name = textField(formData, "name")
     const sku = textField(formData, "sku")
     const department = textField(formData, "department")
@@ -62,7 +63,10 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
     const quantityInCase = optionalNumericField(formData, "quantityInCase")
     const centralId = centralProductId({ sku, name })
     const orgProductId = catalogRecordId(sku, name)
-    const storeId = "store-001"
+    const storeId = mode === "edit" ? String(item?.storeId ?? "") : textField(formData, "storeId")
+    const reason = textField(formData, "changeReason")
+    if (!storeId) throw new Error("Choose the store this stock belongs to.")
+    if (!reason) throw new Error("Add a short reason for the stock and par change.")
 
     if (centralId) {
       await submitPlatformProductApproval(`approval-${centralId}`, {
@@ -98,12 +102,12 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
       averageQuantityInCase: quantityInCase,
       centralApprovalStatus: centralId ? "pending" : "not_applicable",
       source: "web-inventory"
-    })
+    }, session.orgId)
 
-    await writeOrgRecord("inventory", item?.id, {
+    const inventoryId = await writeOrgRecord("inventory", item?.id, {
       centralProductId: centralId,
       orgProductId,
-      storeId,
+      ...(mode === "create" ? { storeId } : {}),
       name,
       sku,
       department,
@@ -114,15 +118,10 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
       quantityInCase,
       unit,
       expires,
-      frontStock,
-      backStock,
-      onHand,
-      par: numericField(formData, "par"),
-      reorderPoint,
-      status,
+      ...(mode === "create" ? { frontStock: 0, backStock: 0, onHand: 0, par: 0, reorderPoint: 0, revision: 0, status: "Low" } : {}),
       notes: textField(formData, "notes"),
       source: "web"
-    })
+    }, session.orgId)
 
     await writeStoreProductDetail(storeId, orgProductId, {
       centralProductId: centralId,
@@ -134,16 +133,41 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
       quantityInCase,
       expires,
       location,
-      par: numericField(formData, "par"),
-      reorderPoint,
       notes: textField(formData, "notes"),
       source: "web-inventory"
-    })
+    }, session.orgId)
+
+    let revision = item?.revision ?? 0
+    if (mode === "create" || frontStock !== item?.frontStock || backStock !== item?.backStock) {
+      await saveWebSpotCheck({
+        orgId: session.orgId,
+        storeId,
+        itemId: inventoryId,
+        expectedRevision: revision,
+        frontStock,
+        backStock,
+        reason
+      })
+      revision += 1
+    }
+
+    const par = numericField(formData, "par")
+    if (mode === "create" || par !== item?.par || reorderPoint !== item?.reorderPoint) {
+      await saveWebParChange({
+        orgId: session.orgId,
+        storeId,
+        itemId: inventoryId,
+        expectedRevision: revision,
+        par,
+        reorderPoint,
+        reason
+      })
+    }
   }
 
   async function archiveItem() {
     if (!item?.id) throw new Error("Save this item before archiving it.")
-    await archiveOrgRecord("inventory", item.id)
+    await archiveOrgRecord("inventory", item.id, session.orgId)
   }
 
   return (
@@ -174,6 +198,16 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
           </Field>
           <Field label="Store location">
             <TextInput name="location" defaultValue={item?.location} placeholder="Aisle 4 / Backstock B" />
+          </Field>
+          <Field label="Store">
+            {mode === "edit" ? (
+              <TextInput value={stores.find((store) => store.id === item?.storeId)?.name ?? item?.storeId ?? "Unassigned"} disabled />
+            ) : (
+              <SelectInput name="storeId" defaultValue={session.member?.storeId ?? stores[0]?.id ?? ""}>
+                <option value="" disabled>Choose a store</option>
+                {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+              </SelectInput>
+            )}
           </Field>
           <Field label="Vendor">
             <TextInput name="vendor" defaultValue={item?.vendor} placeholder="Vintage Point" />
@@ -215,6 +249,10 @@ export function InventoryForm({ item, mode = "create" }: { item?: InventoryItem;
 
         <Field label="Notes" hint="Use this for receiving rules, shelf capacity notes, or anything a team member should see.">
           <TextArea name="notes" placeholder="Optional item notes" />
+        </Field>
+
+        <Field label="Change reason" hint="Saved with the stock and par audit record.">
+          <TextInput name="changeReason" defaultValue={mode === "create" ? "Opening stock setup" : "Verified inventory update"} />
         </Field>
 
         <div className="flex flex-wrap items-center gap-2">

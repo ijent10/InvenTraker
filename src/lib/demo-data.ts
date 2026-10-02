@@ -42,6 +42,26 @@ export type InventoryItem = {
   updatedAt: string
   expires: boolean
   status: "Active" | "Low" | "Archived"
+  revision?: number
+}
+
+export type InventoryBatch = {
+  id: string
+  itemId: string
+  itemName: string
+  storeId: string
+  remainingQuantity: number
+  unit: string
+  area: "front" | "back"
+  receivedAt: string | null
+  expirationDate: string | null
+  expirationKnown: boolean
+  openedAt?: string | null
+  preparedAt?: string | null
+  sourceOperationId: string
+  sourceReceiptId?: string
+  parentBatchId?: string
+  status: "available" | "depleted"
 }
 
 export type OrderDraft = {
@@ -52,7 +72,7 @@ export type OrderDraft = {
   items: number
   estimatedTotal: string
   minimum: string
-  status: "Draft" | "Ready" | "Needs review" | "Submitted" | "Auto-submitted"
+  status: "Draft" | "Needs review" | "Approved" | "Submitted" | "Partially received" | "Received" | "Reconciled" | "Cancelled" | "Ready" | "Auto-submitted"
   dueBy: string
   dueAt: string
   expectedArrival: string
@@ -61,6 +81,11 @@ export type OrderDraft = {
   approvedBy?: string
   notes?: string
   autoSubmitAllowed?: boolean
+  storeId?: string
+  recommendation?: import("@/lib/ordering-engine").OrderRecommendationRun
+  sentMethod?: "recorded" | "email" | "edi" | "portal"
+  receivedAt?: string
+  reconciledAt?: string
 }
 
 export type OrderLine = {
@@ -74,6 +99,25 @@ export type OrderLine = {
   vendorOffered: boolean
   aiRecommendedQuantity: number
   minimumFillCandidate?: boolean
+  itemId?: string
+  orderUnit?: string
+  stockUnitsPerOrderUnit?: number
+  unitCostAmount?: number
+  suggestedQuantity?: number
+  finalQuantity?: number
+  overrideReason?: string | null
+  receivedQuantity?: number
+  calculation?: string
+  sourceRefs?: string[]
+  dataFreshness?: string | null
+  degradedFlags?: string[]
+  usableOnHand?: number
+  physicalOnHand?: number
+  expiredQuantity?: number
+  unknownExpirationQuantity?: number
+  confirmedIncoming?: number
+  projectedDemand?: number
+  targetEndingStock?: number
 }
 
 export type Product = {
@@ -148,6 +192,22 @@ export type Vendor = {
   catalog?: string[]
   orderDueAt?: string
   autoSubmitAllowed?: boolean
+  minimumAmount?: number
+  leadTimeDays?: number
+  coverageDays?: number
+  deliveryDays?: number[]
+  expectedArrival?: string
+  products?: VendorProductRule[]
+  orderCutoff?: { timeZone: string; hour: number; minute: number; weekdays: number[] }
+}
+
+export type VendorProductRule = {
+  sku: string
+  orderUnit: string
+  packSize: number
+  minimumOrderQuantity?: number
+  orderIncrement?: number
+  unitCostAmount?: number
 }
 
 export type Employee = {
@@ -160,6 +220,8 @@ export type Employee = {
   department: string
   location: string
   store: string
+  storeId?: string
+  storeIds?: string[]
   status: "Active" | "Invite sent" | "Suspended"
   lastActive: string
   permissions: EmployeePermission[]
@@ -347,7 +409,7 @@ export type OrganizationBranding = {
   defaultTheme: string
 }
 
-export type HistoryActionType = "spot-checks" | "restocks" | "waste" | "receive" | "portion" | "orders"
+export type HistoryActionType = "spot-checks" | "restocks" | "waste" | "receive" | "transfers" | "portion" | "orders" | "par-changes"
 
 export type HistoryActionRecord = {
   id: string
@@ -1827,8 +1889,10 @@ export const historyTiles = [
   { type: "restocks" as const, title: "Restocks", detail: "Front/back movement and restock completion", icon: RotateCw },
   { type: "waste" as const, title: "Waste", detail: "Waste entries by item, user, and department", icon: Trash2 },
   { type: "receive" as const, title: "Receive", detail: "Receiving history and vendor intake", icon: PackageCheck },
+  { type: "transfers" as const, title: "Transfers", detail: "Stock moved between sales floor and backstock", icon: RotateCw },
   { type: "portion" as const, title: "Portion", detail: "Production and portion activity", icon: PackageX },
-  { type: "orders" as const, title: "Order", detail: "Order drafts, approvals, and submissions", icon: ShoppingCart }
+  { type: "orders" as const, title: "Order", detail: "Order drafts, approvals, and submissions", icon: ShoppingCart },
+  { type: "par-changes" as const, title: "Par Changes", detail: "Target stock and reorder threshold changes with reasons", icon: TrendingUp }
 ]
 
 export const historyRecords: HistoryActionRecord[] = [

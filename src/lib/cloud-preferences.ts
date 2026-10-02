@@ -10,6 +10,7 @@ export type CloudWorkspacePreferences = {
   savedThemes?: AppTheme[]
   dashboardWidgetIds?: string[]
   showTips?: boolean
+  mobileWorkShortcut?: "work" | "inventory" | "spotCheck" | "restock" | "receiving" | "waste" | "transfer" | "orders" | "healthChecks" | "insights"
   updatedAt?: unknown
   schemaVersion?: number
 }
@@ -57,6 +58,23 @@ export async function readCloudWorkspacePreferences(): Promise<CloudWorkspacePre
 
   const snapshot = await getDoc(ref)
   return snapshot.exists() ? (snapshot.data() as CloudWorkspacePreferences) : null
+}
+
+export async function ensureCloudWorkspacePreferences() {
+  const ref = await workspacePreferencesRef()
+  if (!ref) return false
+
+  const snapshot = await getDoc(ref)
+  if (snapshot.exists()) return true
+
+  await setDoc(ref, {
+    mobileWorkShortcut: "work",
+    showTips: true,
+    schemaVersion: 1,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  })
+  return true
 }
 
 export async function writeCloudWorkspacePreferences(patch: CloudWorkspacePreferences) {

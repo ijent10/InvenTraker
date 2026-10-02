@@ -5,7 +5,7 @@ import { generateProductEnrichmentSuggestions } from "@/lib/intelligence/enrichm
 import { generateBusinessRecommendations } from "@/lib/intelligence/recommendations"
 import { lookupProductIntelligence } from "@/lib/intelligence/retrieval"
 import { confidenceLabel } from "@/lib/intelligence/text"
-import type { RetailIntelligenceAnswer } from "@/lib/intelligence/types"
+import type { BusinessRecommendation, ProductLookupResult, RetailIntelligenceAnswer } from "@/lib/intelligence/types"
 import type { AiOperationalContext, AssistantProductMemory, ProductEvidence } from "@/lib/ai/types"
 
 function queryNeedsRecommendations(query: string) {
@@ -22,6 +22,10 @@ function queryNeedsNutrition(query: string) {
 
 function queryNeedsCompliance(query: string) {
   return /(kosher|halal|organic|gluten[- ]?free|vegan|dietary|certified|certification)/i.test(query)
+}
+
+function queryNeedsOperationalContext(query: string) {
+  return /(vendor|supplier|comes from|stock|backstock|back stock|front stock|floor|on hand|quantity|how many|how much|have|carry|location|where|rack|aisle|cooler|display|featured|feature|expire|expiration|low|restock|pull|order|reorder|waste|wasting|markdown|par|inventory)/i.test(query)
 }
 
 function internalNutritionAnswer(productName: string, nutrition: NonNullable<NonNullable<Awaited<ReturnType<typeof lookupProductIntelligence>>["resolvedProduct"]>["nutrition"]>, query: string) {
@@ -56,8 +60,16 @@ function internalNutritionAnswer(productName: string, nutrition: NonNullable<Non
   return `${productName} has a nutrition record, but the specific nutrition value you asked for is not filled in yet.`
 }
 
-function answerForProductLookup(lookup: Awaited<ReturnType<typeof lookupProductIntelligence>>) {
+function answerForProductLookup(lookup: Awaited<ReturnType<typeof lookupProductIntelligence>>, query = "") {
+  const normalized = query.toLowerCase()
+
   if (lookup.status === "resolved" && lookup.resolvedProduct) {
+    if (/(creamy|tiramisu|white stuff|starts with|recipe|ingredient)/.test(normalized)) {
+      return `${lookup.resolvedProduct.name} is the likely answer. I matched it from recipe, alias, or product-relationship context with ${Math.round(
+        lookup.confidenceScore * 100
+      )}% confidence.`
+    }
+
     return `${lookup.resolvedProduct.name} is the strongest match. I used ${lookup.sourceUsed.replace(/_/g, " ")} with ${Math.round(
       lookup.confidenceScore * 100
     )}% confidence.`
@@ -90,6 +102,34 @@ function sameProduct({
   return Boolean(
     (normalizedSku && candidateSku?.toLowerCase() === normalizedSku) ||
       (normalizedName && candidateName?.toLowerCase() === normalizedName)
+  )
+}
+
+function itemForLookup(context: AiOperationalContext, lookup: ProductLookupResult) {
+  const product = lookup.resolvedProduct
+  if (!product) return undefined
+
+  return context.inventory.find((item) =>
+    sameProduct({
+      name: product.name,
+      sku: product.sku,
+      candidateName: item.name,
+      candidateSku: item.sku
+    })
+  )
+}
+
+function orgProductForLookup(context: AiOperationalContext, lookup: ProductLookupResult) {
+  const product = lookup.resolvedProduct
+  if (!product) return undefined
+
+  return context.organizationProducts.find((item) =>
+    sameProduct({
+      name: product.name,
+      sku: product.sku,
+      candidateName: item.name,
+      candidateSku: item.sku
+    })
   )
 }
 
@@ -211,6 +251,277 @@ function complianceAnswerForProduct({
   return undefined
 }
 
+type OperationalAnswer = {
+  answer: string
+  confidenceScore: number
+  facts: string[]
+  suggestedFollowUp?: string
+  sourceDetail: string
+}
+
+function formatRecommendation(recommendation: BusinessRecommendation) {
+  return `${recommendation.title}: ${recommendation.detail} Suggested action: ${recommendation.suggestedAction}`
+}
+
+function broadOperationalAnswer({
+  query,
+  context,
+  recommendations
+}: {
+  query: string
+  context: AiOperationalContext
+  recommendations: BusinessRecommendation[]
+}): OperationalAnswer | undefined {
+  const normalized = query.toLowerCase()
+
+  if (/(what|which).*(low|out of stock)|low right now|low stock|what is low/.test(normalized)) {
+    const lowItems = context.inventory
+      .filter((item) => item.status.toLowerCase() === "low" || item.onHand <= item.reorderPoint)
+      .sort((a, b) => a.onHand - a.reorderPoint - (b.onHand - b.reorderPoint))
+
+    if (!lowItems.length) {
+      return {
+        answer: "No item is currently below its reorder point in the store inventory I can see.",
+        confidenceScore: 0.78,
+        facts: ["No low-stock item matched current on-hand versus reorder point."],
+        sourceDetail: "Store inventory on-hand and reorder-point comparison."
+      }
+    }
+
+    return {
+      answer: `Lowest stock right now: ${lowItems
+        .slice(0, 4)
+        .map((item) => `${item.name} has ${item.onHand} ${item.unit} on hand against a reorder point of ${item.reorderPoint}`)
+        .join("; ")}.`,
+      confidenceScore: 0.86,
+      facts: lowItems.slice(0, 4).map((item) => `${item.name}: ${item.onHand} on hand, reorder point ${item.reorderPoint}`),
+      suggestedFollowUp: "Open the inventory list before ordering, because pending receives or recent spot checks may change the final count.",
+      sourceDetail: "Store inventory status, on-hand quantities, and reorder points."
+    }
+  }
+
+  if (/(pull|restock|replenish).*(back|backstock|back stock)|pull from the back|stock from the back/.test(normalized)) {
+    const restockItems = context.inventory
+      .map((item) => {
+        const targetFloor = Math.min(item.par, item.reorderPoint + 2)
+        const needed = Math.max(0, targetFloor - item.frontStock)
+        return {
+          item,
+          needed: Math.min(needed, item.backStock)
+        }
+      })
+      .filter((entry) => entry.needed > 0)
+      .sort((a, b) => b.needed - a.needed)
+
+    if (!restockItems.length) {
+      return {
+        answer: "I do not see anything that clearly needs to be pulled from back stock right now.",
+        confidenceScore: 0.74,
+        facts: ["No front-stock record is below its floor target while back stock is available."],
+        sourceDetail: "Front stock, back stock, par, and reorder point comparison."
+      }
+    }
+
+    return {
+      answer: `Pull these from back stock first: ${restockItems
+        .slice(0, 4)
+        .map(({ item, needed }) => `${needed} ${item.unit} of ${item.name}`)
+        .join("; ")}.`,
+      confidenceScore: 0.84,
+      facts: restockItems.slice(0, 4).map(({ item, needed }) => `${item.name}: front ${item.frontStock}, back ${item.backStock}, pull ${needed}`),
+      suggestedFollowUp: "Confirm the sales floor count before moving product, especially if someone recently restocked.",
+      sourceDetail: "Front stock, back stock, par, and reorder point comparison."
+    }
+  }
+
+  if (/(waste|wasting|wasted|shrink).*(most|highest)|most wasted|wasting the most/.test(normalized)) {
+    const wasteByProduct = new Map<string, { quantity: number; unit: string; reasons: string[] }>()
+    context.waste.forEach((waste) => {
+      const current = wasteByProduct.get(waste.productName) ?? { quantity: 0, unit: waste.unit, reasons: [] }
+      current.quantity += waste.quantity
+      current.reasons.push(waste.reason)
+      wasteByProduct.set(waste.productName, current)
+    })
+    const top = Array.from(wasteByProduct.entries()).sort((a, b) => b[1].quantity - a[1].quantity)[0]
+    if (!top) return undefined
+
+    return {
+      answer: `${top[0]} is currently the highest waste item in the available waste signals: ${top[1].quantity} ${top[1].unit}. Main reason: ${top[1].reasons[0]}.`,
+      confidenceScore: 0.82,
+      facts: [`${top[0]} waste quantity: ${top[1].quantity} ${top[1].unit}`, `Reason: ${top[1].reasons.join(", ")}`],
+      suggestedFollowUp: "Compare the waste unit against sales volume before changing ordering or production.",
+      sourceDetail: "Recent store waste records."
+    }
+  }
+
+  if (/(display|featured|feature table|on display)/.test(normalized)) {
+    const displayItems = context.organizationProducts.filter((product) => product.displayAssignment?.isOnDisplay)
+    if (!displayItems.length) {
+      return {
+        answer: "I do not see any active display assignments in the product records I can access.",
+        confidenceScore: 0.74,
+        facts: ["No organization product has an active display assignment."],
+        sourceDetail: "Organization product display assignments."
+      }
+    }
+
+    return {
+      answer: `Currently on display: ${displayItems
+        .slice(0, 5)
+        .map((product) => `${product.name} on ${product.displayAssignment?.displayName} with ${product.displayAssignment?.quantityNeeded} needed`)
+        .join("; ")}.`,
+      confidenceScore: 0.86,
+      facts: displayItems.map((product) => `${product.name}: ${product.displayAssignment?.displayName}`),
+      suggestedFollowUp: "Open the product display assignment if you need to change the start date, end date, or quantity needed.",
+      sourceDetail: "Organization product display assignments."
+    }
+  }
+
+  if (/(what|which).*(order|reorder|buy)|order more|reorder more/.test(normalized) && !/(berries|bread|wine|olive|sourdough|cabernet|strawberr)/.test(normalized)) {
+    const orderRecommendations = recommendations.filter((recommendation) =>
+      ["stockout_risk", "increase_production", "abnormal_movement"].includes(recommendation.type)
+    )
+    if (!orderRecommendations.length) return undefined
+
+    return {
+      answer: `Top ordering or replenishment priorities: ${orderRecommendations
+        .slice(0, 4)
+        .map(formatRecommendation)
+        .join(" ")}`,
+      confidenceScore: orderRecommendations[0]?.confidenceScore ?? 0.72,
+      facts: orderRecommendations.slice(0, 4).flatMap((recommendation) => [recommendation.title, ...recommendation.evidence.slice(0, 2)]),
+      suggestedFollowUp: "Check vendor minimums and pending receives before submitting an order.",
+      sourceDetail: "Inventory, waste, expiration, weather, holiday, and ordering recommendation signals."
+    }
+  }
+
+  return undefined
+}
+
+function productOperationalAnswer({
+  query,
+  context,
+  lookup,
+  recommendations
+}: {
+  query: string
+  context: AiOperationalContext
+  lookup: ProductLookupResult
+  recommendations: BusinessRecommendation[]
+}): OperationalAnswer | undefined {
+  if (lookup.status !== "resolved" || !lookup.resolvedProduct) return undefined
+
+  const normalized = query.toLowerCase()
+  const item = itemForLookup(context, lookup)
+  const product = orgProductForLookup(context, lookup)
+  const name = lookup.resolvedProduct.name
+
+  if (/(vendor|supplier|comes from|who supplies|who supply)/.test(normalized) && item?.vendor) {
+    return {
+      answer: `${name} comes from ${item.vendor}.`,
+      confidenceScore: 0.9,
+      facts: [`Vendor: ${item.vendor}`, `SKU: ${item.sku}`],
+      sourceDetail: "Store inventory vendor association."
+    }
+  }
+
+  if (/(backstock|back stock|in back|back room|back)/.test(normalized) && item) {
+    return {
+      answer: `${name} has ${item.backStock} ${item.unit} in back stock, ${item.frontStock} on the floor, and ${item.onHand} total on hand.`,
+      confidenceScore: 0.9,
+      facts: [`Back stock: ${item.backStock}`, `Front stock: ${item.frontStock}`, `On hand: ${item.onHand}`],
+      sourceDetail: "Store inventory front/back stock record."
+    }
+  }
+
+  if (/(front stock|floor|out on the floor|sales floor|on floor)/.test(normalized) && item) {
+    return {
+      answer: `${name} has ${item.frontStock} ${item.unit} on the floor and ${item.backStock} in back stock.`,
+      confidenceScore: 0.9,
+      facts: [`Front stock: ${item.frontStock}`, `Back stock: ${item.backStock}`, `Par: ${item.par}`],
+      sourceDetail: "Store inventory front/back stock record."
+    }
+  }
+
+  if (/(how many|how much|quantity|on hand|stock|have|carry|do we have)/.test(normalized) && item) {
+    return {
+      answer: `Yes. ${name} is in inventory with ${item.onHand} ${item.unit} on hand: ${item.frontStock} front stock and ${item.backStock} back stock.`,
+      confidenceScore: 0.88,
+      facts: [`On hand: ${item.onHand}`, `Front stock: ${item.frontStock}`, `Back stock: ${item.backStock}`, `Status: ${item.status}`],
+      sourceDetail: "Store inventory on-hand record."
+    }
+  }
+
+  if (/(expir|shelf life|date)/.test(normalized)) {
+    const expires = item?.expires ?? product?.expires
+    const days = context.centralCatalog.find((entry) => sameProduct({ name, sku: lookup.resolvedProduct?.sku, candidateName: entry.name, candidateSku: entry.sku }))?.averageExpirationDays
+
+    return {
+      answer: expires
+        ? `${name} is tracked as an expiring item${days ? ` with an average expiration window of about ${days} day${days === 1 ? "" : "s"}` : ""}.`
+        : `${name} is not tracked as an expiring item in the current product records.`,
+      confidenceScore: 0.84,
+      facts: [`Expires: ${expires ? "yes" : "no"}`, ...(days ? [`Average expiration: ${days} days`] : [])],
+      suggestedFollowUp: expires ? "Check the batch/date record before selling or wasting product." : undefined,
+      sourceDetail: "Organization product and central catalog expiration defaults."
+    }
+  }
+
+  if (/(where|location|aisle|rack|cooler|shelf)/.test(normalized) && (item?.location || product?.location)) {
+    return {
+      answer: `${name} is located at ${item?.location ?? product?.location}.`,
+      confidenceScore: 0.86,
+      facts: [`Location: ${item?.location ?? product?.location}`],
+      sourceDetail: "Store inventory and organization product location records."
+    }
+  }
+
+  if (/(display|featured|feature table|on display)/.test(normalized) && product?.displayAssignment) {
+    return {
+      answer: product.displayAssignment.isOnDisplay
+        ? `${name} is on display at ${product.displayAssignment.displayName}. The display needs ${product.displayAssignment.quantityNeeded} ${item?.unit ?? product.defaultUnit}.`
+        : `${name} is not currently marked as on display.`,
+      confidenceScore: 0.86,
+      facts: [`Display: ${product.displayAssignment.displayName}`, `Quantity needed: ${product.displayAssignment.quantityNeeded}`],
+      sourceDetail: "Organization product display assignment."
+    }
+  }
+
+  if (/(order|reorder|buy|more|delivery|minimum)/.test(normalized)) {
+    const matchingRecommendations = recommendations.filter((recommendation) => recommendation.productName === name)
+    const currentStock = item ? `${item.onHand} ${item.unit} on hand, reorder point ${item.reorderPoint}, par ${item.par}` : "current item stock not found"
+    return {
+      answer: matchingRecommendations.length
+        ? `${name}: ${formatRecommendation(matchingRecommendations[0])} Current stock: ${currentStock}.`
+        : `${name}: I do not see a specific order recommendation for this item right now. Current stock: ${currentStock}.`,
+      confidenceScore: matchingRecommendations[0]?.confidenceScore ?? (item ? 0.72 : 0.48),
+      facts: [currentStock, ...(matchingRecommendations[0]?.evidence ?? [])],
+      suggestedFollowUp: "Check the vendor order draft and pending receives before submitting.",
+      sourceDetail: "Inventory, waste, expiration, and recommendation signals."
+    }
+  }
+
+  return undefined
+}
+
+function operationalAnswerForQuery({
+  query,
+  context,
+  lookup,
+  recommendations
+}: {
+  query: string
+  context: AiOperationalContext
+  lookup: ProductLookupResult
+  recommendations: BusinessRecommendation[]
+}) {
+  const broadFirst = /(^|\b)(what|which).*(low|display|order|reorder|buy|pull|restock|wast|shrink)|what is on display|what should i pull|what should i order/i.test(query)
+  const broad = broadOperationalAnswer({ query, context, recommendations })
+  const product = productOperationalAnswer({ query, context, lookup, recommendations })
+
+  return broadFirst ? broad ?? product : product ?? broad
+}
+
 export async function answerRetailIntelligenceQuery({
   query,
   orgId = DEFAULT_ORG_ID,
@@ -223,20 +534,23 @@ export async function answerRetailIntelligenceQuery({
   const lookup = await lookupProductIntelligence({ query, orgId, allowExternal })
   const resolvedNutrition = lookup.status === "resolved" ? lookup.resolvedProduct?.nutrition : undefined
   const shouldUseStoredNutrition = queryNeedsNutrition(query) && lookup.status === "resolved" && Boolean(resolvedNutrition)
-  const [recommendationsResult, enrichmentResult, complianceContext] = await Promise.all([
-    queryNeedsRecommendations(query) ? generateBusinessRecommendations({ orgId }) : Promise.resolve(undefined),
+  const needsOperationalContext = queryNeedsOperationalContext(query) || queryNeedsCompliance(query)
+  const [recommendationsResult, enrichmentResult, answerContext] = await Promise.all([
+    queryNeedsRecommendations(query) || queryNeedsOperationalContext(query) ? generateBusinessRecommendations({ orgId }) : Promise.resolve(undefined),
     queryNeedsEnrichment(query) && !shouldUseStoredNutrition
       ? generateProductEnrichmentSuggestions({ query, productId: lookup.resolvedProduct?.productId, orgId })
       : Promise.resolve(undefined),
-    queryNeedsCompliance(query) ? buildOperationalContext() : Promise.resolve(undefined)
+    needsOperationalContext ? buildOperationalContext() : Promise.resolve(undefined)
   ])
   const recommendations = recommendationsResult?.recommendations ?? []
   const enrichmentSuggestions = enrichmentResult?.suggestions ?? []
   const externalProducts = lookup.externalProducts ?? enrichmentResult?.externalProducts ?? []
-  const complianceAnswer = complianceContext ? complianceAnswerForProduct({ query, context: complianceContext, lookup }) : undefined
+  const complianceAnswer = answerContext ? complianceAnswerForProduct({ query, context: answerContext, lookup }) : undefined
+  const operationalAnswer = answerContext ? operationalAnswerForQuery({ query, context: answerContext, lookup, recommendations }) : undefined
   const facts = [
     lookup.resolvedProduct ? `Resolved product: ${lookup.resolvedProduct.name}` : undefined,
     ...(complianceAnswer?.facts ?? []),
+    ...(operationalAnswer?.facts ?? []),
     resolvedNutrition && typeof resolvedNutrition.caloriesKcal === "number" ? `Stored calories: ${resolvedNutrition.caloriesKcal}` : undefined,
     resolvedNutrition?.servingSize ? `Serving size: ${resolvedNutrition.servingSize}` : undefined,
     resolvedNutrition?.sourceSummary ? `Nutrition source: ${resolvedNutrition.sourceSummary}` : undefined,
@@ -256,11 +570,13 @@ export async function answerRetailIntelligenceQuery({
     ? `${nutritionAnswer} I used internal product data first.`
     : complianceAnswer
       ? `${complianceAnswer.answer} I used internal product data and approved assistant memory first.`
-      : recommendations.length > 0
-      ? `${answerForProductLookup(lookup)} I also generated ${recommendations.length} operational recommendation${recommendations.length === 1 ? "" : "s"} from inventory, waste, expiration, and external context.`
+      : operationalAnswer
+        ? `${operationalAnswer.answer} I used store operating data first.`
+      : queryNeedsRecommendations(query) && recommendations.length > 0
+      ? `${answerForProductLookup(lookup, query)} I also generated ${recommendations.length} operational recommendation${recommendations.length === 1 ? "" : "s"} from inventory, waste, expiration, and external context.`
       : enrichmentSuggestions.length > 0
-        ? `${answerForProductLookup(lookup)} I found product enrichment candidates, but they are pending suggestions and will not overwrite product data without approval.`
-        : answerForProductLookup(lookup)
+        ? `${answerForProductLookup(lookup, query)} I found product enrichment candidates, but they are pending suggestions and will not overwrite product data without approval.`
+        : answerForProductLookup(lookup, query)
 
   const imageCandidates = [
     ...enrichmentSuggestions
@@ -278,8 +594,8 @@ export async function answerRetailIntelligenceQuery({
 
   return {
     answer,
-    confidence: confidenceLabel(complianceAnswer?.confidenceScore ?? lookup.confidenceScore),
-    confidenceScore: complianceAnswer?.confidenceScore ?? lookup.confidenceScore,
+    confidence: confidenceLabel(complianceAnswer?.confidenceScore ?? operationalAnswer?.confidenceScore ?? lookup.confidenceScore),
+    confidenceScore: complianceAnswer?.confidenceScore ?? operationalAnswer?.confidenceScore ?? lookup.confidenceScore,
     sourceUsed: lookup.sourceUsed,
     provenance: lookup.provenance,
     facts,
@@ -299,9 +615,19 @@ export async function answerRetailIntelligenceQuery({
               detail: complianceAnswer.statusLabel
             }
           ]
+        : []),
+      ...(operationalAnswer
+        ? [
+            {
+              id: "source-operational-answer",
+              label: "Store operating data",
+              provenance: "operations" as const,
+              detail: operationalAnswer.sourceDetail
+            }
+          ]
         : [])
     ],
-    suggestedFollowUp: complianceAnswer?.suggestedFollowUp ?? lookup.suggestedFollowUp,
+    suggestedFollowUp: complianceAnswer?.suggestedFollowUp ?? operationalAnswer?.suggestedFollowUp ?? lookup.suggestedFollowUp,
     retrieval: lookup,
     recommendations,
     enrichmentSuggestions,

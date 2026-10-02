@@ -39,6 +39,16 @@ export async function buildOperationalContext(): Promise<AiOperationalContext> {
       category: product.category,
       defaultUnit: product.defaultUnit,
       expires: product.expires,
+      location: product.location,
+      displayAssignment: product.displayAssignment
+        ? {
+            isOnDisplay: product.displayAssignment.isOnDisplay,
+            displayName: product.displayAssignment.displayName,
+            quantityNeeded: product.displayAssignment.quantityNeeded,
+            startDate: product.displayAssignment.startDate,
+            endDate: product.displayAssignment.endDate
+          }
+        : undefined,
       nutrition: product.nutrition
     })),
     inventory: inventoryItems.map((item) => ({
@@ -49,6 +59,7 @@ export async function buildOperationalContext(): Promise<AiOperationalContext> {
       sku: item.sku,
       department: item.department,
       category: item.category,
+      location: item.location,
       onHand: item.onHand,
       frontStock: item.frontStock,
       backStock: item.backStock,

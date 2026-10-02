@@ -13,7 +13,7 @@ export default async function HistoryPage() {
     <>
       <PageHeader
         title="History"
-        description="Operation history for spot checks, restocks, waste, receiving, portions, and orders."
+        description="Operation history for counts, restocks, waste, receiving, transfers, par changes, portions, and orders."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

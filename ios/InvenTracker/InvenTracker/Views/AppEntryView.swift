@@ -20,6 +20,7 @@ struct AppEntryView: View {
                 StatusView(title: "Couldn’t load InvenTracker", message: message, icon: "wifi.exclamationmark")
             }
         }
+        .foregroundStyle(session.theme.textColor)
         .animation(.easeInOut(duration: 0.22), value: session.phase)
         .overlay(alignment: .top) {
             if let toast = session.toast {
@@ -36,16 +37,17 @@ struct AppEntryView: View {
 }
 
 private struct LaunchView: View {
+    @EnvironmentObject private var session: AppSession
     let message: String
 
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            session.theme.backgroundColor.ignoresSafeArea()
             VStack(spacing: 22) {
                 BrandMark(size: 84)
                 VStack(spacing: 6) {
                     Text("InvenTracker").font(.title2.bold())
-                    Text(message).font(.subheadline).foregroundStyle(.secondary)
+                    Text(message).font(.subheadline).foregroundStyle(session.theme.mutedColor)
                 }
                 ProgressView().controlSize(.regular).padding(.top, 4)
             }
@@ -74,14 +76,15 @@ private struct StatusView: View {
 }
 
 private struct ToastView: View {
+    @EnvironmentObject private var session: AppSession
     let message: String
     var body: some View {
         Label(message, systemImage: "checkmark.circle.fill")
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(session.theme.buttonTextColor)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .background(AppTheme.navy, in: Capsule())
+            .background(session.theme.accentColor, in: Capsule())
             .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
     }
 }

@@ -1,6 +1,6 @@
 import { unstable_noStore as noStore } from "next/cache"
 
-import { adminDb } from "@/lib/firebase-admin"
+import { adminDb, adminFieldValue } from "@/lib/firebase-admin"
 import {
   employees,
   centralCatalog,
@@ -30,6 +30,7 @@ import {
   type HealthCheck,
   type HistoryActionRecord,
   type InventoryItem,
+  type InventoryBatch,
   type OrderDraft,
   type OrganizationBranding,
   type PlatformFaq,
@@ -46,9 +47,18 @@ import {
 import { DEFAULT_ORG_ID, firestoreCollections, type FirestoreCollectionKey } from "@/lib/firestore-schema"
 import { demoPendingAutofillBatches } from "@/lib/ai/pending-verification"
 import type { PendingAutofillBatch } from "@/lib/ai/types"
+import type { TodayIssue } from "@/lib/today-issues"
 
 type FirestoreRecord = {
   id: string
+}
+
+function demoDataEnabled() {
+  return process.env.INVENTRAKER_DEMO_MODE === "true"
+}
+
+function demoFallback<T>(fallback: T) {
+  return demoDataEnabled() ? fallback : Array.isArray(fallback) ? [] as T : fallback
 }
 
 function serializeFirestoreValue(value: unknown): unknown {
@@ -75,13 +85,14 @@ async function readOrgCollection<T extends FirestoreRecord>(collectionKey: Fires
   noStore()
 
   const db = await adminDb()
-  if (!db) return fallback
+  if (!db) return demoFallback(fallback)
 
   try {
     const snapshot = await db.collection(firestoreCollections.orgs).doc(orgId).collection(firestoreCollections[collectionKey]).get()
     return snapshot.docs.map((document) => ({ id: document.id, ...(serializeFirestoreValue(document.data()) as Record<string, unknown>) }) as T)
-  } catch {
-    return fallback
+  } catch (error) {
+    console.error(`[server-data] Could not read org collection ${collectionKey}.`, error)
+    return demoFallback(fallback)
   }
 }
 
@@ -89,13 +100,14 @@ async function readTopCollection<T extends FirestoreRecord>(collectionKey: Fires
   noStore()
 
   const db = await adminDb()
-  if (!db) return fallback
+  if (!db) return demoFallback(fallback)
 
   try {
     const snapshot = await db.collection(firestoreCollections[collectionKey]).get()
     return snapshot.docs.map((document) => ({ id: document.id, ...(serializeFirestoreValue(document.data()) as Record<string, unknown>) }) as T)
-  } catch {
-    return fallback
+  } catch (error) {
+    console.error(`[server-data] Could not read top-level collection ${collectionKey}.`, error)
+    return demoFallback(fallback)
   }
 }
 
@@ -105,6 +117,42 @@ export function defaultOrgId() {
 
 export function getInventoryItems(orgId = DEFAULT_ORG_ID) {
   return readOrgCollection<InventoryItem>("inventory", inventoryItems, orgId)
+}
+
+export function getInventoryBatches(orgId = DEFAULT_ORG_ID) {
+  return readOrgCollection<InventoryBatch>("inventoryBatches", [], orgId)
+}
+
+export function getStockOperations(orgId = DEFAULT_ORG_ID) {
+  return readOrgCollection<Record<string, unknown> & FirestoreRecord>("stockOperations", [], orgId)
+}
+
+export function getOperationalIssues(orgId = DEFAULT_ORG_ID) {
+  return readOrgCollection<TodayIssue>("operationalIssues", [], orgId)
+}
+
+export async function syncOperationalIssues(issues: TodayIssue[], storeIds: string[], orgId = DEFAULT_ORG_ID) {
+  const db = await adminDb()
+  if (!db) return
+  const collection = db.collection(firestoreCollections.orgs).doc(orgId).collection(firestoreCollections.operationalIssues)
+  const snapshot = await collection.get()
+  const activeIds = new Set(issues.map((issue) => issue.id))
+  const FieldValue = await adminFieldValue()
+  const writes: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
+  for (const issue of issues) {
+    writes.push((batch) => batch.set(collection.doc(issue.id), { ...issue, lastSeenAt: FieldValue.serverTimestamp(), resolvedAt: null }, { merge: true }))
+  }
+  for (const document of snapshot.docs) {
+    const data = document.data()
+    if (data.status === "open" && storeIds.includes(String(data.storeId ?? "")) && !activeIds.has(document.id)) {
+      writes.push((batch) => batch.update(document.ref, { status: "resolved", resolvedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
+    }
+  }
+  for (let index = 0; index < writes.length; index += 400) {
+    const batch = db.batch()
+    writes.slice(index, index + 400).forEach((write) => write(batch))
+    await batch.commit()
+  }
 }
 
 export function getProducts(orgId = DEFAULT_ORG_ID) {
@@ -152,7 +200,26 @@ export function getHealthChecks(orgId = DEFAULT_ORG_ID) {
 }
 
 export function getHistoryRecords(orgId = DEFAULT_ORG_ID) {
-  return readOrgCollection<HistoryActionRecord>("history", historyRecords, orgId)
+  return readOrgCollection<HistoryActionRecord>("history", historyRecords, orgId).then((records) => records.map((record) => {
+    const createdAt = String((record as unknown as Record<string, unknown>).createdAt ?? "")
+    const parsedDate = createdAt ? new Date(createdAt) : null
+    const validDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null
+    const rawType = String(record.type)
+    const type = rawType === "receiving" ? "receive" : rawType
+    return {
+      ...record,
+      type: type as HistoryActionRecord["type"],
+      store: record.store || String((record as unknown as Record<string, unknown>).storeId ?? "Unassigned store"),
+      district: record.district || "",
+      region: record.region || "",
+      date: record.date || (validDate ? validDate.toLocaleDateString("en-US") : "Date unavailable"),
+      time: record.time || (validDate ? validDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "Time unavailable"),
+      employeeId: record.employeeId || "Not recorded",
+      department: record.department || "Not recorded",
+      title: record.title || "Not recorded",
+      userName: record.userName || "Workspace member"
+    }
+  }))
 }
 
 export function getShiftNotes(orgId = DEFAULT_ORG_ID) {

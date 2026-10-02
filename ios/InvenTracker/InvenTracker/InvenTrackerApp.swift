@@ -8,7 +8,10 @@ struct InvenTrackerApp: App {
         WindowGroup {
             AppEntryView()
                 .environmentObject(session)
-                .tint(AppTheme.accent)
+                .tint(session.theme.accentColor)
+                .preferredColorScheme(session.theme.preferredColorScheme)
+                .toolbarBackground(session.theme.panelStrongColor, for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
         }
     }
 }

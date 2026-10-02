@@ -20,6 +20,28 @@ export const assistantBlockedData = [
 export const assistantPrivacyContract =
   "The assistant may use product, inventory, organization, store, import, training, approved internal document, store-resource, and approved web verification data. It must not receive or infer personal identifying information, authentication data, employee identifiers, task-owner history, restricted HR/payroll/discipline records, or private billing identifiers."
 
+const blockedAssistantKeys = new Set([
+  "actor", "actorid", "actoruid", "approvedby", "assignedto", "assignee", "auth", "createdby",
+  "email", "employeeid", "password", "permissions", "phone", "phonenumber", "session", "submittedby",
+  "taskowner", "token", "uid", "updatedby", "userid", "username"
+])
+
+function normalizedAssistantKey(key: string) {
+  return key.toLowerCase().replace(/[_\-\s]/g, "")
+}
+
+/** Removes human identity and authentication fields before records enter assistant context. */
+export function privacyFilterAssistantValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(privacyFilterAssistantValue)
+  if (!value || typeof value !== "object") return value
+  if (value instanceof Date) return value.toISOString()
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !blockedAssistantKeys.has(normalizedAssistantKey(key)))
+      .map(([key, entry]) => [key, privacyFilterAssistantValue(entry)])
+  )
+}
+
 export function assistantPrivacyPayload() {
   return {
     contract: assistantPrivacyContract,

@@ -43,12 +43,13 @@ struct InventoryView: View {
 }
 
 struct InventoryRow: View {
+    @EnvironmentObject private var session: AppSession
     let item: InventoryItem
 
     var body: some View {
         HStack(spacing: 13) {
             Image(systemName: item.status == "Low" ? "exclamationmark.triangle.fill" : "shippingbox.fill")
-                .foregroundStyle(item.status == "Low" ? AppTheme.amber : AppTheme.accent)
+                .foregroundStyle(item.status == "Low" ? AppTheme.amber : session.theme.accentColor)
                 .frame(width: 38, height: 38)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 3) {
@@ -67,7 +68,40 @@ struct InventoryRow: View {
 }
 
 struct InventoryDetailView: View {
+    @EnvironmentObject private var session: AppSession
     let item: InventoryItem
+    private var batches: [InventoryBatch] {
+        session.batches
+            .filter { $0.itemId == item.id && $0.remainingQuantity > 0 }
+            .sorted {
+                if $0.expirationDate.isEmpty { return false }
+                if $1.expirationDate.isEmpty { return true }
+                return $0.expirationDate < $1.expirationDate
+            }
+    }
+    private var today: Date { Calendar.current.startOfDay(for: Date()) }
+    private func parsedDate(_ value: String) -> Date? {
+        if let date = ISO8601DateFormatter().date(from: value) { return date }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.date(from: value)
+    }
+    private var nextDelivery: (label: String, date: Date)? {
+        session.orders
+            .filter { ["Submitted", "Auto-submitted", "Partially received"].contains($0.status) }
+            .filter { order in order.lines.contains { $0.sku == item.sku || $0.itemName == item.name } }
+            .compactMap { order in parsedDate(order.expectedArrival).map { (order.expectedArrival, $0) } }
+            .sorted { $0.1 < $1.1 }
+            .first
+    }
+    private var expiredQuantity: Double { batches.filter { parsedDate($0.expirationDate).map { $0 < today } == true }.reduce(0) { $0 + $1.remainingQuantity } }
+    private var unknownQuantity: Double { batches.filter { parsedDate($0.expirationDate) == nil }.reduce(0) { $0 + $1.remainingQuantity } }
+    private var usableQuantity: Double { batches.filter { parsedDate($0.expirationDate).map { $0 >= today } == true }.reduce(0) { $0 + $1.remainingQuantity } }
+    private var expiringBeforeDelivery: Double {
+        guard let delivery = nextDelivery else { return 0 }
+        return batches.filter { batch in parsedDate(batch.expirationDate).map { $0 >= today && $0 <= delivery.date } == true }.reduce(0) { $0 + $1.remainingQuantity }
+    }
     var body: some View {
         List {
             Section {
@@ -85,6 +119,40 @@ struct InventoryDetailView: View {
                 LabeledContent("Vendor", value: item.vendor)
                 LabeledContent("Expiration", value: item.expires ? "Tracked" : "Not tracked")
             } header: { Text("Item") }
+            if item.expires {
+                Section("Availability") {
+                    LabeledContent("Total physical", value: batches.reduce(0) { $0 + $1.remainingQuantity }.formattedQuantity)
+                    LabeledContent("Usable dated", value: usableQuantity.formattedQuantity)
+                    LabeledContent("Expired", value: expiredQuantity.formattedQuantity)
+                    LabeledContent("Unknown date", value: unknownQuantity.formattedQuantity)
+                    if let nextDelivery {
+                        LabeledContent("Expires by \(nextDelivery.label)", value: expiringBeforeDelivery.formattedQuantity)
+                    } else {
+                        LabeledContent("Before next delivery", value: "Delivery unknown")
+                    }
+                    Text("Expired stock stays in the physical total but is excluded from usable dated stock.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Use first") {
+                    if batches.isEmpty {
+                        Text("Current stock predates batch tracking, so its expiration detail is unknown.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(batches) { batch in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(batch.remainingQuantity.formattedQuantity) \(batch.unit)")
+                                    .font(.body.weight(.semibold))
+                                Text(batch.expirationKnown && parsedDate(batch.expirationDate) != nil
+                                     ? "\(parsedDate(batch.expirationDate)! < today ? "Expired" : "Expires") \(String(batch.expirationDate.prefix(10))) • \(batch.area == "front" ? "Sales floor" : "Backstock")"
+                                     : "Expiration unknown • \(batch.area == "front" ? "Sales floor" : "Backstock")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .navigationTitle(item.name)
         .navigationBarTitleDisplayMode(.inline)

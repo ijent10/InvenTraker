@@ -12,10 +12,16 @@
     "typecheck": "tsc --noEmit",
     "validate": "npm run lint && npm run typecheck && npm run build",
     "assistant:eval": "node scripts/eval-assistant.mjs",
+    "stock:check": "node --experimental-strip-types scripts/check-stock-invariants.mts",
+    "orders:check": "node --experimental-strip-types scripts/check-order-invariants.mts",
+    "today:check": "node --experimental-strip-types scripts/check-today-invariants.mts",
+    "pilot:check": "node --experimental-strip-types scripts/check-pilot-cycle.mts",
+    "intelligence:check": "node --experimental-strip-types scripts/check-operational-intelligence.mts",
     "firebase:reset": "node scripts/reset-firebase.mjs",
     "firebase:seed": "node scripts/seed-firebase.mjs",
     "firebase:seed-admin": "node scripts/seed-platform-admin.mjs",
-    "firebase:seed-test-users": "node scripts/seed-auth-test-users.mjs"
+    "firebase:seed-test-users": "node scripts/seed-auth-test-users.mjs",
+    "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs"
   },
   "dependencies": {
     "@types/pdf-parse": "^1.1.5",

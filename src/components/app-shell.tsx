@@ -13,9 +13,9 @@ import { NotificationBell } from "@/components/notification-bell"
 import { AuthSessionProvider, useAuthSession } from "@/lib/auth-session"
 import { employees, organizationBranding, type Employee, type OrganizationBranding, type WorkspaceNotification } from "@/lib/demo-data"
 import { isPublicPath, navigation, requiredPermissionForPath } from "@/lib/navigation"
-import { readCloudWorkspacePreferences } from "@/lib/cloud-preferences"
+import { ensureCloudWorkspacePreferences, readCloudWorkspacePreferences } from "@/lib/cloud-preferences"
 import { applyTipsPreference, readStoredTipsPreference, TIPS_EVENT } from "@/lib/tips"
-import { applyAndStoreAppTheme, applyAppTheme, readStoredAppTheme } from "@/lib/theme"
+import { applyAndStoreAppTheme, applyAppTheme, readStoredAppTheme, type AppTheme } from "@/lib/theme"
 import { db } from "@/lib/firebase"
 
 export function AppShell({
@@ -108,6 +108,20 @@ function AppShellContent({
       setLiveBranding((current) => ({ ...current, ...savedBranding }))
     })
   }, [isPublicRoute, session.orgId, session.status])
+
+  useEffect(() => {
+    if (!db || isPublicRoute || !session.user?.uid) return undefined
+
+    return onSnapshot(doc(db, "users", session.user.uid, "preferences", "workspace"), (snapshot) => {
+      const theme = snapshot.data()?.theme
+      if (theme && typeof theme === "object") applyAndStoreAppTheme(theme as AppTheme)
+    })
+  }, [isPublicRoute, session.user?.uid])
+
+  useEffect(() => {
+    if (!db || isPublicRoute || !session.user?.uid || session.status !== "ready") return
+    void ensureCloudWorkspacePreferences().catch(() => undefined)
+  }, [isPublicRoute, session.status, session.user?.uid])
 
   useEffect(() => {
     function refreshTheme() {

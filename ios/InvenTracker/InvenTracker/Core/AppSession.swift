@@ -14,6 +14,7 @@ final class AppSession: ObservableObject {
 
     @Published private(set) var phase: Phase = .launching
     @Published private(set) var workspace: WorkspaceBootstrap?
+    @Published private(set) var mobilePreferences = MobilePreferences()
     @Published var selectedStoreId = ""
     @Published var toast: String?
     @Published var isWorking = false
@@ -21,7 +22,41 @@ final class AppSession: ObservableObject {
     private let api = APIClient()
 
     var inventory: [InventoryItem] { workspace?.inventory ?? [] }
+    var batches: [InventoryBatch] { workspace?.batches ?? [] }
     var orders: [OrderDraft] { workspace?.orders ?? [] }
+    var capabilities: MobileCapabilities {
+        guard let workspace else { return .none }
+        return workspace.capabilities ?? .legacy(member: workspace.session.member, permissions: workspace.session.permissions)
+    }
+    var canViewInventory: Bool { capabilities.canViewInventory }
+    var canUpdateInventory: Bool { capabilities.canUpdateInventory }
+    var canViewOrders: Bool { capabilities.canViewOrders }
+    var canSubmitOrders: Bool { capabilities.canSubmitOrders }
+    var canViewHealthChecks: Bool { capabilities.canViewHealthChecks }
+    var canViewInsights: Bool { capabilities.canViewInsights }
+    var hasWorkAccess: Bool { canViewInventory || canUpdateInventory || canViewOrders || canViewHealthChecks || canViewInsights }
+    var workShortcut: WorkShortcut {
+        canUseWorkShortcut(mobilePreferences.workShortcut) ? mobilePreferences.workShortcut : availableWorkShortcuts.first ?? .work
+    }
+    var theme: MobileTheme { mobilePreferences.theme ?? .standard }
+    var availableThemes: [MobileTheme] {
+        var themes: [MobileTheme] = []
+        for candidate in MobileTheme.websitePresets + mobilePreferences.savedThemes + [theme] {
+            let name = candidate.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            if let index = themes.firstIndex(where: {
+                ($0.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "") == name
+            }) {
+                themes[index] = candidate
+            } else {
+                themes.append(candidate)
+            }
+        }
+        return themes
+    }
+
+    var availableWorkShortcuts: [WorkShortcut] {
+        WorkShortcut.allCases.filter(canUseWorkShortcut)
+    }
 
     init() {
         Task { await restore() }
@@ -51,6 +86,7 @@ final class AppSession: ObservableObject {
         do {
             let data = try await api.bootstrap(storeId: storeId)
             workspace = data
+            mobilePreferences = data.preferences ?? MobilePreferences()
             selectedStoreId = data.selectedStoreId
             phase = .ready
         } catch let error as APIClientError where error.code == "membership_required" || error.code == "store_access_denied" {
@@ -98,16 +134,100 @@ final class AppSession: ObservableObject {
         }
     }
 
-    func submitOrder(_ id: String) async throws {
-        try await perform("Order submitted") {
-            try await api.submitOrder(id: id)
+    func transitionOrder(_ order: OrderDraft, action: String, reason: String? = nil, sentMethod: String? = nil) async throws {
+        try await perform("Order updated") {
+            try await api.transitionOrder(id: order.id, storeId: order.storeId, action: action, reason: reason, sentMethod: sentMethod)
         }
+    }
+
+    func recommendOrder(_ order: OrderDraft) async throws -> MobileOrderRecommendation {
+        try await api.recommendOrder(storeId: order.storeId, vendorId: order.vendorId)
     }
 
     func readNotifications(_ ids: [String]) async {
         guard !ids.isEmpty else { return }
         try? await api.markNotificationsRead(ids: ids)
         await loadWorkspace(storeId: selectedStoreId, quiet: true)
+    }
+
+    func updateWorkShortcut(_ shortcut: WorkShortcut) async {
+        guard canUseWorkShortcut(shortcut), shortcut != mobilePreferences.workShortcut else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            mobilePreferences = try await api.updatePreferences(workShortcut: shortcut)
+            toast = "Quick work now opens \(shortcut.title)"
+        } catch {
+            toast = error.localizedDescription
+        }
+    }
+
+    private func canUseWorkShortcut(_ shortcut: WorkShortcut) -> Bool {
+        switch shortcut {
+        case .work:
+            hasWorkAccess
+        case .inventory:
+            canViewInventory
+        case .spotCheck, .restock, .receiving, .waste, .transfer:
+            canUpdateInventory
+        case .orders:
+            canViewOrders
+        case .healthChecks:
+            canViewHealthChecks
+        case .insights:
+            canViewInsights
+        }
+    }
+
+    func updateTheme(_ theme: MobileTheme) async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            mobilePreferences = try await api.updatePreferences(theme: theme)
+            toast = "Theme applied across InvenTracker"
+        } catch {
+            toast = error.localizedDescription
+        }
+    }
+
+    func createTheme(_ theme: MobileTheme) async -> Bool {
+        let name = theme.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !name.isEmpty else {
+            toast = "Give the new theme a name first."
+            return false
+        }
+
+        var nextSavedThemes = mobilePreferences.savedThemes.filter {
+            $0.name?.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) != .orderedSame
+        }
+        nextSavedThemes.append(theme)
+
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            mobilePreferences = try await api.updatePreferences(theme: theme, savedThemes: nextSavedThemes)
+            toast = "\(name) saved across InvenTracker"
+            return true
+        } catch {
+            toast = error.localizedDescription
+            return false
+        }
+    }
+
+    func receive(_ line: ReceivingLine) async throws {
+        try await perform("Receiving saved") {
+            try await api.receive(storeId: selectedStoreId, lines: [line])
+        }
+    }
+
+    func transfer(_ line: TransferLine) async throws {
+        try await perform("Transfer saved") {
+            _ = try await api.transfer(storeId: selectedStoreId, line: line)
+        }
+    }
+
+    func loadInsights() async throws -> MobileInsights {
+        try await api.insights(storeId: selectedStoreId)
     }
 
     private func perform(_ confirmation: String, operation: () async throws -> Void) async throws {

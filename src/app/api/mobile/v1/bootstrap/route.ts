@@ -1,14 +1,19 @@
-import { firestoreCollections } from "@/lib/firestore-schema"
+import { adminFieldValue } from "@/lib/firebase-admin"
+import { firestoreCollections, userPreferencesPath } from "@/lib/firestore-schema"
 import {
   assertStoreAccess,
   canAccessMobileStore,
-  canMobile,
+  MOBILE_WORK_SHORTCUTS,
+  mobileCapabilities,
   mobileEnvelope,
   mobileError,
   mobileRecord,
+  mobileRecordMatchesStore,
   orgCollection,
-  requireMobilePrincipal
+  requireMobilePrincipal,
+  requireMobileStoreId
 } from "@/lib/mobile-api"
+import { generateTodayIssues, operationalObservability } from "@/lib/today-issues"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -16,30 +21,67 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const principal = await requireMobilePrincipal(request)
+    const capabilities = mobileCapabilities(principal)
     const url = new URL(request.url)
     const requestedStoreId = url.searchParams.get("storeId")?.trim() || undefined
-    await assertStoreAccess(principal, requestedStoreId)
+    if (requestedStoreId) await assertStoreAccess(principal, requestedStoreId)
 
     const orgRef = principal.db.collection(firestoreCollections.orgs).doc(principal.orgId)
-    const [organization, stores, inventory, orders, healthChecks, notifications] = await Promise.all([
+    const [organization, stores, inventory, batches, orders, healthChecks, notifications, preferences, stockOperations, issueSnapshot] = await Promise.all([
       orgRef.get(),
       orgCollection(principal, firestoreCollections.stores).get(),
-      canMobile(principal, "inventory.view") ? orgCollection(principal, firestoreCollections.inventory).get() : null,
-      canMobile(principal, "orders.view") ? orgCollection(principal, firestoreCollections.orders).get() : null,
-      canMobile(principal, "health.view") ? orgCollection(principal, firestoreCollections.healthChecks).get() : null,
-      orgCollection(principal, firestoreCollections.notifications).get()
+      capabilities.canViewInventory ? orgCollection(principal, firestoreCollections.inventory).get() : null,
+      capabilities.canViewInventory ? orgCollection(principal, firestoreCollections.inventoryBatches).get() : null,
+      capabilities.canViewOrders ? orgCollection(principal, firestoreCollections.orders).get() : null,
+      capabilities.canViewHealthChecks ? orgCollection(principal, firestoreCollections.healthChecks).get() : null,
+      orgCollection(principal, firestoreCollections.notifications).get(),
+      principal.db.doc(userPreferencesPath(principal.uid)).get(),
+      orgCollection(principal, firestoreCollections.stockOperations).get(),
+      orgCollection(principal, firestoreCollections.operationalIssues).get()
     ])
 
     const storeRecords = stores.docs
       .map((document) => mobileRecord(document.id, document.data()))
       .filter((store) => canAccessMobileStore(principal, String(store.id), String(store.name ?? "")))
-    const selectedStoreId = requestedStoreId || String(principal.member.storeId ?? storeRecords[0]?.id ?? "")
+    const memberStoreId = String(principal.member.storeId ?? "").trim()
+    const accessibleMemberStore = storeRecords.find((store) => String(store.id) === memberStoreId)
+    const selectedStoreId = requireMobileStoreId(
+      requestedStoreId || String(accessibleMemberStore?.id ?? storeRecords[0]?.id ?? "")
+    )
     await assertStoreAccess(principal, selectedStoreId)
-    const matchesStore = (record: Record<string, unknown>) => !selectedStoreId || !record.storeId || record.storeId === selectedStoreId
+    const matchesStore = (record: Record<string, unknown>) => mobileRecordMatchesStore(record, selectedStoreId)
     const inventoryRecords = (inventory?.docs ?? []).map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
+    const batchRecords = (batches?.docs ?? []).map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
     const orderRecords = (orders?.docs ?? []).map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
     const healthRecords = (healthChecks?.docs ?? []).map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
     const notificationRecords = notifications.docs.map((document) => mobileRecord(document.id, document.data()))
+    const stockOperationRecords = stockOperations.docs.map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
+    const generatedAt = new Date()
+    const todayIssues = generateTodayIssues({ storeId: selectedStoreId, inventory: inventoryRecords as never, batches: batchRecords as never, orders: orderRecords as never, stockOperations: stockOperationRecords as never, now: generatedAt })
+    const FieldValue = await adminFieldValue()
+    const issueWrites: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
+    const activeIssueIds = new Set(todayIssues.map((issue) => issue.id))
+    todayIssues.forEach((issue) => issueWrites.push((batch) => batch.set(orgCollection(principal, firestoreCollections.operationalIssues).doc(issue.id), {
+      ...issue, generatedAt: generatedAt.toISOString(), lastSeenAt: FieldValue.serverTimestamp(), resolvedAt: null
+    }, { merge: true })))
+    issueSnapshot.docs.forEach((document) => {
+      const issue = document.data()
+      if (issue.status === "open" && issue.storeId === selectedStoreId && !activeIssueIds.has(document.id)) {
+        issueWrites.push((batch) => batch.update(document.ref, { status: "resolved", resolvedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
+      }
+    })
+    for (let index = 0; index < issueWrites.length; index += 400) {
+      const batch = principal.db.batch()
+      issueWrites.slice(index, index + 400).forEach((write) => write(batch))
+      await batch.commit()
+    }
+    const preferenceData = preferences.data()
+    const savedWorkShortcut = String(preferenceData?.mobileWorkShortcut)
+    const workShortcut = MOBILE_WORK_SHORTCUTS.some((shortcut) => shortcut === savedWorkShortcut)
+      ? savedWorkShortcut
+      : "work"
+    const savedTheme = preferenceData?.theme
+    const savedThemes = Array.isArray(preferenceData?.savedThemes) ? preferenceData.savedThemes : []
 
     return Response.json(
       mobileEnvelope({
@@ -50,20 +92,36 @@ export async function GET(request: Request) {
           member: principal.member,
           permissions: principal.permissions
         },
+        capabilities,
         organization: mobileRecord(organization.id, organization.data()),
         stores: storeRecords,
         selectedStoreId,
         dashboard: {
           activeItems: inventoryRecords.filter((item) => item.status !== "Archived").length,
           lowStockItems: inventoryRecords.filter((item) => item.status === "Low" || Number(item.onHand ?? 0) <= Number(item.reorderPoint ?? 0)).length,
-          openOrders: orderRecords.filter((order) => !["Submitted", "Auto-submitted"].includes(String(order.status))).length,
+          openOrders: orderRecords.filter((order) => !["Reconciled", "Cancelled"].includes(String(order.status))).length,
           dueHealthChecks: healthRecords.filter((check) => ["Due today", "Overdue"].includes(String(check.status))).length,
           unreadNotifications: notificationRecords.filter((notification) => !notification.read).length
         },
         inventory: inventoryRecords,
+        batches: batchRecords,
         orders: orderRecords,
         healthChecks: healthRecords,
-        notifications: notificationRecords
+        notifications: notificationRecords,
+        today: {
+          generatedAt: generatedAt.toISOString(),
+          engineVersion: todayIssues[0]?.engineVersion ?? "2026-10-01.1",
+          issues: todayIssues,
+          observability: {
+            ...operationalObservability({ inventory: inventoryRecords as never, batches: batchRecords as never, orders: orderRecords as never, stockOperations: stockOperationRecords as never }),
+            unresolvedVariances: todayIssues.filter((issue) => issue.type === "count_variance").length
+          }
+        },
+        preferences: {
+          workShortcut,
+          ...(savedTheme && typeof savedTheme === "object" ? { theme: savedTheme } : {}),
+          savedThemes
+        }
       })
     )
   } catch (error) {

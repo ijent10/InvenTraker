@@ -42,6 +42,8 @@ function normalizeMember(id: string, data: Record<string, unknown>): Employee {
     department: String(data.department ?? ""),
     location: String(data.location ?? ""),
     store: String(data.store ?? ""),
+    storeId: String(data.storeId ?? ""),
+    storeIds: Array.isArray(data.storeIds) ? data.storeIds.map(String) : [],
     status: data.status === "Suspended" ? "Suspended" : data.status === "Invite sent" ? "Invite sent" : "Active",
     lastActive: String(data.lastActive ?? "Signed in"),
     permissions: Array.isArray(data.permissions) ? (data.permissions as EmployeePermission[]) : []

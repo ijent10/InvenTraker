@@ -41,7 +41,7 @@ export default async function OrdersPage({ searchParams }: { searchParams?: { dr
             order.items,
             order.estimatedTotal,
             order.minimum,
-            <StatusPill key={order.id} tone={order.status === "Ready" ? "green" : order.status === "Needs review" ? "amber" : "neutral"}>
+            <StatusPill key={order.id} tone={["Approved", "Submitted", "Partially received", "Received", "Reconciled", "Ready"].includes(order.status) ? "green" : order.status === "Needs review" ? "amber" : "neutral"}>
               {order.status}
             </StatusPill>,
             order.dueBy,

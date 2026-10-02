@@ -82,6 +82,28 @@ export async function GET(request: Request) {
           store.address,
           store.location
         ))
+      if (storeRecords.length === 0) {
+        storeRecords = legacyOrganizations.docs.flatMap((legacyOrganization) => {
+          const legacyData = legacyOrganization.data()
+          const migrationFlags = legacyData.migrationFlags && typeof legacyData.migrationFlags === "object"
+            ? legacyData.migrationFlags as Record<string, unknown>
+            : {}
+          const id = String(
+            migrationFlags.orgItemQuantityMovedStoreId ??
+            legacyData.defaultStoreId ??
+            legacyData.storeId ??
+            ""
+          ).trim()
+          if (!id) return []
+          const store = {
+            id,
+            name: String(legacyData.name ?? organizationData.companyName ?? "Store"),
+            legacyOrganizationId: legacyOrganization.id,
+            schemaVersion: 1
+          }
+          return canAccessMobileStore(principal, store.id, store.name) ? [store] : []
+        })
+      }
       if (uniqueLegacyStores.length > 0) {
         for (let index = 0; index < uniqueLegacyStores.length; index += 400) {
           const migration = principal.db.batch()
@@ -99,6 +121,18 @@ export async function GET(request: Request) {
           }, { merge: true })
           await migration.commit()
         }
+      } else if (storeRecords.length > 0) {
+        const migration = principal.db.batch()
+        storeRecords.forEach((store) => migration.set(
+          orgRef.collection(firestoreCollections.stores).doc(String(store.id)),
+          store,
+          { merge: true }
+        ))
+        migration.set(orgRef, {
+          legacyOrganizationIds: legacyOrganizations.docs.map((document) => document.id),
+          storeDirectoryMigratedAt: FieldValue.serverTimestamp()
+        }, { merge: true })
+        await migration.commit()
       }
     }
     // Some organizations predate the stores directory and keep a concrete

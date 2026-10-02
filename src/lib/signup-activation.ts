@@ -73,7 +73,7 @@ export async function activateSignupWorkspace({ signup, password, billing }: Sig
     {
       ownerId: ownerUser.uid,
       companyName: signup.organizationName,
-      logoUrl: "/inventracker-mark.svg",
+      logoUrl: "/inventracker-logo.png",
       headerText: "Connected workspace",
       accentColor: "#2563eb",
       secondaryColor: "#14b8a6",

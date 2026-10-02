@@ -51,7 +51,7 @@ struct OperationsView: View {
     }
 
     var body: some View {
-        ScrollView {
+        Group {
             if modules.isEmpty {
                 ContentUnavailableView(
                     "No work tools assigned",
@@ -60,7 +60,13 @@ struct OperationsView: View {
                 )
                 .padding(.top, 88)
             } else {
-                LazyVStack(spacing: 10) {
+                List {
+                    Section {
+                        Text("Choose a task. Your favorite task stays in the bottom bar for one-tap access.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Section("All tools") {
                     ForEach(modules) { module in
                         NavigationLink {
                             WorkShortcutHostView(shortcut: module)
@@ -69,12 +75,13 @@ struct OperationsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    }
                 }
-                .padding(16)
+                .listStyle(.insetGrouped)
             }
         }
         .background(session.theme.backgroundColor)
-        .navigationTitle("Tools")
+        .navigationTitle("Work Tools")
     }
 
     private func canOpen(_ shortcut: WorkShortcut) -> Bool {
@@ -179,9 +186,8 @@ private struct OperationTile: View {
             Spacer()
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(session.theme.subtleColor)
         }
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .padding(13)
-        .appSurface()
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .padding(.vertical, 5)
     }
 }
 

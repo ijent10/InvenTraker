@@ -59,23 +59,15 @@ enum AppTheme {
 }
 
 struct BrandMark: View {
-    @EnvironmentObject private var session: AppSession
     var size: CGFloat = 58
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-                .fill(session.theme.accentColor)
-            Image(systemName: "shippingbox.fill")
-                .font(.system(size: size * 0.48, weight: .semibold))
-                .foregroundStyle(session.theme.buttonTextColor)
-            Image(systemName: "checkmark")
-                .font(.system(size: size * 0.22, weight: .black))
-                .foregroundStyle(session.theme.secondaryColor)
-                .offset(x: size * 0.18, y: -size * 0.17)
-        }
+        Image("BrandLogo")
+            .resizable()
+            .scaledToFit()
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         .frame(width: size, height: size)
-        .shadow(color: session.theme.accentColor.opacity(0.24), radius: 16, y: 8)
+        .accessibilityHidden(true)
     }
 }
 

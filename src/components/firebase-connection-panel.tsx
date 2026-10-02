@@ -75,7 +75,7 @@ export function FirebaseConnectionPanel({ defaultName, defaultEmail }: { default
     const orgPayload = {
       ownerId: user.uid,
       companyName: companyName.trim() || "InvenTracker Workspace",
-      logoUrl: "/inventracker-mark.svg",
+      logoUrl: "/inventracker-logo.png",
       headerText: "Connected workspace",
       accentColor: "#2563eb",
       secondaryColor: "#14b8a6",

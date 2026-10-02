@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 
 export function OrganizationLogoPreview() {
-  const fallbackSrc = "/inventracker-mark.svg"
+  const fallbackSrc = "/inventracker-logo.png"
   const [logoUrl, setLogoUrl] = useState(fallbackSrc)
   const [failedSrc, setFailedSrc] = useState("")
   const safeSrc = logoUrl && logoUrl !== failedSrc ? logoUrl : fallbackSrc

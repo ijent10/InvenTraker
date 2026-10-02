@@ -13,8 +13,8 @@ struct HomeView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 organizationHeader
+                todayIssues
                 metricGrid
-                quickWork
                 dueChecks
             }
             .padding(16)
@@ -23,7 +23,11 @@ struct HomeView: View {
         .background(session.theme.backgroundColor)
         .refreshable { await session.loadWorkspace(storeId: session.selectedStoreId, quiet: true) }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { storeMenu }
+            ToolbarItem(placement: .topBarLeading) {
+                Button { openWorkModule(.work) } label: {
+                    Label("Tools", systemImage: "square.grid.2x2")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showNotifications = true } label: {
                     Image(systemName: "bell")
@@ -40,6 +44,7 @@ struct HomeView: View {
                 }
             }
         }
+        .navigationTitle("Home")
         .sheet(isPresented: $showNotifications) { NotificationsView() }
         .confirmationDialog("Current store", isPresented: $showStores, titleVisibility: .visible) {
             ForEach(workspace?.stores ?? []) { store in
@@ -110,26 +115,36 @@ struct HomeView: View {
     }
 
     private var organizationHeader: some View {
-        VStack(spacing: 9) {
+        HStack(spacing: 12) {
             if let url = logoURL {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFit()
                 } placeholder: {
                     BrandMark(size: 62)
                 }
-                .frame(maxWidth: 190, maxHeight: 64)
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             } else {
-                BrandMark(size: 62)
+                BrandMark(size: 48)
             }
-            Text(workspace?.organization.companyName ?? "InvenTracker")
-                .font(.title2.bold())
-                .multilineTextAlignment(.center)
-            if let header = workspace?.organization.headerText, !header.isEmpty {
-                Text(header).font(.subheadline).foregroundStyle(session.theme.mutedColor)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(workspace?.organization.companyName ?? "InvenTracker")
+                    .font(.headline)
+                    .lineLimit(1)
+                Button { showStores = true } label: {
+                    HStack(spacing: 5) {
+                        Text(selectedStoreName)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(session.theme.mutedColor)
+                }
+                .buttonStyle(.plain)
             }
+            Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        .padding(14)
         .background(session.theme.backgroundSoftColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -158,24 +173,6 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder private var quickWork: some View {
-        if session.hasWorkAccess {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Start work").font(.headline)
-                HStack(spacing: 10) {
-                    QuickAction(label: session.workShortcut.title, icon: session.workShortcut.icon, color: session.theme.accentColor) { selectedTab = .shortcut }
-                    QuickAction(label: "More tools", icon: "square.grid.2x2.fill", color: session.theme.secondaryColor) { openWorkModule(.work) }
-                    if session.canUpdateInventory {
-                        QuickAction(label: "Discards", icon: "trash", color: AppTheme.danger) { openWorkModule(.waste) }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .appSurface()
-        }
-    }
-
     @ViewBuilder private var dueChecks: some View {
         if session.canViewHealthChecks, let checks = workspace?.healthChecks, !checks.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
@@ -198,13 +195,6 @@ struct HomeView: View {
             .padding(16)
             .appSurface()
         }
-    }
-
-    private var storeMenu: some View {
-        Button { showStores = true } label: {
-            Label(selectedStoreName, systemImage: "storefront").font(.subheadline.weight(.semibold))
-        }
-        .accessibilityHint("Shows the current store and available store choices")
     }
 
     private var selectedStoreName: String {
@@ -234,32 +224,6 @@ private struct MetricTile: View {
             .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
             .padding(15)
             .appSurface()
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct QuickAction: View {
-    @EnvironmentObject private var session: AppSession
-    let label: String
-    let icon: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon).font(.title3.weight(.semibold)).foregroundStyle(session.theme.buttonTextColor)
-                    .frame(width: 42, height: 42).background(color, in: RoundedRectangle(cornerRadius: 12))
-                Text(label).font(.caption.weight(.semibold)).foregroundStyle(session.theme.textColor).lineLimit(1).minimumScaleFactor(0.75)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(session.theme.controlBackgroundColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(session.theme.controlBorderColor, lineWidth: 1)
-            }
         }
         .buttonStyle(.plain)
     }

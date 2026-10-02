@@ -913,7 +913,7 @@ export const departments = ["Executive", "Store Operations", "Inventory", "Beer 
 
 export const organizationBranding: OrganizationBranding = {
   companyName: "InvenTracker Demo",
-  logoUrl: "/inventracker-mark.svg",
+  logoUrl: "/inventracker-logo.png",
   headerText: "Inventory operations",
   accentColor: "#2563eb",
   secondaryColor: "#14b8a6",

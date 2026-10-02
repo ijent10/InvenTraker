@@ -54,7 +54,7 @@ function resolveBranding(data: Record<string, unknown>): Partial<OrganizationBra
 }
 
 function BrandLogo({ src, size }: { src?: string; size: number }) {
-  const fallbackSrc = "/inventracker-mark.svg"
+  const fallbackSrc = "/inventracker-logo.png"
   const [failedSrc, setFailedSrc] = useState("")
   const safeSrc = src && src !== failedSrc ? src : fallbackSrc
 
@@ -237,7 +237,7 @@ function AppShellContent({
     <div className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-[var(--app-border)] bg-[var(--app-panel-strong)] px-4 py-5 lg:flex">
         <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
-          <Image src="/inventracker-mark.svg" alt="" width={40} height={40} />
+          <Image src="/inventracker-logo.png" alt="" width={40} height={40} />
           <div className="min-w-0">
             <p className="text-base font-semibold">InvenTracker</p>
             <p className="text-xs text-[var(--app-muted)]">Inventory operations</p>
@@ -271,7 +271,7 @@ function AppShellContent({
           <div className="grid min-h-20 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <Link href="/dashboard" className="flex shrink-0 items-center gap-2 lg:hidden">
-                <Image src="/inventracker-mark.svg" alt="" width={36} height={36} />
+                <Image src="/inventracker-logo.png" alt="" width={36} height={36} />
                 <span className="hidden font-semibold sm:inline">InvenTracker</span>
               </Link>
               <GlobalSearch className="hidden w-full max-w-xs md:flex xl:w-80 xl:max-w-[30vw]" />

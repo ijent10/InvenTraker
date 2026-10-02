@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     {
       ownerId: uid,
       companyName: "InvenTracker Beta",
-      logoUrl: "/inventracker-mark.svg",
+      logoUrl: "/inventracker-logo.png",
       headerText: "Beta testing workspace",
       accentColor: "#2563eb",
       secondaryColor: "#14b8a6",

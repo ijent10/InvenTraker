@@ -116,7 +116,7 @@ export default function HomePage() {
 
         <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/inventracker-mark.svg" alt="" width={42} height={42} priority />
+            <Image src="/inventracker-logo.png" alt="" width={42} height={42} priority />
             <span className="text-lg font-semibold tracking-tight">InvenTracker</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-semibold text-white/70 md:flex">

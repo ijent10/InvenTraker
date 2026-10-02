@@ -5,7 +5,11 @@ import { getEmployees, getNotifications, getOrganizationBranding } from "@/lib/s
 
 export const metadata: Metadata = {
   title: "InvenTracker",
-  description: "Inventory, ordering, vendor, and product operations for modern stores."
+  description: "Inventory, ordering, vendor, and product operations for modern stores.",
+  icons: {
+    icon: "/inventracker-logo.png",
+    apple: "/inventracker-logo.png"
+  }
 }
 
 function toClientValue<T>(value: T): T {

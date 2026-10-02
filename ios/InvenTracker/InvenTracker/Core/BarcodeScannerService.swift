@@ -15,6 +15,7 @@ final class BarcodeScannerService: NSObject, ObservableObject, AVCaptureMetadata
     private let queue = DispatchQueue(label: "com.inventraker.barcode-session", qos: .userInitiated)
     private var configured = false
     private var delivered = false
+    private var shouldRun = false
 
     func checkAuthorization() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -27,7 +28,6 @@ final class BarcodeScannerService: NSObject, ObservableObject, AVCaptureMetadata
                     self?.isAuthorized = granted
                     self?.permissionDenied = !granted
                     self?.errorMessage = granted ? nil : "Camera access was denied. Enable it in Settings to scan barcodes."
-                    if granted { self?.startScanning() }
                 }
             }
         case .denied, .restricted:
@@ -46,11 +46,13 @@ final class BarcodeScannerService: NSObject, ObservableObject, AVCaptureMetadata
         delivered = false
         queue.async { [weak self] in
             guard let self else { return }
+            self.shouldRun = true
             if !self.configured { self.configured = self.configure() }
-            guard self.configured, !self.session.isRunning else { return }
-            self.session.startRunning()
+            guard self.configured, self.shouldRun else { return }
+            if !self.session.isRunning { self.session.startRunning() }
+            if !self.shouldRun, self.session.isRunning { self.session.stopRunning() }
             DispatchQueue.main.async {
-                self.isRunning = self.session.isRunning
+                self.isRunning = self.session.isRunning && self.shouldRun
                 if !self.isRunning { self.errorMessage = "The camera session could not start. Close the scanner and try again." }
             }
         }
@@ -58,10 +60,15 @@ final class BarcodeScannerService: NSObject, ObservableObject, AVCaptureMetadata
 
     func stopScanning() {
         queue.async { [weak self] in
-            guard let self, self.session.isRunning else { return }
-            self.session.stopRunning()
+            guard let self else { return }
+            self.shouldRun = false
+            if self.session.isRunning { self.session.stopRunning() }
             DispatchQueue.main.async { self.isRunning = false }
         }
+    }
+
+    deinit {
+        if session.isRunning { session.stopRunning() }
     }
 
     func makePreviewLayer() -> AVCaptureVideoPreviewLayer {

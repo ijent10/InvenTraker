@@ -47,8 +47,8 @@ function bearerToken(request: Request) {
 }
 
 function memberIsManager(member: DocumentData) {
-  const role = String(member.role ?? member.jobTitle ?? "").toLowerCase()
-  return ["owner", "organization owner", "admin", "administrator", "manager"].includes(role)
+  const managerRoles = new Set(["owner", "organization owner", "admin", "administrator", "manager"])
+  return [member.role, member.jobTitle].some((value) => managerRoles.has(String(value ?? "").trim().toLowerCase()))
 }
 
 export async function requireMobilePrincipal(request: Request, permission?: PermissionKey): Promise<MobilePrincipal> {
@@ -146,15 +146,43 @@ export function canUseMobileWorkShortcut(principal: MobilePrincipal, shortcut: M
   }
 }
 
+function normalizedStoreValue(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "")
+}
+
+function addStoreAssignment(values: Set<string>, entry: unknown) {
+  if (entry == null) return
+  if (Array.isArray(entry)) {
+    entry.forEach((value) => addStoreAssignment(values, value))
+    return
+  }
+  if (typeof entry === "object") {
+    const record = entry as Record<string, unknown>
+    for (const key of ["id", "storeId", "name", "label", "value", "code", "location", "address"]) {
+      addStoreAssignment(values, record[key])
+    }
+    return
+  }
+  const raw = String(entry).trim()
+  if (!raw) return
+  values.add(raw.toLowerCase())
+  const normalized = normalizedStoreValue(raw)
+  if (normalized) values.add(normalized)
+}
+
 function permittedStoreValues(member: DocumentData) {
   const values = new Set<string>()
-  for (const key of ["storeId", "store", "location"]) {
-    const value = String(member[key] ?? "").trim().toLowerCase()
-    if (value) values.add(value)
+  for (const key of ["storeId", "store", "location", "assignedStoreId", "assignedStore", "assignedLocation", "primaryStoreId", "homeStoreId"]) {
+    addStoreAssignment(values, member[key])
   }
-  for (const key of ["storeIds", "stores", "locations"]) {
-    const entries = member[key]
-    if (Array.isArray(entries)) entries.map(String).map((value) => value.trim().toLowerCase()).filter(Boolean).forEach((value) => values.add(value))
+  for (const key of ["storeIds", "stores", "locations", "assignedStoreIds", "assignedStores", "assignedLocations"]) {
+    addStoreAssignment(values, member[key])
   }
   return values
 }
@@ -163,7 +191,7 @@ export async function assertStoreAccess(principal: MobilePrincipal, storeId: str
   if (principal.isManager || principal.permissions.includes("*")) return
 
   const allowed = permittedStoreValues(principal.member)
-  if (["all", "all stores", "all locations"].some((value) => allowed.has(value)) || allowed.has(storeId.toLowerCase())) return
+  if (["all", "all stores", "all locations", "allstores", "alllocations"].some((value) => allowed.has(value)) || allowed.has(storeId.toLowerCase()) || allowed.has(normalizedStoreValue(storeId))) return
 
   const storeSnapshot = await principal.db
     .collection(firestoreCollections.orgs)
@@ -171,8 +199,9 @@ export async function assertStoreAccess(principal: MobilePrincipal, storeId: str
     .collection(firestoreCollections.stores)
     .doc(storeId)
     .get()
-  const storeName = String(storeSnapshot.data()?.name ?? "").toLowerCase()
-  if (storeName && allowed.has(storeName)) return
+  const store = storeSnapshot.data() ?? {}
+  const candidates = [storeId, store.name, store.code, store.address, store.location]
+  if (candidates.some((value) => allowed.has(String(value ?? "").trim().toLowerCase()) || allowed.has(normalizedStoreValue(value)))) return
 
   throw new MobileApiError("You do not have access to this store.", 403, "store_access_denied")
 }
@@ -189,11 +218,14 @@ export function mobileRecordMatchesStore(record: Record<string, unknown>, storeI
   return String(record.storeId ?? "").trim() === storeId
 }
 
-export function canAccessMobileStore(principal: MobilePrincipal, storeId: string, storeName = "") {
+export function canAccessMobileStore(principal: MobilePrincipal, storeId: string, ...storeAliases: unknown[]) {
   if (principal.isManager || principal.permissions.includes("*")) return true
   const allowed = permittedStoreValues(principal.member)
-  if (["all", "all stores", "all locations"].some((value) => allowed.has(value))) return true
-  return allowed.has(storeId.toLowerCase()) || Boolean(storeName && allowed.has(storeName.toLowerCase()))
+  if (["all", "all stores", "all locations", "allstores", "alllocations"].some((value) => allowed.has(value))) return true
+  return [storeId, ...storeAliases].some((value) => {
+    const raw = String(value ?? "").trim().toLowerCase()
+    return Boolean(raw && (allowed.has(raw) || allowed.has(normalizedStoreValue(raw))))
+  })
 }
 
 export function serializeMobileValue(value: unknown): unknown {

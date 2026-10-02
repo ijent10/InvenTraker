@@ -6,6 +6,7 @@ struct ScanEntryView: View {
     @Environment(\.dismiss) private var dismiss
     let onSubmit: (String) -> Void
     @State private var code = ""
+    @State private var isActive = false
     @StateObject private var scanner = BarcodeScannerService()
 
     var body: some View {
@@ -71,12 +72,17 @@ struct ScanEntryView: View {
             .navigationTitle("Scan item")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .onAppear {
+                isActive = true
                 scanner.onCodeScanned = { submit($0) }
                 scanner.checkAuthorization()
                 scanner.startScanning()
             }
-            .onChange(of: scanner.isAuthorized) { _, allowed in if allowed { scanner.startScanning() } }
-            .onDisappear { scanner.stopScanning(); scanner.onCodeScanned = nil }
+            .onChange(of: scanner.isAuthorized) { _, allowed in if allowed && isActive { scanner.startScanning() } }
+            .onDisappear {
+                isActive = false
+                scanner.stopScanning()
+                scanner.onCodeScanned = nil
+            }
         }
         .presentationDetents([.large])
     }

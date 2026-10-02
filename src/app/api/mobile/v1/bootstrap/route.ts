@@ -42,7 +42,14 @@ export async function GET(request: Request) {
 
     const storeRecords = stores.docs
       .map((document) => mobileRecord(document.id, document.data()))
-      .filter((store) => canAccessMobileStore(principal, String(store.id), String(store.name ?? "")))
+      .filter((store) => canAccessMobileStore(
+        principal,
+        String(store.id),
+        store.name,
+        store.code,
+        store.address,
+        store.location
+      ))
     const memberStoreId = String(principal.member.storeId ?? "").trim()
     const accessibleMemberStore = storeRecords.find((store) => String(store.id) === memberStoreId)
     const selectedStoreId = requireMobileStoreId(

@@ -55,10 +55,12 @@ export async function GET(request: Request) {
     // Existing accounts can still keep their store directory under the
     // original organizations/{id}/stores path. Resolve that directory for an
     // owner before falling back to a store named directly on the member.
-    if (storeRecords.length === 0 && (principal.isManager || principal.permissions.includes("*"))) {
+    if (storeRecords.length === 0) {
+      const organizationData = organization.data() ?? {}
+      const legacyOwnerUid = String(organizationData.ownerId ?? organizationData.ownerUid ?? principal.uid).trim()
       const legacyOrganizations = await principal.db
         .collection("organizations")
-        .where("ownerUid", "==", principal.uid)
+        .where("ownerUid", "==", legacyOwnerUid)
         .get()
       const legacyDirectories = await Promise.all(legacyOrganizations.docs.map(async (legacyOrganization) => ({
         organization: legacyOrganization,
@@ -70,7 +72,16 @@ export async function GET(request: Request) {
       const uniqueLegacyStores = Array.from(
         new Map(legacyStoreDocuments.map((entry) => [entry.document.id, entry])).values()
       )
-      storeRecords = uniqueLegacyStores.map(({ document }) => mobileRecord(document.id, document.data()))
+      storeRecords = uniqueLegacyStores
+        .map(({ document }) => mobileRecord(document.id, document.data()))
+        .filter((store) => canAccessMobileStore(
+          principal,
+          String(store.id),
+          store.name,
+          store.code,
+          store.address,
+          store.location
+        ))
       if (uniqueLegacyStores.length > 0) {
         for (let index = 0; index < uniqueLegacyStores.length; index += 400) {
           const migration = principal.db.batch()

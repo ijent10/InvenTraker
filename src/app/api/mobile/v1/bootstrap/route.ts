@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     if (requestedStoreId) await assertStoreAccess(principal, requestedStoreId)
 
     const orgRef = principal.db.collection(firestoreCollections.orgs).doc(principal.orgId)
+    const FieldValue = await adminFieldValue()
     const [organization, stores, inventory, batches, orders, healthChecks, notifications, preferences, stockOperations, issueSnapshot] = await Promise.all([
       orgRef.get(),
       orgCollection(principal, firestoreCollections.stores).get(),
@@ -64,6 +65,22 @@ export async function GET(request: Request) {
       if (legacyOrganization) {
         const legacyStores = await legacyOrganization.ref.collection(firestoreCollections.stores).get()
         storeRecords = legacyStores.docs.map((document) => mobileRecord(document.id, document.data()))
+        if (legacyStores.docs.length > 0) {
+          const migration = principal.db.batch()
+          legacyStores.docs.forEach((document) => {
+            migration.set(orgRef.collection(firestoreCollections.stores).doc(document.id), {
+              ...document.data(),
+              id: document.id,
+              legacyOrganizationId: legacyOrganization.id,
+              schemaVersion: Number(document.data().schemaVersion ?? 1)
+            }, { merge: true })
+          })
+          migration.set(orgRef, {
+            legacyOrganizationId: legacyOrganization.id,
+            storeDirectoryMigratedAt: FieldValue.serverTimestamp()
+          }, { merge: true })
+          await migration.commit()
+        }
       }
     }
     // Some organizations predate the stores directory and keep a concrete
@@ -90,7 +107,6 @@ export async function GET(request: Request) {
     const stockOperationRecords = stockOperations.docs.map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
     const generatedAt = new Date()
     const todayIssues = generateTodayIssues({ storeId: selectedStoreId, inventory: inventoryRecords as never, batches: batchRecords as never, orders: orderRecords as never, stockOperations: stockOperationRecords as never, now: generatedAt })
-    const FieldValue = await adminFieldValue()
     const issueWrites: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
     const activeIssueIds = new Set(todayIssues.map((issue) => issue.id))
     todayIssues.forEach((issue) => issueWrites.push((batch) => batch.set(orgCollection(principal, firestoreCollections.operationalIssues).doc(issue.id), {

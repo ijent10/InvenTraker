@@ -51,7 +51,22 @@ export async function GET(request: Request) {
         store.address,
         store.location
       ))
-    // Some existing organizations predate the stores directory and keep the
+    // Existing accounts can still keep their store directory under the
+    // original organizations/{id}/stores path. Resolve that directory for an
+    // owner before falling back to a store named directly on the member.
+    if (storeRecords.length === 0 && (principal.isManager || principal.permissions.includes("*"))) {
+      const legacyOrganizations = await principal.db
+        .collection("organizations")
+        .where("ownerUid", "==", principal.uid)
+        .limit(1)
+        .get()
+      const legacyOrganization = legacyOrganizations.docs[0]
+      if (legacyOrganization) {
+        const legacyStores = await legacyOrganization.ref.collection(firestoreCollections.stores).get()
+        storeRecords = legacyStores.docs.map((document) => mobileRecord(document.id, document.data()))
+      }
+    }
+    // Some organizations predate the stores directory and keep a concrete
     // assignment only on the member. Preserve the store requirement while
     // allowing those assigned members to enter their scoped workspace.
     if (storeRecords.length === 0) {

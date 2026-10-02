@@ -5,6 +5,7 @@ struct HomeView: View {
     @Binding var selectedTab: WorkspaceView.Tab
     let openWorkModule: (WorkShortcut) -> Void
     @State private var showNotifications = false
+    @State private var showStores = false
 
     private var workspace: WorkspaceBootstrap? { session.workspace }
 
@@ -12,7 +13,6 @@ struct HomeView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 organizationHeader
-                todayIssues
                 metricGrid
                 quickWork
                 dueChecks
@@ -41,6 +41,17 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showNotifications) { NotificationsView() }
+        .confirmationDialog("Current store", isPresented: $showStores, titleVisibility: .visible) {
+            ForEach(workspace?.stores ?? []) { store in
+                Button(store.id == session.selectedStoreId ? "✓ \(store.name)" : store.name) {
+                    guard store.id != session.selectedStoreId else { return }
+                    Task { await session.selectStore(store.id) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text((workspace?.stores.count ?? 0) > 1 ? "Choose the store you are working in." : "This is the only store assigned to your account.")
+        }
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -152,8 +163,8 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Start work").font(.headline)
                 HStack(spacing: 10) {
-                    QuickAction(label: "Quick work", icon: session.workShortcut.icon, color: session.theme.accentColor) { selectedTab = .shortcut }
-                    QuickAction(label: "All work", icon: "square.grid.2x2.fill", color: session.theme.secondaryColor) { selectedTab = .work }
+                    QuickAction(label: session.workShortcut.title, icon: session.workShortcut.icon, color: session.theme.accentColor) { selectedTab = .shortcut }
+                    QuickAction(label: "More tools", icon: "square.grid.2x2.fill", color: session.theme.secondaryColor) { openWorkModule(.work) }
                     if session.canUpdateInventory {
                         QuickAction(label: "Discards", icon: "trash", color: AppTheme.danger) { openWorkModule(.waste) }
                     }
@@ -190,13 +201,10 @@ struct HomeView: View {
     }
 
     private var storeMenu: some View {
-        Menu {
-            ForEach(workspace?.stores ?? []) { store in
-                Button(store.name) { Task { await session.selectStore(store.id) } }
-            }
-        } label: {
+        Button { showStores = true } label: {
             Label(selectedStoreName, systemImage: "storefront").font(.subheadline.weight(.semibold))
         }
+        .accessibilityHint("Shows the current store and available store choices")
     }
 
     private var selectedStoreName: String {

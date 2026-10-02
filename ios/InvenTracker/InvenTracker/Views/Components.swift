@@ -1,29 +1,32 @@
 import SwiftUI
-import VisionKit
+import UIKit
 
 struct ScanEntryView: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.dismiss) private var dismiss
     let onSubmit: (String) -> Void
     @State private var code = ""
-    @State private var showingCamera = DataScannerViewController.isSupported && DataScannerViewController.isAvailable
+    @StateObject private var scanner = BarcodeScannerService()
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 22) {
-                if showingCamera {
-                    BarcodeScannerView { value in
-                        onSubmit(value)
+                if scanner.isAuthorized {
+                    ZStack {
+                        CameraPreviewView(scanner: scanner)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(.white.opacity(0.9), lineWidth: 2)
+                            .padding(42)
+                        if !scanner.isRunning {
+                            ProgressView("Starting camera…")
+                                .padding(14)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
                     }
                     .frame(height: 370)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(session.theme.buttonTextColor.opacity(0.9), lineWidth: 2)
-                            .padding(42)
-                    }
                     VStack(spacing: 4) {
-                        Text("Ready to scan")
+                        Text(scanner.isRunning ? "Ready to scan" : "Camera is starting")
                             .font(.headline)
                             .foregroundStyle(session.theme.textColor)
                         Text("Hold the barcode inside the frame.")
@@ -34,8 +37,23 @@ struct ScanEntryView: View {
                     Image(systemName: "barcode.viewfinder")
                         .font(.system(size: 64, weight: .light))
                         .foregroundStyle(session.theme.accentColor)
-                    Text("Camera scanning is unavailable here. Enter the SKU or barcode instead.")
+                    Text(scanner.errorMessage ?? "Allow camera access to scan, or enter the SKU or barcode below.")
                         .multilineTextAlignment(.center).foregroundStyle(session.theme.mutedColor)
+                    if scanner.permissionDenied {
+                        Button("Open Camera Settings") {
+                            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                            UIApplication.shared.open(url)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button("Request Camera Access") { scanner.checkAuthorization() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+
+                if let error = scanner.errorMessage, scanner.isAuthorized {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(AppTheme.danger).multilineTextAlignment(.center)
                 }
 
                 HStack {
@@ -43,7 +61,7 @@ struct ScanEntryView: View {
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.never)
-                    Button("Use code") { onSubmit(code.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    Button("Use code") { submit(code) }
                         .buttonStyle(.borderedProminent)
                         .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -52,8 +70,23 @@ struct ScanEntryView: View {
             .background(session.theme.backgroundColor)
             .navigationTitle("Scan item")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .onAppear {
+                scanner.onCodeScanned = { submit($0) }
+                scanner.checkAuthorization()
+                scanner.startScanning()
+            }
+            .onChange(of: scanner.isAuthorized) { _, allowed in if allowed { scanner.startScanning() } }
+            .onDisappear { scanner.stopScanning(); scanner.onCodeScanned = nil }
         }
-        .presentationDetents(showingCamera ? [.large] : [.medium])
+        .presentationDetents([.large])
+    }
+
+    private func submit(_ raw: String) {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        scanner.stopScanning()
+        onSubmit(value)
+        dismiss()
     }
 }
 
@@ -66,13 +99,13 @@ struct TaskCameraPrompt: View {
     let onManual: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "barcode.viewfinder")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(session.theme.buttonTextColor)
-                    .frame(width: 48, height: 48)
-                    .background(session.theme.accentColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: 42, height: 42)
+                    .background(session.theme.accentColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.headline)
@@ -83,81 +116,26 @@ struct TaskCameraPrompt: View {
                 }
             }
 
-            Button(action: onScan) {
-                Label(scanTitle, systemImage: "camera.fill")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(session.theme.buttonTextColor)
-            .background(session.theme.accentColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack(spacing: 10) {
+                Button(action: onScan) {
+                    Label(scanTitle, systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 11)
+                }
+                .buttonStyle(.plain).font(.subheadline.weight(.semibold))
+                .foregroundStyle(session.theme.buttonTextColor)
+                .background(session.theme.accentColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            Button(action: onManual) {
-                Label("Choose from inventory", systemImage: "magnifyingglass")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(session.theme.textColor)
-            .background(session.theme.controlBackgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(session.theme.controlBorderColor, lineWidth: 1)
+                Button(action: onManual) {
+                    Label("Find item", systemImage: "magnifyingglass").frame(maxWidth: .infinity).padding(.vertical, 11)
+                }
+                .buttonStyle(.plain).font(.subheadline.weight(.semibold))
+                .foregroundStyle(session.theme.textColor)
+                .background(session.theme.controlBackgroundColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 10).stroke(session.theme.controlBorderColor) }
             }
         }
-        .padding(16)
-        .background(session.theme.backgroundSoftColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(session.theme.controlBorderColor, lineWidth: 1)
-        }
-    }
-}
-
-private struct BarcodeScannerView: UIViewControllerRepresentable {
-    let onCode: (String) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(onCode: onCode) }
-
-    func makeUIViewController(context: Context) -> DataScannerViewController {
-        let scanner = DataScannerViewController(
-            recognizedDataTypes: [.barcode()],
-            qualityLevel: .balanced,
-            recognizesMultipleItems: false,
-            isHighFrameRateTrackingEnabled: false,
-            isPinchToZoomEnabled: true,
-            isGuidanceEnabled: true,
-            isHighlightingEnabled: true
-        )
-        scanner.delegate = context.coordinator
-        try? scanner.startScanning()
-        return scanner
-    }
-
-    func updateUIViewController(_ scanner: DataScannerViewController, context: Context) {
-        if !scanner.isScanning { try? scanner.startScanning() }
-    }
-
-    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
-        let onCode: (String) -> Void
-        private var delivered = false
-
-        init(onCode: @escaping (String) -> Void) { self.onCode = onCode }
-
-        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
-            guard !delivered else { return }
-            for item in addedItems {
-                guard case .barcode(let barcode) = item,
-                      let value = barcode.payloadStringValue,
-                      !value.isEmpty else { continue }
-                delivered = true
-                dataScanner.stopScanning()
-                onCode(value)
-                return
-            }
-        }
+        .padding(13)
+        .background(session.theme.backgroundSoftColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(session.theme.controlBorderColor) }
     }
 }
 

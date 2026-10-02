@@ -60,9 +60,11 @@ struct OperationsView: View {
                 )
                 .padding(.top, 88)
             } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                LazyVStack(spacing: 10) {
                     ForEach(modules) { module in
-                        NavigationLink(value: module) {
+                        NavigationLink {
+                            WorkShortcutHostView(shortcut: module)
+                        } label: {
                             OperationTile(module: module, color: color(for: module))
                         }
                         .buttonStyle(.plain)
@@ -72,7 +74,7 @@ struct OperationsView: View {
             }
         }
         .background(session.theme.backgroundColor)
-        .navigationTitle("Work")
+        .navigationTitle("Tools")
     }
 
     private func canOpen(_ shortcut: WorkShortcut) -> Bool {
@@ -111,12 +113,12 @@ struct WorkTabSettingsView: View {
     var body: some View {
         List {
             Section {
-                Text("Choose what opens from Quick work. This personal shortcut follows your account across devices.")
+                Text("Choose the task shown as your customizable bottom-bar button. It works on this iPhone immediately and syncs when the server supports mobile settings.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Quick work") {
+            Section("Shortcut button") {
                 ForEach(session.availableWorkShortcuts) { shortcut in
                     Button {
                         Task { await session.updateWorkShortcut(shortcut) }
@@ -156,7 +158,7 @@ struct WorkTabSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Quick work")
+        .navigationTitle("Shortcut button")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -167,15 +169,18 @@ private struct OperationTile: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        HStack(spacing: 14) {
             Image(systemName: module.icon).font(.title2.weight(.semibold)).foregroundStyle(session.theme.buttonTextColor)
-                .frame(width: 50, height: 50).background(color, in: RoundedRectangle(cornerRadius: 14))
-            Spacer(minLength: 8)
-            Text(module.title).font(.headline).foregroundStyle(session.theme.textColor)
-            Text(module.detail).font(.caption).foregroundStyle(session.theme.subtleColor).multilineTextAlignment(.leading)
+                .frame(width: 46, height: 46).background(color, in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(module.title).font(.headline).foregroundStyle(session.theme.textColor)
+                Text(module.detail).font(.caption).foregroundStyle(session.theme.subtleColor).multilineTextAlignment(.leading).lineLimit(2)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(session.theme.subtleColor)
         }
-        .frame(maxWidth: .infinity, minHeight: 176, alignment: .leading)
-        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .padding(13)
         .appSurface()
     }
 }

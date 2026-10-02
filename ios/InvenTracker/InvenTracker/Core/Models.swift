@@ -309,12 +309,12 @@ struct MobileTheme: Codable, Equatable {
     }
 }
 
-struct MobilePreferences: Decodable, Equatable {
+struct MobilePreferences: Codable, Equatable {
     let workShortcut: WorkShortcut
     let theme: MobileTheme?
     let savedThemes: [MobileTheme]
 
-    init(workShortcut: WorkShortcut = .work, theme: MobileTheme? = nil, savedThemes: [MobileTheme] = []) {
+    init(workShortcut: WorkShortcut = .spotCheck, theme: MobileTheme? = nil, savedThemes: [MobileTheme] = []) {
         self.workShortcut = workShortcut
         self.theme = theme
         self.savedThemes = savedThemes
@@ -322,7 +322,7 @@ struct MobilePreferences: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: DynamicKey.self)
-        workShortcut = WorkShortcut(rawValue: values.string("workShortcut")) ?? .work
+        workShortcut = WorkShortcut(rawValue: values.string("workShortcut")) ?? .spotCheck
         theme = values.decode(MobileTheme.self, "theme")
         savedThemes = values.decode([MobileTheme].self, "savedThemes") ?? []
     }

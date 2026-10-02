@@ -54,8 +54,8 @@ struct AccountView: View {
                                 .foregroundStyle(session.theme.accentColor)
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Quick work")
-                                Text("Opens \(session.workShortcut.title)")
+                                Text("Shortcut button")
+                                Text("Currently opens \(session.workShortcut.title)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

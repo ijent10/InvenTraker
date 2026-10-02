@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkspaceView: View {
-    enum Tab: Hashable { case home, inventory, shortcut, work, account }
+    enum Tab: Hashable { case home, today, inventory, shortcut, account }
     @EnvironmentObject private var session: AppSession
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .home
@@ -9,9 +9,17 @@ struct WorkspaceView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { HomeView(selectedTab: $tab, openWorkModule: openWorkModule) }
+            NavigationStack(path: $workPath) {
+                HomeView(selectedTab: $tab, openWorkModule: openWorkModule)
+                    .navigationDestination(for: WorkShortcut.self) { shortcut in
+                        WorkShortcutHostView(shortcut: shortcut)
+                    }
+            }
                 .tag(Tab.home)
                 .tabItem { Label("Home", systemImage: "house.fill") }
+            NavigationStack { TodayView(openIssue: openWorkModule) }
+                .tag(Tab.today)
+                .tabItem { Label("Today", systemImage: "checkmark.circle.fill") }
             if session.canViewInventory {
                 NavigationStack { InventoryView() }
                     .tag(Tab.inventory)
@@ -20,15 +28,7 @@ struct WorkspaceView: View {
             if session.hasWorkAccess {
                 NavigationStack { WorkShortcutHostView(shortcut: session.workShortcut) }
                     .tag(Tab.shortcut)
-                    .tabItem { Label("Quick work", systemImage: session.workShortcut.icon) }
-                NavigationStack(path: $workPath) {
-                    OperationsView()
-                        .navigationDestination(for: WorkShortcut.self) { shortcut in
-                            WorkShortcutHostView(shortcut: shortcut)
-                        }
-                }
-                    .tag(Tab.work)
-                    .tabItem { Label("Work", systemImage: "square.grid.2x2.fill") }
+                    .tabItem { Label(session.workShortcut.tabTitle, systemImage: session.workShortcut.icon) }
             }
             NavigationStack { AccountView() }
                 .tag(Tab.account)
@@ -45,14 +45,14 @@ struct WorkspaceView: View {
             if !allowed && tab == .inventory { tab = .home }
         }
         .onChange(of: session.hasWorkAccess) { _, allowed in
-            if !allowed && (tab == .shortcut || tab == .work) { tab = .home }
+            if !allowed && tab == .shortcut { tab = .home }
         }
     }
 
     private func openWorkModule(_ module: WorkShortcut) {
-        guard session.availableWorkShortcuts.contains(module) else { return }
+        guard module == .work || session.availableWorkShortcuts.contains(module) else { return }
         workPath = NavigationPath()
-        tab = .work
+        tab = .home
         Task { @MainActor in
             await Task.yield()
             workPath.append(module)

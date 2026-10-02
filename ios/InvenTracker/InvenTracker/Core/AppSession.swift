@@ -20,6 +20,7 @@ final class AppSession: ObservableObject {
     @Published var isWorking = false
 
     private let api = APIClient()
+    private let localPreferencesKey = "inventraker.mobile-preferences.v2"
 
     var inventory: [InventoryItem] { workspace?.inventory ?? [] }
     var batches: [InventoryBatch] { workspace?.batches ?? [] }
@@ -36,7 +37,9 @@ final class AppSession: ObservableObject {
     var canViewInsights: Bool { capabilities.canViewInsights }
     var hasWorkAccess: Bool { canViewInventory || canUpdateInventory || canViewOrders || canViewHealthChecks || canViewInsights }
     var workShortcut: WorkShortcut {
-        canUseWorkShortcut(mobilePreferences.workShortcut) ? mobilePreferences.workShortcut : availableWorkShortcuts.first ?? .work
+        mobilePreferences.workShortcut != .work && canUseWorkShortcut(mobilePreferences.workShortcut)
+            ? mobilePreferences.workShortcut
+            : defaultWorkShortcut
     }
     var theme: MobileTheme { mobilePreferences.theme ?? .standard }
     var availableThemes: [MobileTheme] {
@@ -55,7 +58,15 @@ final class AppSession: ObservableObject {
     }
 
     var availableWorkShortcuts: [WorkShortcut] {
-        WorkShortcut.allCases.filter(canUseWorkShortcut)
+        WorkShortcut.allCases.filter { $0 != .work && canUseWorkShortcut($0) }
+    }
+
+    private var defaultWorkShortcut: WorkShortcut {
+        if canUpdateInventory { return .spotCheck }
+        if canViewOrders { return .orders }
+        if canViewHealthChecks { return .healthChecks }
+        if canViewInsights { return .insights }
+        return .inventory
     }
 
     init() {
@@ -86,7 +97,7 @@ final class AppSession: ObservableObject {
         do {
             let data = try await api.bootstrap(storeId: storeId)
             workspace = data
-            mobilePreferences = data.preferences ?? MobilePreferences()
+            mobilePreferences = loadLocalPreferences() ?? data.preferences ?? MobilePreferences()
             selectedStoreId = data.selectedStoreId
             phase = .ready
         } catch let error as APIClientError where error.code == "membership_required" || error.code == "store_access_denied" {
@@ -151,14 +162,19 @@ final class AppSession: ObservableObject {
     }
 
     func updateWorkShortcut(_ shortcut: WorkShortcut) async {
-        guard canUseWorkShortcut(shortcut), shortcut != mobilePreferences.workShortcut else { return }
+        guard shortcut != .work, canUseWorkShortcut(shortcut), shortcut != mobilePreferences.workShortcut else { return }
+        mobilePreferences = MobilePreferences(workShortcut: shortcut, theme: mobilePreferences.theme, savedThemes: mobilePreferences.savedThemes)
+        saveLocalPreferences()
         isWorking = true
         defer { isWorking = false }
         do {
             mobilePreferences = try await api.updatePreferences(workShortcut: shortcut)
+            saveLocalPreferences()
             toast = "Quick work now opens \(shortcut.title)"
+        } catch let error as APIClientError where error.code == "mobile_preferences_unavailable" || error.code == "http_404" {
+            toast = "Shortcut saved on this iPhone"
         } catch {
-            toast = error.localizedDescription
+            toast = "Shortcut saved on this iPhone; account sync is unavailable"
         }
     }
 
@@ -180,13 +196,18 @@ final class AppSession: ObservableObject {
     }
 
     func updateTheme(_ theme: MobileTheme) async {
+        mobilePreferences = MobilePreferences(workShortcut: workShortcut, theme: theme, savedThemes: mobilePreferences.savedThemes)
+        saveLocalPreferences()
         isWorking = true
         defer { isWorking = false }
         do {
             mobilePreferences = try await api.updatePreferences(theme: theme)
+            saveLocalPreferences()
             toast = "Theme applied across InvenTracker"
+        } catch let error as APIClientError where error.code == "mobile_preferences_unavailable" || error.code == "http_404" {
+            toast = "Theme applied on this iPhone"
         } catch {
-            toast = error.localizedDescription
+            toast = "Theme applied on this iPhone; account sync is unavailable"
         }
     }
 
@@ -202,15 +223,22 @@ final class AppSession: ObservableObject {
         }
         nextSavedThemes.append(theme)
 
+        mobilePreferences = MobilePreferences(workShortcut: workShortcut, theme: theme, savedThemes: nextSavedThemes)
+        saveLocalPreferences()
+
         isWorking = true
         defer { isWorking = false }
         do {
             mobilePreferences = try await api.updatePreferences(theme: theme, savedThemes: nextSavedThemes)
+            saveLocalPreferences()
             toast = "\(name) saved across InvenTracker"
             return true
+        } catch let error as APIClientError where error.code == "mobile_preferences_unavailable" || error.code == "http_404" {
+            toast = "\(name) saved on this iPhone"
+            return true
         } catch {
-            toast = error.localizedDescription
-            return false
+            toast = "\(name) saved on this iPhone; account sync is unavailable"
+            return true
         }
     }
 
@@ -236,5 +264,15 @@ final class AppSession: ObservableObject {
         try await operation()
         toast = confirmation
         await loadWorkspace(storeId: selectedStoreId, quiet: true)
+    }
+
+    private func loadLocalPreferences() -> MobilePreferences? {
+        guard let data = UserDefaults.standard.data(forKey: localPreferencesKey) else { return nil }
+        return try? JSONDecoder().decode(MobilePreferences.self, from: data)
+    }
+
+    private func saveLocalPreferences() {
+        guard let data = try? JSONEncoder().encode(mobilePreferences) else { return }
+        UserDefaults.standard.set(data, forKey: localPreferencesKey)
     }
 }

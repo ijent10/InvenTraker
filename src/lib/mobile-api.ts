@@ -187,6 +187,37 @@ function permittedStoreValues(member: DocumentData) {
   return values
 }
 
+export function mobileAssignedStores(member: DocumentData) {
+  const assignments: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
+  const add = (entry: unknown) => {
+    if (entry == null) return
+    if (Array.isArray(entry)) {
+      entry.forEach(add)
+      return
+    }
+    if (typeof entry === "object") {
+      const record = entry as Record<string, unknown>
+      const id = String(record.id ?? record.storeId ?? record.value ?? record.code ?? record.name ?? record.label ?? "").trim()
+      const name = String(record.name ?? record.label ?? record.location ?? record.address ?? id).trim()
+      if (id && !seen.has(normalizedStoreValue(id))) {
+        seen.add(normalizedStoreValue(id))
+        assignments.push({ id, name: name || id })
+      }
+      return
+    }
+    const value = String(entry).trim()
+    const normalized = normalizedStoreValue(value)
+    if (!value || ["all", "allstores", "alllocations"].includes(normalized) || seen.has(normalized)) return
+    seen.add(normalized)
+    assignments.push({ id: value, name: value })
+  }
+
+  for (const key of ["storeId", "store", "assignedStoreId", "assignedStore", "primaryStoreId", "homeStoreId"]) add(member[key])
+  for (const key of ["storeIds", "stores", "assignedStoreIds", "assignedStores"]) add(member[key])
+  return assignments
+}
+
 export async function assertStoreAccess(principal: MobilePrincipal, storeId: string) {
   if (principal.isManager || principal.permissions.includes("*")) return
 

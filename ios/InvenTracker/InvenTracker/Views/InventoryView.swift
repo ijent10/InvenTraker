@@ -48,10 +48,7 @@ struct InventoryRow: View {
 
     var body: some View {
         HStack(spacing: 13) {
-            Image(systemName: item.status == "Low" ? "exclamationmark.triangle.fill" : "shippingbox.fill")
-                .foregroundStyle(item.status == "Low" ? AppTheme.amber : session.theme.accentColor)
-                .frame(width: 38, height: 38)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+            ProductImage(item: item, size: 52)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.body.weight(.semibold))
                 Text([item.department, item.location].filter { !$0.isEmpty }.joined(separator: " • "))
@@ -71,6 +68,23 @@ struct InventoryDetailView: View {
     @EnvironmentObject private var session: AppSession
     let item: InventoryItem
     @State private var nutritionAmount = 0.25
+    private var isVariableMeasure: Bool {
+        item.variableMeasure?.isVariableMeasure == true || ["pounds", "ounces", "grams"].contains(item.unit.lowercased())
+    }
+    private func grams(for amount: Double) -> Double {
+        switch item.unit.lowercased() {
+        case "pounds", "pound", "lb", "lbs": return amount * 453.59237
+        case "ounces", "ounce", "oz": return amount * 28.349523125
+        case "kilograms", "kilogram", "kg": return amount * 1_000
+        default: return amount
+        }
+    }
+    private func nutritionValue(_ value: Double?, multiplier: Double = 1, unit: String = "") -> String? {
+        guard let value else { return nil }
+        let scaled = value * multiplier
+        let digits = unit == "mg" || unit.isEmpty ? 0 : 1
+        return scaled.formatted(.number.precision(.fractionLength(digits))) + (unit.isEmpty ? "" : " \(unit)")
+    }
     private var batches: [InventoryBatch] {
         session.batches
             .filter { $0.itemId == item.id && $0.remainingQuantity > 0 }
@@ -105,6 +119,14 @@ struct InventoryDetailView: View {
     }
     var body: some View {
         List {
+            Section {
+                HStack {
+                    Spacer()
+                    ProductImage(item: item, size: 220)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
             Section {
                 LabeledContent("On hand", value: "\(item.onHand.formattedQuantity) \(item.unit)")
                 LabeledContent("Sales floor", value: item.frontStock.formattedQuantity)
@@ -154,23 +176,87 @@ struct InventoryDetailView: View {
                     }
                 }
             }
-            if let nutrition = item.nutrition, nutrition.servingWeightGrams > 0 {
-                Section("Nutrition for cut weight") {
-                    Stepper("Cut: \(nutritionAmount.formatted(.number.precision(.fractionLength(2)))) \(item.unit)", value: $nutritionAmount, in: 0...100, step: item.unit == "pounds" ? 0.05 : 0.25)
-                    let grams = item.unit == "pounds" ? nutritionAmount * 453.59237 : item.unit == "ounces" ? nutritionAmount * 28.349523125 : nutritionAmount
-                    let servings = grams / nutrition.servingWeightGrams
-                    LabeledContent("Serving basis", value: nutrition.servingSize)
-                    LabeledContent("Servings", value: servings.formatted(.number.precision(.fractionLength(2))))
-                    if let calories = nutrition.caloriesKcal { LabeledContent("Calories", value: (calories * servings).formatted(.number.precision(.fractionLength(0)))) }
-                    if let fat = nutrition.fatG { LabeledContent("Fat", value: "\((fat * servings).formatted(.number.precision(.fractionLength(1)))) g") }
-                    if let carbs = nutrition.carbohydratesG { LabeledContent("Carbohydrates", value: "\((carbs * servings).formatted(.number.precision(.fractionLength(1)))) g") }
-                    if let protein = nutrition.proteinG { LabeledContent("Protein", value: "\((protein * servings).formatted(.number.precision(.fractionLength(1)))) g") }
-                    if let sodium = nutrition.sodiumMg { LabeledContent("Sodium", value: "\((sodium * servings).formatted(.number.precision(.fractionLength(0)))) mg") }
-                    if nutrition.dataKind == "representative_product_type" { Text("Representative values for this cut product type.").font(.caption).foregroundStyle(.secondary) }
+            if let nutrition = item.nutrition {
+                Section("Nutrition facts") {
+                    LabeledContent("Serving size", value: nutrition.servingSize.isEmpty ? "Declared serving" : nutrition.servingSize)
+                    if let value = nutritionValue(nutrition.caloriesKcal) { LabeledContent("Calories", value: value) }
+                    if let value = nutritionValue(nutrition.fatG, unit: "g") { LabeledContent("Total fat", value: value) }
+                    if let value = nutritionValue(nutrition.saturatedFatG, unit: "g") { LabeledContent("Saturated fat", value: value) }
+                    if let value = nutritionValue(nutrition.carbohydratesG, unit: "g") { LabeledContent("Carbohydrates", value: value) }
+                    if let value = nutritionValue(nutrition.fiberG, unit: "g") { LabeledContent("Fiber", value: value) }
+                    if let value = nutritionValue(nutrition.sugarsG, unit: "g") { LabeledContent("Sugars", value: value) }
+                    if let value = nutritionValue(nutrition.proteinG, unit: "g") { LabeledContent("Protein", value: value) }
+                    if let value = nutritionValue(nutrition.sodiumMg, unit: "mg") { LabeledContent("Sodium", value: value) }
+                    if !nutrition.ingredientsText.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Ingredients").font(.subheadline.weight(.semibold))
+                            Text(nutrition.ingredientsText).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if let url = URL(string: nutrition.sourceUrl), !nutrition.sourceUrl.isEmpty {
+                        Link("Nutrition source", destination: url)
+                    }
+                    if nutrition.dataKind == "representative_product_type" {
+                        Text("Representative values for this product type. Confirm against the supplier label when available.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if isVariableMeasure && nutrition.servingWeightGrams > 0 {
+                    Section("Nutrition for cut weight") {
+                        Stepper("Cut: \(nutritionAmount.formatted(.number.precision(.fractionLength(2)))) \(item.unit)", value: $nutritionAmount, in: 0.01...100, step: item.unit.lowercased() == "pounds" ? 0.05 : 0.25)
+                        let servings = grams(for: nutritionAmount) / nutrition.servingWeightGrams
+                        LabeledContent("Serving basis", value: nutrition.servingSize)
+                        LabeledContent("Servings", value: servings.formatted(.number.precision(.fractionLength(2))))
+                        if let value = nutritionValue(nutrition.caloriesKcal, multiplier: servings) { LabeledContent("Calories", value: value) }
+                        if let value = nutritionValue(nutrition.fatG, multiplier: servings, unit: "g") { LabeledContent("Total fat", value: value) }
+                        if let value = nutritionValue(nutrition.saturatedFatG, multiplier: servings, unit: "g") { LabeledContent("Saturated fat", value: value) }
+                        if let value = nutritionValue(nutrition.carbohydratesG, multiplier: servings, unit: "g") { LabeledContent("Carbohydrates", value: value) }
+                        if let value = nutritionValue(nutrition.fiberG, multiplier: servings, unit: "g") { LabeledContent("Fiber", value: value) }
+                        if let value = nutritionValue(nutrition.sugarsG, multiplier: servings, unit: "g") { LabeledContent("Sugars", value: value) }
+                        if let value = nutritionValue(nutrition.proteinG, multiplier: servings, unit: "g") { LabeledContent("Protein", value: value) }
+                        if let value = nutritionValue(nutrition.sodiumMg, multiplier: servings, unit: "mg") { LabeledContent("Sodium", value: value) }
+                    }
                 }
             }
         }
         .navigationTitle(item.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ProductImage: View {
+    @EnvironmentObject private var session: AppSession
+    let item: InventoryItem
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let url = item.primaryImageURL {
+                AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFit().padding(size > 100 ? 10 : 4)
+                    case .failure:
+                        placeholder
+                    case .empty:
+                        ProgressView()
+                    @unknown default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: size > 100 ? 18 : 11, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: size > 100 ? 18 : 11, style: .continuous))
+        .accessibilityLabel("Photo of \(item.name)")
+    }
+
+    private var placeholder: some View {
+        Image(systemName: item.status == "Low" ? "exclamationmark.triangle.fill" : "shippingbox.fill")
+            .font(.system(size: size > 100 ? 54 : 20))
+            .foregroundStyle(item.status == "Low" ? AppTheme.amber : session.theme.accentColor)
     }
 }

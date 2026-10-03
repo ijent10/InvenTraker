@@ -499,6 +499,8 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
     let status: String
     let revision: Int
     let nutrition: ProductNutrition?
+    let variableMeasure: VariableMeasureInfo?
+    let images: [String]
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: DynamicKey.self)
@@ -521,6 +523,14 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
         status = values.string("status", fallback: "Active")
         revision = Int(values.double("revision"))
         nutrition = values.decode(ProductNutrition.self, "nutrition")
+        variableMeasure = values.decode(VariableMeasureInfo.self, "variableMeasure")
+        images = values.decode([String].self, "images") ?? []
+    }
+
+    var primaryImageURL: URL? {
+        let candidate = images.first(where: { !$0.isEmpty }) ?? nutrition?.imageUrl ?? ""
+        guard let url = URL(string: candidate), url.scheme == "https" else { return nil }
+        return url
     }
 
     func matchesBarcode(_ scanned: String) -> Bool {
@@ -530,6 +540,15 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
         let storedUPC = String(left.suffix(12))
         let scannedUPC = String(right.suffix(12))
         return storedUPC.count == 12 && scannedUPC.count == 12 && storedUPC.first == "2" && scannedUPC.first == "2" && storedUPC.prefix(6) == scannedUPC.prefix(6)
+    }
+}
+
+struct VariableMeasureInfo: Decodable, Hashable {
+    let isVariableMeasure: Bool
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: DynamicKey.self)
+        isVariableMeasure = values.bool("isVariableMeasure")
     }
 }
 
@@ -545,6 +564,10 @@ struct ProductNutrition: Decodable, Hashable {
     let proteinG: Double?
     let sodiumMg: Double?
     let dataKind: String
+    let ingredientsText: String
+    let sourceSummary: String
+    let sourceUrl: String
+    let imageUrl: String
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: DynamicKey.self)
@@ -559,6 +582,10 @@ struct ProductNutrition: Decodable, Hashable {
         proteinG = values.optionalDouble("proteinG")
         sodiumMg = values.optionalDouble("sodiumMg")
         dataKind = values.string("dataKind")
+        ingredientsText = values.string("ingredientsText")
+        sourceSummary = values.string("sourceSummary")
+        sourceUrl = values.string("sourceUrl")
+        imageUrl = values.string("imageUrl")
     }
 }
 

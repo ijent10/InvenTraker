@@ -184,7 +184,7 @@ final class AppSession: ObservableObject {
             hasWorkAccess
         case .inventory:
             canViewInventory
-        case .spotCheck, .restock, .receiving, .waste, .transfer:
+        case .spotCheck, .restock, .receiving, .waste, .transfer, .portion:
             canUpdateInventory
         case .orders:
             canViewOrders
@@ -252,6 +252,14 @@ final class AppSession: ObservableObject {
         try await perform("Transfer saved") {
             _ = try await api.transfer(storeId: selectedStoreId, line: line)
         }
+    }
+
+    func portion(_ request: PortionRequest) async throws -> PortionResult {
+        var result: PortionResult!
+        try await perform("Portions saved") {
+            result = try await api.portion(storeId: selectedStoreId, request: request)
+        }
+        return result
     }
 
     func loadInsights() async throws -> MobileInsights {

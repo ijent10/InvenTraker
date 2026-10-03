@@ -112,6 +112,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     case receiving
     case waste
     case transfer
+    case portion
     case orders
     case healthChecks
     case insights
@@ -127,6 +128,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
         case .receiving: "Receiving"
         case .waste: "Discards"
         case .transfer: "Transfer"
+        case .portion: "Cut & Portion"
         case .orders: "Orders"
         case .healthChecks: "Health Checks"
         case .insights: "Insights"
@@ -142,6 +144,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
         case .receiving: "Receive"
         case .waste: "Discards"
         case .transfer: "Transfer"
+        case .portion: "Cut"
         case .orders: "Orders"
         case .healthChecks: "Checks"
         case .insights: "Insights"
@@ -157,6 +160,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
         case .receiving: "Put received product into backstock."
         case .waste: "Record damaged, expired, or quality discards."
         case .transfer: "Move stock between the floor and backstock."
+        case .portion: "Split weighable stock into labeled portions."
         case .orders: "Review and submit current order drafts."
         case .healthChecks: "Open current health and safety checks."
         case .insights: "See live store stock and waste signals."
@@ -172,6 +176,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
         case .receiving: "shippingbox.and.arrow.backward.fill"
         case .waste: "trash.fill"
         case .transfer: "arrow.left.arrow.right"
+        case .portion: "scissors"
         case .orders: "cart.fill"
         case .healthChecks: "checklist"
         case .insights: "chart.bar.xaxis"
@@ -814,6 +819,26 @@ struct TransferResult: Decodable {
     let frontStock: Double
     let backStock: Double
     let onHand: Double
+}
+
+struct PortionRequest: Encodable {
+    let itemId: String
+    let sourceArea: String
+    let sourceBatchId: String?
+    let portionWeight: Double
+    let portionCount: Int
+    let expirationDate: String?
+    let packageBarcodePrefix: String?
+}
+
+struct PortionResult: Decodable {
+    let itemId: String
+    let itemName: String
+    let portionCount: Int
+    let portionWeight: Double
+    let totalWeight: Double
+    let unit: String
+    let portionIds: [String]
 }
 
 struct MobileInsights: Decodable {

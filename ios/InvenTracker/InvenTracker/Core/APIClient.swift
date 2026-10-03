@@ -136,6 +136,28 @@ actor APIClient {
         return envelope.data
     }
 
+    func portion(storeId: String, request: PortionRequest) async throws -> PortionResult {
+        let payload = PortionPayload(storeId: storeId, request: request)
+        let key = try operationKey(kind: "portion", payload: payload)
+        let envelope: APIEnvelope<PortionResult> = try await send(
+            path: "/api/mobile/v1/actions/portion",
+            method: "POST",
+            body: PortionAPIRequest(
+                operationId: operationId(for: key),
+                storeId: storeId,
+                itemId: request.itemId,
+                sourceArea: request.sourceArea,
+                sourceBatchId: request.sourceBatchId,
+                portionWeight: request.portionWeight,
+                portionCount: request.portionCount,
+                expirationDate: request.expirationDate,
+                packageBarcodePrefix: request.packageBarcodePrefix
+            )
+        )
+        completeOperation(key)
+        return envelope.data
+    }
+
     func insights(storeId: String) async throws -> MobileInsights {
         let escapedStoreId = storeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? storeId
         let envelope: APIEnvelope<MobileInsights> = try await send(path: "/api/mobile/v1/insights?storeId=\(escapedStoreId)")
@@ -295,6 +317,7 @@ private struct RestockPayload: Encodable { let storeId: String; let commit: Bool
 private struct WastePayload: Encodable { let storeId: String; let lines: [WasteLine] }
 private struct ReceivingPayload: Encodable { let storeId: String; let lines: [ReceivingLine] }
 private struct TransferPayload: Encodable { let storeId: String; let itemId: String; let quantity: Double; let source: String; let destination: String; let batchId: String? }
+private struct PortionPayload: Encodable { let storeId: String; let request: PortionRequest }
 private struct OrderTransitionPayload: Encodable { let orderId: String; let storeId: String; let action: String; let reason: String?; let sentMethod: String? }
 private struct SpotCheckRequest: Encodable { let operationId: String; let storeId: String; let lines: [SpotCheckLine] }
 private struct RestockRequest: Encodable { let operationId: String; let storeId: String; let commit: Bool; let lines: [RestockLine] }
@@ -308,6 +331,17 @@ private struct TransferRequest: Encodable {
     let source: String
     let destination: String
     let batchId: String?
+}
+private struct PortionAPIRequest: Encodable {
+    let operationId: String
+    let storeId: String
+    let itemId: String
+    let sourceArea: String
+    let sourceBatchId: String?
+    let portionWeight: Double
+    let portionCount: Int
+    let expirationDate: String?
+    let packageBarcodePrefix: String?
 }
 private struct OrderTransitionRequest: Encodable { let operationId: String; let storeId: String; let action: String; let reason: String?; let sentMethod: String? }
 private struct OrderRecommendationRequest: Encodable { let storeId: String; let vendorId: String }

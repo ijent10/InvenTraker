@@ -10,7 +10,7 @@ export type CloudWorkspacePreferences = {
   savedThemes?: AppTheme[]
   dashboardWidgetIds?: string[]
   showTips?: boolean
-  mobileWorkShortcut?: "work" | "inventory" | "spotCheck" | "restock" | "receiving" | "waste" | "transfer" | "orders" | "healthChecks" | "insights"
+  mobileWorkShortcut?: "work" | "inventory" | "spotCheck" | "restock" | "receiving" | "waste" | "transfer" | "portion" | "orders" | "healthChecks" | "insights"
   updatedAt?: unknown
   schemaVersion?: number
 }

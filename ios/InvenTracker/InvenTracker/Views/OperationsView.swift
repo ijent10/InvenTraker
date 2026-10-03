@@ -20,6 +20,8 @@ struct WorkShortcutHostView: View {
                 WasteView()
             case .transfer:
                 TransferView()
+            case .portion:
+                PortionView()
             case .orders:
                 OrdersView()
             case .healthChecks:
@@ -102,6 +104,8 @@ struct OperationsView: View {
             AppTheme.danger
         case .transfer:
             Color.indigo
+        case .portion:
+            Color.cyan
         case .orders:
             session.theme.secondaryColor.opacity(0.82)
         case .healthChecks:

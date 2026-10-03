@@ -42,7 +42,7 @@ export type ParChange = {
 }
 
 export type InventoryOperationChange = StockChange | ParChange
-export type InventoryOperationType = "spot_check" | "restock" | "waste" | "receive" | "transfer" | "par_change"
+export type InventoryOperationType = "spot_check" | "restock" | "waste" | "receive" | "transfer" | "portion" | "par_change"
 export type InventoryOperationSource = "web" | "mobile_api"
 
 export function stockOperationSource(request: Request): InventoryOperationSource {

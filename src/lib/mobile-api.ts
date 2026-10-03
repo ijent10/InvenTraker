@@ -5,7 +5,7 @@ import { DEFAULT_ORG_ID, firestoreCollections } from "@/lib/firestore-schema"
 import type { PermissionKey } from "@/lib/permissions"
 
 export const MOBILE_API_VERSION = "2026-09-30"
-export const MOBILE_WORK_SHORTCUTS = ["work", "inventory", "spotCheck", "restock", "receiving", "waste", "transfer", "orders", "healthChecks", "insights"] as const
+export const MOBILE_WORK_SHORTCUTS = ["work", "inventory", "spotCheck", "restock", "receiving", "waste", "transfer", "portion", "orders", "healthChecks", "insights"] as const
 
 export type MobileWorkShortcut = (typeof MOBILE_WORK_SHORTCUTS)[number]
 
@@ -136,6 +136,7 @@ export function canUseMobileWorkShortcut(principal: MobilePrincipal, shortcut: M
     case "receiving":
     case "waste":
     case "transfer":
+    case "portion":
       return capabilities.canUpdateInventory
     case "orders":
       return capabilities.canViewOrders

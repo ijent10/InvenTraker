@@ -18,10 +18,17 @@ struct InventoryView: View {
             if filtered.isEmpty {
                 ContentUnavailableView("No inventory found", systemImage: "shippingbox", description: Text(search.isEmpty ? "This store has no inventory records yet." : "Try a different name or SKU."))
             } else {
-                List(filtered) { item in
-                    NavigationLink(value: item) { InventoryRow(item: item) }
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(filtered) { item in
+                            NavigationLink(value: item) { InventoryRow(item: item) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
-                .listStyle(.plain)
+                .background(Color(uiColor: .systemGroupedBackground))
             }
         }
         .navigationTitle("Inventory")
@@ -48,19 +55,39 @@ struct InventoryRow: View {
 
     var body: some View {
         HStack(spacing: 13) {
-            ProductImage(item: item, size: 52)
+            ProductImage(item: item, size: 64)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.body.weight(.semibold))
                 Text([item.department, item.location].filter { !$0.isEmpty }.joined(separator: " • "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 6) {
+                    if item.nutrition != nil {
+                        Label("Nutrition", systemImage: "leaf.fill")
+                    }
+                    if item.primaryImageURL != nil {
+                        Label("Photo", systemImage: "photo.fill")
+                    }
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(session.theme.accentColor)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(item.onHand.formattedQuantity).font(.headline.monospacedDigit())
                 Text(item.unit).font(.caption).foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -120,27 +147,37 @@ struct InventoryDetailView: View {
     var body: some View {
         List {
             Section {
-                HStack {
+                VStack(spacing: 10) {
                     Spacer()
                     ProductImage(item: item, size: 220)
+                    Text(item.status)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(item.status == "Low" ? AppTheme.amber : session.theme.accentColor)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background((item.status == "Low" ? AppTheme.amber : session.theme.accentColor).opacity(0.12), in: Capsule())
                     Spacer()
                 }
+                .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
             Section {
-                LabeledContent("On hand", value: "\(item.onHand.formattedQuantity) \(item.unit)")
-                LabeledContent("Sales floor", value: item.frontStock.formattedQuantity)
-                LabeledContent("Backstock", value: item.backStock.formattedQuantity)
-                LabeledContent("Par", value: item.par.formattedQuantity)
-                LabeledContent("Reorder point", value: item.reorderPoint.formattedQuantity)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    InventoryMetricBubble(title: "On hand", value: item.onHand.formattedQuantity, unit: item.unit, color: session.theme.accentColor)
+                    InventoryMetricBubble(title: "Sales floor", value: item.frontStock.formattedQuantity, unit: item.unit, color: .green)
+                    InventoryMetricBubble(title: "Backstock", value: item.backStock.formattedQuantity, unit: item.unit, color: .blue)
+                    InventoryMetricBubble(title: "Par", value: item.par.formattedQuantity, unit: item.unit, color: .purple)
+                    InventoryMetricBubble(title: "Reorder at", value: item.reorderPoint.formattedQuantity, unit: item.unit, color: .orange)
+                }
+                .padding(.vertical, 4)
             } header: { Text("Stock") }
             Section {
-                LabeledContent("SKU", value: item.sku)
-                LabeledContent("Department", value: item.department)
-                LabeledContent("Category", value: item.category)
-                LabeledContent("Location", value: item.location)
-                LabeledContent("Vendor", value: item.vendor)
-                LabeledContent("Expiration", value: item.expires ? "Tracked" : "Not tracked")
+                ItemInfoRow(icon: "barcode", title: "SKU", value: item.sku)
+                ItemInfoRow(icon: "square.grid.2x2", title: "Department", value: item.department)
+                ItemInfoRow(icon: "tag", title: "Category", value: item.category)
+                ItemInfoRow(icon: "mappin.and.ellipse", title: "Location", value: item.location)
+                ItemInfoRow(icon: "truck.box", title: "Vendor", value: item.vendor)
+                ItemInfoRow(icon: "calendar.badge.clock", title: "Expiration", value: item.expires ? "Tracked" : "Not tracked")
             } header: { Text("Item") }
             if item.expires {
                 Section("Availability") {
@@ -178,15 +215,38 @@ struct InventoryDetailView: View {
             }
             if let nutrition = item.nutrition {
                 Section("Nutrition facts") {
-                    LabeledContent("Serving size", value: nutrition.servingSize.isEmpty ? "Declared serving" : nutrition.servingSize)
-                    if let value = nutritionValue(nutrition.caloriesKcal) { LabeledContent("Calories", value: value) }
-                    if let value = nutritionValue(nutrition.fatG, unit: "g") { LabeledContent("Total fat", value: value) }
-                    if let value = nutritionValue(nutrition.saturatedFatG, unit: "g") { LabeledContent("Saturated fat", value: value) }
-                    if let value = nutritionValue(nutrition.carbohydratesG, unit: "g") { LabeledContent("Carbohydrates", value: value) }
-                    if let value = nutritionValue(nutrition.fiberG, unit: "g") { LabeledContent("Fiber", value: value) }
-                    if let value = nutritionValue(nutrition.sugarsG, unit: "g") { LabeledContent("Sugars", value: value) }
-                    if let value = nutritionValue(nutrition.proteinG, unit: "g") { LabeledContent("Protein", value: value) }
-                    if let value = nutritionValue(nutrition.sodiumMg, unit: "mg") { LabeledContent("Sodium", value: value) }
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Per serving").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                Text(nutrition.servingSize.isEmpty ? "Declared serving" : nutrition.servingSize)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            Spacer()
+                            if let calories = nutritionValue(nutrition.caloriesKcal) {
+                                VStack(alignment: .trailing, spacing: 0) {
+                                    Text(calories).font(.system(size: 34, weight: .bold, design: .rounded))
+                                    Text("CALORIES").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        Text(nutrition.dataKind == "exact_product" ? "Exact barcode match" : nutrition.dataKind == "nutrition_label_ocr" ? "Read from package label" : nutrition.dataKind == "matched_product" ? "Matched product source" : "Representative product profile")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(nutrition.dataKind == "representative_product_type" ? AppTheme.amber : session.theme.accentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background((nutrition.dataKind == "representative_product_type" ? AppTheme.amber : session.theme.accentColor).opacity(0.1), in: Capsule())
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
+                            NutritionMetricBubble(title: "Total fat", value: nutritionValue(nutrition.fatG, unit: "g"), color: .orange)
+                            NutritionMetricBubble(title: "Saturated fat", value: nutritionValue(nutrition.saturatedFatG, unit: "g"), color: .pink)
+                            NutritionMetricBubble(title: "Carbohydrates", value: nutritionValue(nutrition.carbohydratesG, unit: "g"), color: .blue)
+                            NutritionMetricBubble(title: "Fiber", value: nutritionValue(nutrition.fiberG, unit: "g"), color: .green)
+                            NutritionMetricBubble(title: "Sugars", value: nutritionValue(nutrition.sugarsG, unit: "g"), color: .purple)
+                            NutritionMetricBubble(title: "Protein", value: nutritionValue(nutrition.proteinG, unit: "g"), color: .teal)
+                            NutritionMetricBubble(title: "Sodium", value: nutritionValue(nutrition.sodiumMg, unit: "mg"), color: .indigo)
+                        }
+                    }
+                    .padding(.vertical, 4)
                     if !nutrition.ingredientsText.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Ingredients").font(.subheadline.weight(.semibold))
@@ -258,5 +318,61 @@ private struct ProductImage: View {
         Image(systemName: item.status == "Low" ? "exclamationmark.triangle.fill" : "shippingbox.fill")
             .font(.system(size: size > 100 ? 54 : 20))
             .foregroundStyle(item.status == "Low" ? AppTheme.amber : session.theme.accentColor)
+    }
+}
+
+private struct NutritionMetricBubble: View {
+    let title: String
+    let value: String?
+    let color: Color
+
+    var body: some View {
+        if let value {
+            HStack(spacing: 8) {
+                Circle().fill(color.opacity(0.18)).frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    Text(value).font(.subheadline.weight(.semibold).monospacedDigit())
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+    }
+}
+
+private struct InventoryMetricBubble: View {
+    let title: String
+    let value: String
+    let unit: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.title3.weight(.bold).monospacedDigit())
+            Text(unit).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct ItemInfoRow: View {
+    let icon: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).frame(width: 24).foregroundStyle(.secondary)
+            Text(title).foregroundStyle(.secondary)
+            Spacer()
+            Text(value.isEmpty ? "—" : value).multilineTextAlignment(.trailing).lineLimit(2)
+        }
+        .font(.subheadline)
     }
 }

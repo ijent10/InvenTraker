@@ -1,0 +1,1448 @@
+[
+  {
+    "gtin": "00002421131943",
+    "name": "NUESKE SMOKED LIVER PATE",
+    "url": "https://www.directionsforme.org/product/27755",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.directionsforme.org/product/27755",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00011826100102",
+    "name": "VERMONT GOAT LOG HERB",
+    "url": "https://images.openfoodfacts.org/images/products/001/182/610/0102/front_en.9.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/182/610/0102/front_en.9.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00011826100102",
+    "name": "VERMONT GOAT LOG HERB",
+    "url": "http://www.vermontcreamery.com/cdn/shop/products/VC-HerbGoatCheese_Banner_t.jpg?v=1661887494",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.vermontcreamery.com/cdn/shop/products/VC-HerbGoatCheese_Banner_t.jpg?v=1661887494",
+    "reason": ""
+  },
+  {
+    "gtin": "00011826100126",
+    "name": "VERMONT GOAT LOG PLAIN",
+    "url": "https://images.openfoodfacts.org/images/products/001/182/610/0126/front_en.6.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/182/610/0126/front_en.6.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00011826100225",
+    "name": "VERMONT GOAT LOG WILD BLUEBERRY",
+    "url": "https://images.openfoodfacts.org/images/products/001/182/610/0225/front_en.7.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/182/610/0225/front_en.7.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00011863118580",
+    "name": "BELLAVITANO ESPRESSO EW",
+    "url": "https://images.openfoodfacts.org/images/products/001/186/311/8580/front_en.10.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/186/311/8580/front_en.10.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00011863118580",
+    "name": "BELLAVITANO ESPRESSO EW",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00011863118580.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00011863118580.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00011863118740",
+    "name": "BELLAVITANO BALSAMIC EW",
+    "url": "https://images.openfoodfacts.org/images/products/001/186/311/8740/front_en.7.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/186/311/8740/front_en.7.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00011863118764",
+    "name": "BELLAVITANO MERLOT EW",
+    "url": "https://images.openfoodfacts.org/images/products/001/186/311/8764/front_en.23.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/186/311/8764/front_en.23.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00017869707100",
+    "name": "FIORUCCI PROSCIUTTO AN SLICED",
+    "url": "https://fioruccifoods.com/products/pre-sliced-all-natural-prosciutto/",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://fioruccifoods.com/products/pre-sliced-all-natural-prosciutto/",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00017869708367",
+    "name": "FIORUCCI PEPPERONI AN SLICED",
+    "url": "https://images.openfoodfacts.org/images/products/001/786/970/8367/front_en.27.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/786/970/8367/front_en.27.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00017869708367",
+    "name": "FIORUCCI PEPPERONI AN SLICED",
+    "url": "https://images.cdn.retail.brookshires.com/cell/a8a2a9a9-0f6a-4c49-9867-6a715cbab45d.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/a8a2a9a9-0f6a-4c49-9867-6a715cbab45d.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00017869727771",
+    "name": "JAMON SERRANO CAMPOFRIO",
+    "url": "https://images.openfoodfacts.org/images/products/001/786/972/7771/front_en.7.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/001/786/972/7771/front_en.7.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00017869804502",
+    "name": "FIORUCCI HARD SALAMI PEPPER JACK PANINO",
+    "url": "https://fioruccifoods.com/products/hard-salami-pepper-jack-panino/",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://fioruccifoods.com/products/hard-salami-pepper-jack-panino/",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00021438000011",
+    "name": "ROQUEFORT WEDGE SOCIETE",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00021438000011_C1C1.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00021438000011_C1C1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00023004651726",
+    "name": "ENTREMONT COMTE 12M EW",
+    "url": "https://go-upc.com/search?q=023004651726",
+    "valid": false,
+    "contentType": "text/html;charset=utf-8",
+    "finalUrl": "https://go-upc.com/search?q=023004651726",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00025611620713",
+    "name": "ELLSWORTH NATURAL CHEESE CURD",
+    "url": "https://www.ellsworthcheese.com/wp-content/uploads/2025/08/2.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.ellsworthcheese.com/wp-content/uploads/2025/08/2.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00025611620744",
+    "name": "ELLSWORTH RANCH CHEESE CURD",
+    "url": "https://www.ellsworthcheese.com/wp-content/uploads/2025/08/2.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.ellsworthcheese.com/wp-content/uploads/2025/08/2.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00025611620782",
+    "name": "ELLSWORTH BACON CHEESE CURD",
+    "url": "https://www.super1foods.com/sm/planning/rsid/645/product/ellsworth-cooperative-creamery-cheddar-cheese-curds-hickory-bacon-id-00025611620782",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.super1foods.com/sm/planning/rsid/645/product/ellsworth-cooperative-creamery-cheddar-cheese-curds-hickory-bacon-id-00025611620782",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00031142004021",
+    "name": "TRIUMPH OF CHEESE MOZZARELLA CILIEGINE",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004021.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004021.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00031142004526",
+    "name": "TRIUMPH OF CHEESE MOZZARELLA BALL",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004526.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004526.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00031142004984",
+    "name": "TRIUMPH OF CHEESE MOZZARELLA LOG",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004984.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142004984.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00031142009743",
+    "name": "TRIUMPH OF CHEESE MASCARPONE",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142009743.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00031142009743.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00031142534924",
+    "name": "FONTINA WEDGE 8 OZ",
+    "url": "https://shop.heinens.com/product/belgioioso-fontina-wedge-id-00031142534924",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00031142601527",
+    "name": "BELGIOIOSO ARTIGIANO VINO ROSSO SNACK CHEESE",
+    "url": "https://directionsforme.org/product/42342",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://directionsforme.org/product/42342",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00038101009646",
+    "name": "BUSSETO SLICED SALAMI WITH HERBS",
+    "url": "https://www.gfifoods.com/media/catalog/product/i/t/item20964208oz20sliced20herb20coated_20210126_1321217_4lqr5o5nikngcyez.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/i/t/item20964208oz20sliced20herb20coated_20210126_1321217_4lqr5o5nikngcyez.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00038101009653",
+    "name": "BUSSETO SLICED SALAMI WITH PEPPER",
+    "url": "https://images.cdn.smartandfinal.com/cell/273fbefc-c300-49e2-b28d-3c8be168cc85.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.smartandfinal.com/cell/273fbefc-c300-49e2-b28d-3c8be168cc85.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00039496001123",
+    "name": "CYPRESS GROVE OLIVE &HERB DISC",
+    "url": "https://www.cypressgrovecheese.com/usa/en/cheese/fresh-cheeses/olive-herb",
+    "valid": false,
+    "contentType": "text/html;charset=utf-8",
+    "finalUrl": "https://www.cypressgrovecheese.com/usa/en/cheese/fresh-cheeses/olive-herb",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00040822011143",
+    "name": "SABRA CLASSIC HUMMUS",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00040822011143.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00040822011143.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00040822011549",
+    "name": "SABRA ROASTED RED PEPPER HUMMUS",
+    "url": "https://www.directionsforme.org/product/62085",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.directionsforme.org/product/62085",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00040822011747",
+    "name": "SABRA ROASTED PINE NUT HUMMUS",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00040822011747.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00040822011747.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00041793127000",
+    "name": "LOCATELLI PECORINO ROMANO EW",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00041793127000_C1C1.jpeg",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00041793127000_C1C1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00041793824930",
+    "name": "LOCATELLI GRATED PECORINO",
+    "url": "https://storage.googleapis.com/images-kkg-prd-dbdfdde.kkg.prd.v8.commerce.mi9cloud.com/product-images/cell/00041793824930_1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://storage.googleapis.com/images-kkg-prd-dbdfdde.kkg.prd.v8.commerce.mi9cloud.com/product-images/cell/00041793824930_1",
+    "reason": ""
+  },
+  {
+    "gtin": "00044115403011",
+    "name": "CEDARS ORGANIC ORIGINAL HOMMUS",
+    "url": "https://shop.heinens.com/sm/pickup/rsid/7/product/cedars-organic-hommus-original-id-00044115403011",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00044115403028",
+    "name": "CEDARS ORGANIC MEDITERRANEAN HOMMUS",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00044115403028.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00044115403028.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00044115403110",
+    "name": "CEDARS ORGANIC EVERYTHING HOMMUS",
+    "url": "https://cdn.hy-vee.com/products/0044115403010/CL/e3d74c96-75c6-4c9b-99ac-6fdfb4aca267_large.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://cdn.hy-vee.com/products/0044115403010/CL/e3d74c96-75c6-4c9b-99ac-6fdfb4aca267_large.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00045885186005",
+    "name": "PATE DE CAMPAGNE",
+    "url": "https://images.openfoodfacts.org/images/products/004/588/518/6005/front_en.3.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/004/588/518/6005/front_en.3.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00045885186005",
+    "name": "PATE DE CAMPAGNE",
+    "url": "https://cdn.repertoirealimentsquebecois.gouv.qc.ca/imagesproduits/055652001974-26-05-26-1-10 - Devant-JPG-ml.jpg",
+    "valid": false,
+    "reason": "InvalidURL: URL can't contain control characters. '/imagesproduits/055652001974-26-05-26-1-10 - Devant-JPG-ml.jpg' (found at least '"
+  },
+  {
+    "gtin": "00045885394004",
+    "name": "MOUSSE DE FOIE DE CANARD AU PORTO SLICE",
+    "url": "https://www.freshbyreasors.com/product/three-little-pigs-cooked-meat-and-wine-port-duck-liver-%26-pork-mousse-with-de-foie-canard-au-porto-all-natural-55-ounce-id-00045885394004",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.freshbyreasors.com/product/three-little-pigs-cooked-meat-and-wine-port-duck-liver-%26-pork-mousse-with-de-foie-canard-au-porto-all-natural-55-ounce-id-00045885394004",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00054783831481",
+    "name": "WOOD RIVER CHEDDAR GRUYERE BLACK TRUFFLE",
+    "url": "https://www.gfifoods.com/media/catalog/product/5/7/57501_main_20220503-095455_rtwqaijw8llknpdy.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/5/7/57501_main_20220503-095455_rtwqaijw8llknpdy.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00061104154228",
+    "name": "ST MANG BAVARIAN LIMBURGER",
+    "url": "https://www.st-mang.com/en-us",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.st-mang.com/en-us",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00071448504221",
+    "name": "SUPREME BRIE BITES",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_b1050d99-4282-462c-9fc0-d1e26a982f77.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_b1050d99-4282-462c-9fc0-d1e26a982f77.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00071448505297",
+    "name": "IL DE FRANCE GOAT PYRAMID",
+    "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Pouligny-saint-pierre_%28fromage%29_03.jpg/1280px-Pouligny-saint-pierre_%28fromage%29_03.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Pouligny-saint-pierre_%28fromage%29_03.jpg/1280px-Pouligny-saint-pierre_%28fromage%29_03.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail",
+    "reason": ""
+  },
+  {
+    "gtin": "00072368512433",
+    "name": "DELALLO SHORT STICK PEPPERONI",
+    "url": "https://cdn11.bigcommerce.com/s-cjh14ahqln/products/506/images/1236/pepperoni_shortstick_7oz__67026.1722528547.386.513.jpg?c=1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://cdn11.bigcommerce.com/s-cjh14ahqln/products/506/images/1236/pepperoni_shortstick_7oz__67026.1722528547.386.513.jpg?c=1",
+    "reason": ""
+  },
+  {
+    "gtin": "00072830005524",
+    "name": "TILLAMOOK SHARP CHEDDAR",
+    "url": "https://images.ctfassets.net/j8tkpy1gjhi5/64HaUsJrBNeTG5O9CKUPvr/431ce5d777043f5e46c2d8eb6f8bfe1e/chunk-_0001_8oz-sharp-cheddar.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.ctfassets.net/j8tkpy1gjhi5/64HaUsJrBNeTG5O9CKUPvr/431ce5d777043f5e46c2d8eb6f8bfe1e/chunk-_0001_8oz-sharp-cheddar.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00072830125611",
+    "name": "TILLAMOOK KOSHER CHEDDAR",
+    "url": "https://cdn11.bigcommerce.com/s-jlq2hzt8r3/products/532/images/2448/Tillamook_-_Kosher_Medium_Cheddar_8_oz_-_Front_View__33331.1740067996.500.750.jpg?c=2",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://cdn11.bigcommerce.com/s-jlq2hzt8r3/products/532/images/2448/Tillamook_-_Kosher_Medium_Cheddar_8_oz_-_Front_View__33331.1740067996.500.750.jpg?c=2",
+    "reason": ""
+  },
+  {
+    "gtin": "00073541362227",
+    "name": "ROLL & GO SALAME MOZZ",
+    "url": "https://www.smartandfinal.com/sm/pickup/rsid/522/product/beretta-salame-%26-mozzarella-roll-and-go-id-00073541362227",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.smartandfinal.com/sm/pickup/rsid/522/product/beretta-salame-%26-mozzarella-roll-and-go-id-00073541362227",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00073541820222",
+    "name": "ROLL & GO PROSCIUTTO MOZZ",
+    "url": "https://images.cdn.smartandfinal.com/cell/04caf099-9235-4322-ad72-d8803b1fded3.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.smartandfinal.com/cell/04caf099-9235-4322-ad72-d8803b1fded3.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00074310100408",
+    "name": "MARIN FRENCH PETIT BREAKFAST FRESH BRIE",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00074310100408.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00074310100408.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00075501675200",
+    "name": "GJETOST",
+    "url": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Brunost.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Brunost.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail_unscaled",
+    "reason": ""
+  },
+  {
+    "gtin": "00079813000118",
+    "name": "BOURSIN HERB",
+    "url": "https://images.cdn.saveonfoods.com/cell/00079813000118.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.saveonfoods.com/cell/00079813000118.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00079813000279",
+    "name": "BOURSIN SHALLOT AND CHIVE",
+    "url": "https://i5.walmartimages.com/asr/2fab3f56-2d22-4e65-a7b6-be46134e94d5_1.a74aaee9db7ad1537baddc511398aa67.jpeg?odnHeight=450&odnWidth=450&odnBg=ffffff",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://i5.walmartimages.com/asr/2fab3f56-2d22-4e65-a7b6-be46134e94d5_1.a74aaee9db7ad1537baddc511398aa67.jpeg?odnHeight=450&odnWidth=450&odnBg=ffffff",
+    "reason": ""
+  },
+  {
+    "gtin": "00084892027475",
+    "name": "LE ROULE CRANBERRY",
+    "url": "https://storage.googleapis.com/images-kkg-prd-dbdfdde.kkg.prd.v8.commerce.mi9cloud.com/product-images/cell/00084892027475_1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://storage.googleapis.com/images-kkg-prd-dbdfdde.kkg.prd.v8.commerce.mi9cloud.com/product-images/cell/00084892027475_1",
+    "reason": ""
+  },
+  {
+    "gtin": "00092227110143",
+    "name": "SLOTKOWSKI POLISH KIELBASA",
+    "url": "https://www.eatthismuch.com/calories/polska-kielbasa-1894983",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.eatthismuch.com/calories/polska-kielbasa-1894983",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00092227727129",
+    "name": "AMYLU ROASTED GARLIC ASIAGO CHICKEN SAUSAGE",
+    "url": "https://target.scene7.com/is/image/Target/GUEST_ba38de38-bcea-4ec9-a8ec-2c91508bc0bf",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://target.scene7.com/is/image/Target/GUEST_ba38de38-bcea-4ec9-a8ec-2c91508bc0bf",
+    "reason": ""
+  },
+  {
+    "gtin": "00092227757126",
+    "name": "AMYLU APPLE GOUDA CHICKEN SAUSAGE",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_773bd50d-8910-4ff6-b204-abff22cec03b.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_773bd50d-8910-4ff6-b204-abff22cec03b.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00201385000009",
+    "name": "GOAT CRUMBLES",
+    "url": "https://saputo.canto.com/direct/image/54f3j0unv94r310hbcoc55pb2l/FCmjfAzszVIXRgoP7ip_-kKlSU8/original?content-type=image%2Fpng&name=Montchevre_Goat_Crumbles_32oz.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2zd6ny1q7rvh6.cloudfront.net/45dc7a1b-eb0a-48f3-833e-998ead48fc92/291e3983d7fa49b184115b30c2972b55?response-content-disposition=inline%3B%20filename%2A%3DUTF-8%27%27Montchevre_Goat_Crumbles_32oz.png&response-content-type=image%2Fpng&Expires=1791115200&Signature=Onw7eIazcCRMxxNDEFfnE4H~k0pbSm91CqNe3vFDEUBnVo2UGR5oJrDlklosa6G5vDAUg8G8hRMsTo60OF9sQ7SZixhwIBEBQZCD0n~NEy54wuBgPiyMgTqK~Ay7oIWtT062H7XmezYHsWFynGEJLffzD2G5ROU17vkV7lSxILhKIHHq1~gKmUaFDKOHfxmMMWhrsUSloUQOjLBA3ni-tgu2gfbfyELwcXWG9T9KRhAB7~0BB7NDjgl4sPL6Nli~bNQFDJJhQ5zEsGdyyjAPtrxVZ~LHUTyZblhY2sgYoiMz3YLfx6O2QL6kdq~pcakif1C-5ep6CSWY-WmhldvB5Q__&Key-Pair-Id=APKAI33AGAEAYCXFBDTA",
+    "reason": ""
+  },
+  {
+    "gtin": "00201928000008",
+    "name": "PARMIGIANO REGGIANO 2121",
+    "url": "https://www.parmigianoreggiano.com/en-US/product-guide-nutritional-characteristics",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.parmigianoreggiano.com/en-US/product-guide-nutritional-characteristics",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00201935000008",
+    "name": "GORGONZOLA CRUMBLES",
+    "url": "https://dutchfarms.com/wp-content/uploads/2021/07/CRUMBLES-GORGONZOLA.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://dutchfarms.com/wp-content/uploads/2021/07/CRUMBLES-GORGONZOLA.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00211338000000",
+    "name": "BLUE CHEESE CRUMBLES",
+    "url": "https://assets.syndigo.cloud/cdn/1f6be5f1-be31-4d0c-91d9-d20ff562d18f/fileType_jpg;size_600x600/1f6be5f1-be31-4d0c-91d9-d20ff562d18f",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://assets.syndigo.cloud/cdn/1f6be5f1-be31-4d0c-91d9-d20ff562d18f/fileType_jpg;size_600x600/1f6be5f1-be31-4d0c-91d9-d20ff562d18f",
+    "reason": ""
+  },
+  {
+    "gtin": "00211438000009",
+    "name": "SMOKED PROVOLONE",
+    "url": "https://marcangelofoods.com/en-ca/products/imported-italian-deli/cheese/smoked-provolone-cheese/",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://marcangelofoods.com/en-ca/products/imported-italian-deli/cheese/smoked-provolone-cheese/",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00211485000007",
+    "name": "CUBED COLBY JACK",
+    "url": "https://assets.syndigo.cloud/cdn/d2f3063d-c6f4-47bb-a7b0-ac777a630c23/fileType_jpg;size_600x600/d2f3063d-c6f4-47bb-a7b0-ac777a630c23",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://assets.syndigo.cloud/cdn/d2f3063d-c6f4-47bb-a7b0-ac777a630c23/fileType_jpg;size_600x600/d2f3063d-c6f4-47bb-a7b0-ac777a630c23",
+    "reason": ""
+  },
+  {
+    "gtin": "00211493000006",
+    "name": "DELICE DE BOURGOGNE",
+    "url": "https://static1.squarespace.com/static/5f58ecf49869192cf2a94b7f/t/5f58fda6358cae77ef30ec89/1788457919138/",
+    "valid": true,
+    "contentType": "image/gif",
+    "finalUrl": "https://images.squarespace-cdn.com/content/5f58ecf49869192cf2a94b7f/1599667622148-ZES5YDNTLT4QAIZ3YLRO/AbbeyLogo.gif?content-type=image%2Fgif",
+    "reason": ""
+  },
+  {
+    "gtin": "00211685000005",
+    "name": "HARD SALAMI FIORUCCI - GRAB & GO",
+    "url": "https://fioruccifoods.com/products/uncured-hard-salami-100-natural/",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://fioruccifoods.com/products/uncured-hard-salami-100-natural/",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00211690000007",
+    "name": "YELLOW AMERICAN - GRAB & GO",
+    "url": "https://www.kroger.com/product/images/large/front/0020634190000",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://www.kroger.com/product/images/large/front/0020634190000",
+    "reason": ""
+  },
+  {
+    "gtin": "00211715000005",
+    "name": "NAKED GOAT",
+    "url": "https://nakednutrition.com/cdn/shop/files/unflavored-goat-whey-isolate-protein-powder-2LB.jpg?v=1784581198&width=1200",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://nakednutrition.com/cdn/shop/files/unflavored-goat-whey-isolate-protein-powder-2LB.jpg?v=1784581198&width=1200",
+    "reason": ""
+  },
+  {
+    "gtin": "00211749000002",
+    "name": "BRIE TFM 3K",
+    "url": "https://cdn.repertoirealimentsquebecois.gouv.qc.ca/imagesproduits/067400000863-19-05-29-1-10 - Devant-JPG-ml.jpg",
+    "valid": false,
+    "reason": "InvalidURL: URL can't contain control characters. '/imagesproduits/067400000863-19-05-29-1-10 - Devant-JPG-ml.jpg' (found at least '"
+  },
+  {
+    "gtin": "00211835000008",
+    "name": "ST. AGUR",
+    "url": "https://images.openfoodfacts.org/images/products/334/150/400/4642/front_fr.36.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/334/150/400/4642/front_fr.36.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00211836000007",
+    "name": "BLUE STILTON",
+    "url": "https://www.campbellsmeat.com/images/products/large_vertical/1573645478CAM5520Tile649x517pxl4.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.campbellsmeat.com/images/products/large_vertical/1573645478CAM5520Tile649x517pxl4.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00211948000001",
+    "name": "L'ORIGINAL BRIE",
+    "url": "https://d1s8987jlndkbs.cloudfront.net/assets/missing-item-4bbe82b8555e4d1c12626fd482cb2409713e8e30835645ff3650ef66a725d03c.png",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "00221070000008",
+    "name": "GRAND NOIR BLUE CHAMPIGNON",
+    "url": "https://www.gfifoods.com/media/catalog/product/1/9/193759_14300150_v01_b35203d20packshots20grand20noir20usa_ganz_20230216-140753_y0tzwks9qiewbqdv.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/1/9/193759_14300150_v01_b35203d20packshots20grand20noir20usa_ganz_20230216-140753_y0tzwks9qiewbqdv.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00221640000001",
+    "name": "OLD WORLD ANGUS ROAST BEEF - GRAB & GO",
+    "url": "https://d1s8987jlndkbs.cloudfront.net/assets/missing-item-4bbe82b8555e4d1c12626fd482cb2409713e8e30835645ff3650ef66a725d03c.png",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "00604262011080",
+    "name": "CHEDDAR SHARP KOSHER BAR",
+    "url": "https://www.gfifoods.com/media/catalog/product/2/0/20210303_07130320rot20crp_20210303_1432509_65b40afdeigf5ej7.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/2/0/20210303_07130320rot20crp_20210303_1432509_65b40afdeigf5ej7.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00604262011585",
+    "name": "MUENSTER BAR KOSHER",
+    "url": "https://www.gfifoods.com/media/catalog/product/1/0/10604262011582_munster_main_20231110_125956_44foahttnlvhi99x.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/1/0/10604262011582_munster_main_20231110_125956_44foahttnlvhi99x.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00614613654095",
+    "name": "CADY CREEK TRUFFLE GOUDA",
+    "url": "https://dsom-imager-prod.shipt.com/product_image_not_available.png",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "00614613940716",
+    "name": "CADY CREEK ROSEMARY GOUDA",
+    "url": "https://d1s8987jlndkbs.cloudfront.net/assets/missing-item-4bbe82b8555e4d1c12626fd482cb2409713e8e30835645ff3650ef66a725d03c.png",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "00633622355694",
+    "name": "YANCEY FANCY SMOKED GOUDA WITH BACON RE",
+    "url": "https://www.gfifoods.com/media/catalog/product/s/m/smokedgoudabaconwheel_0095_20200617_1635888_msaqju9zmeizfdyv.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/s/m/smokedgoudabaconwheel_0095_20200617_1635888_msaqju9zmeizfdyv.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00633622555711",
+    "name": "YANCEYS HORSERADISH CHEDDAR",
+    "url": "https://shop.heinens.com/product/yanceys-horseradish-cheddar-id-00633622555711",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00643831002517",
+    "name": "MEISTER HORSERADISH CHEDDAR - REC",
+    "url": "http://store.meistercheese.com/cdn/shop/files/Wisconsin-meister-horseradish-cheddar-8oz.jpg?v=1785780156&width=2048",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://store.meistercheese.com/cdn/shop/files/Wisconsin-meister-horseradish-cheddar-8oz.jpg?v=1785780156&width=2048",
+    "reason": ""
+  },
+  {
+    "gtin": "00643831002722",
+    "name": "MEISTER WILD MOREL AND LEEK JACK",
+    "url": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F32375493-meister-cheese-wild-morel-leek-jack-cheese-6-oz",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F32375493-meister-cheese-wild-morel-leek-jack-cheese-6-oz",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00643831002876",
+    "name": "MEISTER BANANA PEPPER JACK - REC",
+    "url": "http://store.meistercheese.com/cdn/shop/files/Wisconsin-meister-cheese-banana-pepper-jack-6oz.jpg?v=1785780675&width=2048",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://store.meistercheese.com/cdn/shop/files/Wisconsin-meister-cheese-banana-pepper-jack-6oz.jpg?v=1785780675&width=2048",
+    "reason": ""
+  },
+  {
+    "gtin": "00643831002883",
+    "name": "MEISTER MUSCODA MAYHEM COLBY JACK",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d5f3c63d-8ae6-4e6c-a1aa-9d02f07caabf.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d5f3c63d-8ae6-4e6c-a1aa-9d02f07caabf.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00644404137056",
+    "name": "QUESO CAMPOSINO QUSADILLA",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00644404137056_C1C1.jpeg",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00644404137056_C1C1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00644404137759",
+    "name": "CAMPESINO QUESO FRESCO",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00644404137759_C1C1.jpeg",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00644404137759_C1C1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00648230001376",
+    "name": "CHORIZO MILD",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00648230001376.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00648230001376.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00648230001420",
+    "name": "CHORIZO HOT",
+    "url": "https://assets.wakefern.com/is/image/wakefern/64823000142-001?$Mi9Product_cell$",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00687652175425",
+    "name": "SIERRA NEVADA ORGANIC CHEDDAR",
+    "url": "https://www.gfifoods.com/media/catalog/product/7/5/7542-208oz20organic20raw20milk20white20cheddar_20190823_1130513_lmqscky0ard7i28b.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/7/5/7542-208oz20organic20raw20milk20white20cheddar_20190823_1130513_lmqscky0ard7i28b.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00687652175449",
+    "name": "SIERRA NEVADA ORGANIC SMOKED CHEDDAR",
+    "url": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F19370564-sierra-nevada-smoked-cheddar-organic-grass-fed-raw-milk-8-oz",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F19370564-sierra-nevada-smoked-cheddar-organic-grass-fed-raw-milk-8-oz",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00736436201741",
+    "name": "DEL DUCA HOT SALAMI BITES",
+    "url": "https://images.openfoodfacts.org/images/products/073/643/620/1741/front_en.3.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/073/643/620/1741/front_en.3.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00736436201741",
+    "name": "DEL DUCA HOT SALAMI BITES",
+    "url": "https://www.instacart.com/image-server/1200x1200/d1s8987jlndkbs.cloudfront.net/assets/missing-item-4bbe82b8555e4d1c12626fd482cb2409713e8e30835645ff3650ef66a725d03c.png",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "00736436312294",
+    "name": "DEL DUCA PROSCIUTTO SLICED",
+    "url": "https://www.directionsforme.org/product/200197",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.directionsforme.org/product/200197",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00737094223205",
+    "name": "GOAT LOG HONEY TFM",
+    "url": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094223212",
+    "name": "GOAT LOG GARLIC HERB TFM",
+    "url": "https://saputo.canto.com/direct/image/jkoluvqod15i5dcvhbp53tpm7a/2tZsWEiK5tMUlHxKO9opTbTOdW4/original?content-type=image%2Fpng&name=Montchevre+Goat+Cheese+Garlic+%26+Herb+Goat+Log.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2zd6ny1q7rvh6.cloudfront.net/45dc7a1b-eb0a-48f3-833e-998ead48fc92/9d315f7f58684b22b59f8af251f736ea?response-content-disposition=inline%3B%20filename%2A%3DUTF-8%27%27Montchevre%2520Goat%2520Cheese%2520Garlic%2520%2526%2520Herb%2520Goat%2520Log.png&response-content-type=image%2Fpng&Expires=1791115200&Signature=S~24p4w3e~LVlE~jw81B1XE5q3RIEbhrIReIDag46Yf6W~iILAbJVVr~KrsJj~zULoDnJdEOGG0cbA0zrTcsOOmmPQn8xkmOwAmuUD7dj2t6~t7D2zRfeswGAcaAlaOGW1C7Mzi~mij-7uBXtVfuXnFl4141LpBlI4AWQMArOPT-~zLY7iprJZuDMNpcRKF2CTLf53spcpgk3V6wr1HJck31hYcJnBspdGONPgZGGxw~i-4DmWHOIL0QGKqcbYOzJVP5I9znISAv79~RfbrvX0zKJ9dH2YSMOkl5upOI7c3RCYs7sq80AaifhDrS2nH6YotA2bZTMx3Gs2ZOmicImg__&Key-Pair-Id=APKAI33AGAEAYCXFBDTA",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094224226",
+    "name": "SHARP CHEDDAR SPREAD TFM",
+    "url": "https://dutchfarms.com/wp-content/uploads/2022/08/DF-Cheese-Spreads-Sharp-Cheddar.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://dutchfarms.com/wp-content/uploads/2022/08/DF-Cheese-Spreads-Sharp-Cheddar.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094225841",
+    "name": "TFM ORIGINAL HUMMUS",
+    "url": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094225872",
+    "name": "TFM LEMON HUMMUS",
+    "url": "https://www.athenos.com/.imaging/flex/jcr:b0f4e41d-9d41-46ec-8c7c-44b12b766d01/hash/1215262820/ratio/381:200/version/1787569131/width/1200/zesty-lemon-hummus.png",
+    "valid": true,
+    "contentType": "image/png;charset=utf-8",
+    "finalUrl": "https://www.athenos.com/.imaging/flex/jcr:b0f4e41d-9d41-46ec-8c7c-44b12b766d01/hash/1215262820/ratio/381:200/version/1787569131/width/1200/zesty-lemon-hummus.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094226305",
+    "name": "CRACKER CUT COLBY JACK TFM",
+    "url": "https://target.scene7.com/is/image/Target/GUEST_d203d57b-744a-440b-9be1-0d853db3523b",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://target.scene7.com/is/image/Target/GUEST_d203d57b-744a-440b-9be1-0d853db3523b",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094226329",
+    "name": "CRACKER CUT PEPPER JACK TFM",
+    "url": "https://images.ctfassets.net/j8tkpy1gjhi5/7C5EqkYCTITGN3WrsRbTLk/d9373f9f441b187a5deb7df52819c203/Digital_CHE23_CkrCut_PepJck_Rndr_FNL.TIF.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.ctfassets.net/j8tkpy1gjhi5/7C5EqkYCTITGN3WrsRbTLk/d9373f9f441b187a5deb7df52819c203/Digital_CHE23_CkrCut_PepJck_Rndr_FNL.TIF.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094226350",
+    "name": "CRACKER CUT SHARP CHEDDAR TFM",
+    "url": "https://images.ctfassets.net/j8tkpy1gjhi5/4YWKAw9FaVcACD2t0EirfO/05f424da50e415c77c08080bff6ae238/Digital_CHE23_CkrCut_Shp_Rndr_FNL.TIF.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.ctfassets.net/j8tkpy1gjhi5/4YWKAw9FaVcACD2t0EirfO/05f424da50e415c77c08080bff6ae238/Digital_CHE23_CkrCut_Shp_Rndr_FNL.TIF.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094227227",
+    "name": "ASIAGO CHEESE SPREAD TFM",
+    "url": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://m.media-amazon.com/images/S/assets.wholefoodsmarket.com/content/b5/68/d0e7dfed477d8afdb7234aeaab11/wfm-og-homepage-rectangle.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094243470",
+    "name": "PIMENTO CHEESE TFM",
+    "url": "https://assets.syndigo.cloud/cdn/ff673c7f-efbf-4d80-a7bf-6f10218e1291/fileType_jpg;size_600x600/ff673c7f-efbf-4d80-a7bf-6f10218e1291",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://assets.syndigo.cloud/cdn/ff673c7f-efbf-4d80-a7bf-6f10218e1291/fileType_jpg;size_600x600/ff673c7f-efbf-4d80-a7bf-6f10218e1291",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094399221",
+    "name": "KAASLANDS KANAAL CHEESE REC",
+    "url": "https://www.peacockcheese.com/catalog/cheese/holland/kaaslands-kanaal",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.peacockcheese.com/catalog/cheese/holland/kaaslands-kanaal",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00737094402808",
+    "name": "LA GRUTA DEL SOL MANCHEGO 12 MONTH",
+    "url": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "reason": ""
+  },
+  {
+    "gtin": "00737094402822",
+    "name": "LA GRUTA DEL SOL MANCHEGO 6 MONTH",
+    "url": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "reason": ""
+  },
+  {
+    "gtin": "00753633200001",
+    "name": "GOLD MEDAL LIVERWURST",
+    "url": "https://images.cdn.shoprite.com/cell/00753633200001_1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.shoprite.com/cell/00753633200001_1",
+    "reason": ""
+  },
+  {
+    "gtin": "00761657908148",
+    "name": "GOAT LOG CRANBERRY CINNAMON MONTCHEVRE",
+    "url": "https://www.gfifoods.com/media/catalog/product/m/a/mantis_mtc_8ozcrancinn_20211003-145134_ddghmvneisgakjlf.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/m/a/mantis_mtc_8ozcrancinn_20211003-145134_ddghmvneisgakjlf.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00767707001241",
+    "name": "KERRYGOLD IRISH AGED CHEDDAR",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00767707001241.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00767707001241.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00767707001388",
+    "name": "KERRYGOLD RESERVE IRISH CHEDDAR",
+    "url": "https://images.cdn.smartandfinal.com/cell/58e75c8d-8f05-47ab-800c-5267bdbb774e.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.smartandfinal.com/cell/58e75c8d-8f05-47ab-800c-5267bdbb774e.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00793573905444",
+    "name": "FARM RIDGE DILL PICKLE CHIPS",
+    "url": "https://farmridgefoods.patriotpickle.com/wp-content/uploads/2022/06/Logo-no-white-Custom.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://farmridgefoods.patriotpickle.com/wp-content/uploads/2022/06/Logo-no-white-Custom.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00810048160006",
+    "name": "DI BRUNO AN BACON HORSERADISH SPREAD",
+    "url": "https://www.gfifoods.com/media/catalog/product/8/1/810048160006_ecommerce_d6pp31eyj0xut0d4.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/8/1/810048160006_ecommerce_d6pp31eyj0xut0d4.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00813178021049",
+    "name": "CAMEMBERT LA PETITE REINE",
+    "url": "https://adamscheese.shop/wp-content/uploads/2022/07/original-14.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://adamscheese.shop/wp-content/uploads/2022/07/original-14.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00813178021346",
+    "name": "LA GRUTA DEL SOL MANCHEGO BRANDY WEDGE",
+    "url": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://i0.wp.com/lagrutadelsol.com/wp-content/uploads/2025/07/cropped-cropped-la-gruta-site-icon.png?fit=512331&ssl=1",
+    "reason": ""
+  },
+  {
+    "gtin": "00813178021681",
+    "name": "LA PETITE REINE TRUFFLE BRIE",
+    "url": "https://assets.mynetdiary.com/SystemPictures/web/i107.webp",
+    "valid": true,
+    "contentType": "image/webp",
+    "finalUrl": "https://assets.mynetdiary.com/SystemPictures/web/i107.webp",
+    "reason": ""
+  },
+  {
+    "gtin": "00817566020577",
+    "name": "LONG CLAWSON WENSLEYDALE CRANBERRY EW -",
+    "url": "https://www.gfifoods.com/media/catalog/product/c/r/crimsonwenslydalecranberry150gmain_20240320-083457_h0sunslhg48n099u.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/c/r/crimsonwenslydalecranberry150gmain_20240320-083457_h0sunslhg48n099u.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00819530021146",
+    "name": "ESTI EVRYTHG YOGURT DIP",
+    "url": "https://cooklist.com/product/esti-everything-bagel-dip-6127298",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://cooklist.com/product/esti-everything-bagel-dip-6127298",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00820581409302",
+    "name": "GERMAN CAMBOZOLA",
+    "url": "https://i.bnfcl.io/tmi-g/102177_BB-PzB7qRC.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://i.bnfcl.io/tmi-g/102177_BB-PzB7qRC.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00820581525705",
+    "name": "PRAIRIE BREEZE CHEDDAR REC",
+    "url": "https://igourmet.com/images/product/large/products/prairie-breeze-cheddar-cheese-1S-16633.jpg",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 404: Not Found"
+  },
+  {
+    "gtin": "00827615000740",
+    "name": "TOMA PROVENCE EW WEDGE",
+    "url": "https://www.gfifoods.com/media/catalog/product/t/p/tpfront_20231023-164753.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/t/p/tpfront_20231023-164753.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00850003685915",
+    "name": "BROOKLYN CURED NEW YORK STYLE HOT DOGS",
+    "url": "http://brooklyncured.com/cdn/shop/files/Brooklyn_Cured_New_York_Style_Hot_Dogs.png?v=1739841775",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://brooklyncured.com/cdn/shop/files/Brooklyn_Cured_New_York_Style_Hot_Dogs.png?v=1739841775",
+    "reason": ""
+  },
+  {
+    "gtin": "00850008209369",
+    "name": "BIG MOO ORIGINAL BAKED CHEESE",
+    "url": "https://www.instacart.com/image-server/1200x1200/www.instacart.com/assets/domains/product-image/file/large_21654768-1d4c-4116-8752-802e3cd82a1a.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://www.instacart.com/image-server/1200x1200/www.instacart.com/assets/domains/product-image/file/large_21654768-1d4c-4116-8752-802e3cd82a1a.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00850008209390",
+    "name": "BIG MOO BACON BAKED CHEESE",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00850008209390_C1C1.jpeg",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00850008209390_C1C1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00850033619058",
+    "name": "VERONI PEPPERED SALAMI",
+    "url": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F26972431-veroni-pepper-salami-4-oz",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F26972431-veroni-pepper-salami-4-oz",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00850033619225",
+    "name": "MORTADELLA W PISTACHIO VERONI",
+    "url": "https://www.myrealfood.app/es/product/856800006755",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.myrealfood.app/es/product/856800006755",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00851222005485",
+    "name": "FACE ROCK VAMPIRE SLAYER EW - REC",
+    "url": "http://facerockcreamery.com/cdn/shop/files/Face-rock-bandon-creamery-2022-web_85519d7e-44f4-4a98-8a36-452690e04705_600x600.jpg?v=1657749402",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://facerockcreamery.com/cdn/shop/files/Face-rock-bandon-creamery-2022-web_85519d7e-44f4-4a98-8a36-452690e04705_600x600.jpg?v=1657749402",
+    "reason": ""
+  },
+  {
+    "gtin": "00851222005508",
+    "name": "FACE ROCK MONTEREY JACK EW - REC",
+    "url": "http://facerockcreamery.com/cdn/shop/files/MJ_New_600x600.png?v=1749072294",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://facerockcreamery.com/cdn/shop/files/MJ_New_600x600.png?v=1749072294",
+    "reason": ""
+  },
+  {
+    "gtin": "00851222005560",
+    "name": "FACE ROCK SMOKEY CHEDDAR EW - REC",
+    "url": "https://www.gfifoods.com/media/catalog/product/8/7/8755_main_20250103_1642518_gfrpv1qxriowuhif.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/8/7/8755_main_20250103_1642518_gfrpv1qxriowuhif.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00852230003005",
+    "name": "SWISS FONDUE BOXED MIFROMA",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00852230003005.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00852230003005.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00852230003234",
+    "name": "MIFROMA SLICED SWISS RACLETTE",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00852230003234.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00852230003234.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00852230003722",
+    "name": "MIFROMA LE GRUYERE AOP EW",
+    "url": "https://www.shopkingkullen.com/product/mifroma-le-gruyre-cheese-6-oz-id-00852230003722",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://www.shopkingkullen.com/product/mifroma-le-gruyre-cheese-6-oz-id-00852230003722",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00853099004028",
+    "name": "MY THREE SONS EMMY'S ORIGINAL CHEESE SPREAD",
+    "url": "https://eurousa.com/wp-content/uploads/030479-mythreesons-emmys-original-pimento-cheese-01.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://eurousa.com/wp-content/uploads/030479-mythreesons-emmys-original-pimento-cheese-01.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00853099004042",
+    "name": "MY THREE SONS WHITE PIMENTO CHEESE",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d137d6fc-11f1-4b1a-ad59-3edad9ae3919.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d137d6fc-11f1-4b1a-ad59-3edad9ae3919.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007725",
+    "name": "VERONI CALABRESE PROVOLONE SNACK",
+    "url": "https://www.veroni.com/wp-content/uploads/2021/06/Purple-nutrition-facts.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.veroni.com/wp-content/uploads/2021/06/Purple-nutrition-facts.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007749",
+    "name": "VERONI SALAME PROVOLONE SNACK",
+    "url": "https://www.veroni.com/wp-content/uploads/2021/06/Purple-nutrition-facts.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.veroni.com/wp-content/uploads/2021/06/Purple-nutrition-facts.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007787",
+    "name": "VERONI SALAME CRANBERRY SNACK",
+    "url": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F25692280-veroni-imported-italian-mild-salame-provolone-cheese-dried-cranberries-snack-tray-2-oz",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F25692280-veroni-imported-italian-mild-salame-provolone-cheese-dried-cranberries-snack-tray-2-oz",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00854086007824",
+    "name": "VERONI APERITIME PROSCIUTTO SAL OLIVE",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00854086007824_C1N1.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00854086007824_C1N1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007848",
+    "name": "VERONI SPECK ITALIANO",
+    "url": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00854086007848.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://storage.googleapis.com/images-lnb-prd-8936dd0.lnb.prd.v8.commerce.mi9cloud.com/product-images/cell/00854086007848.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007893",
+    "name": "VERONI APERITIME PROSCIUTTO SALAME",
+    "url": "https://images.cdn.retail.brookshires.com/cell/00854086007824_C1N1.jpeg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.retail.brookshires.com/cell/00854086007824_C1N1.jpeg",
+    "reason": ""
+  },
+  {
+    "gtin": "00854086007909",
+    "name": "VERONI ANTIPASTO ITALIANO",
+    "url": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F20272070-veroni-prosciut-italiano-coppa-italiana-salami-milano-antipasti-italiano-3-5-oz",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://shopwoodmans.com/?next=%2Fstore%2Fwoodmans-food-markets%2Fproducts%2F20272070-veroni-prosciut-italiano-coppa-italiana-salami-milano-antipasti-italiano-3-5-oz",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "00855336004068",
+    "name": "LACLARE FARMS GOAT CHEDDAR",
+    "url": "https://shop.heinens.com/product/laclare-farms-goat-milk-cheddar-id-00855336004068",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00855336004457",
+    "name": "LACLARE FARMS GOAT MOZZARELLA",
+    "url": "https://cdn.hy-vee.com/products/0855336004450/CL/86327809-5c99-4ed8-818a-99b59becd2c4_large.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://cdn.hy-vee.com/products/0855336004450/CL/86327809-5c99-4ed8-818a-99b59becd2c4_large.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00855616007093",
+    "name": "ESTI HUMMUS OLIVES",
+    "url": "https://images.cdn.shoprite.com/cell/00855616007093_1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.shoprite.com/cell/00855616007093_1",
+    "reason": ""
+  },
+  {
+    "gtin": "00855616007697",
+    "name": "ESTI CRMLZ ONION HUMMUS",
+    "url": "https://shop.heinens.com/product/esti-caramelized-onion-hummus-id-00855616007697",
+    "valid": false,
+    "reason": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "gtin": "00855632006001",
+    "name": "GREEN HILL SWEET GRASS DAIRY",
+    "url": "https://sweetgrassdairy.com/cdn/shop/files/sweetgrassdairy_final_0124_600x.jpg?v=1695909765",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://sweetgrassdairy.com/cdn/shop/files/sweetgrassdairy_final_0124_600x.jpg?v=1695909765",
+    "reason": ""
+  },
+  {
+    "gtin": "00856475007262",
+    "name": "ARTIKAAS SMOKED GOAT GOUDA",
+    "url": "https://www.gfifoods.com/media/catalog/product/d/c/dcm20smoked20goat20ew20image20and20nutritionals_20220612-131217_12l6lvyae7okbwxy.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.gfifoods.com/media/catalog/product/d/c/dcm20smoked20goat20ew20image20and20nutritionals_20220612-131217_12l6lvyae7okbwxy.jpg?optimize=high&bg-color=255,255,255&fit=bounds&height=265&width=265&canvas=265:265",
+    "reason": ""
+  },
+  {
+    "gtin": "00856617004692",
+    "name": "B- JOYFULL ORIGINAL PARM CRISP",
+    "url": "http://static1.squarespace.com/static/61dcdaf886eb6b1962415280/t/69f2482e817f9972d85b5a46/1777485870393/Joyfull+Bakery+Logo.png?format=1500w",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://images.squarespace-cdn.com/content/61dcdaf886eb6b1962415280/88594157-4c0f-4841-93e2-aa1d13e3e237/Joyfull+Bakery+Logo.png?content-type=image%2Fpng",
+    "reason": ""
+  },
+  {
+    "gtin": "00856617004821",
+    "name": "B- JOYFULL EVERYTHING PARM CRISP",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_68305b17-1573-418b-87f3-0b86513b0f19.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_68305b17-1573-418b-87f3-0b86513b0f19.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00856726007034",
+    "name": "JAMON SERRANO MAESTRI",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d5cde6d0-d70a-447f-b214-1f8bd57bfb41.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_d5cde6d0-d70a-447f-b214-1f8bd57bfb41.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00856800006571",
+    "name": "PROSCIUTTO ITALIANO VERONI",
+    "url": "https://www.veroni.com/wp-content/uploads/2020/11/Italian-Prosciutto.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://www.veroni.com/wp-content/uploads/2020/11/Italian-Prosciutto.png",
+    "reason": ""
+  },
+  {
+    "gtin": "00856800006717",
+    "name": "VERONI SALAME CALABRESE",
+    "url": "https://www.veroni.com/wp-content/uploads/2026/05/MORTADELLA_2-servings_page-0001-179x300.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.veroni.com/wp-content/uploads/2026/05/MORTADELLA_2-servings_page-0001-179x300.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00856800006960",
+    "name": "SALAMI MILANO VERONI",
+    "url": "https://www.veroni.com/wp-content/uploads/2026/05/MORTADELLA_2-servings_page-0001-179x300.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://www.veroni.com/wp-content/uploads/2026/05/MORTADELLA_2-servings_page-0001-179x300.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00888313914906",
+    "name": "NATHANS BUN LENGTH FRANKS",
+    "url": "https://images.openfoodfacts.org/images/products/088/831/391/4906/front_en.11.400.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.openfoodfacts.org/images/products/088/831/391/4906/front_en.11.400.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "00891613000224",
+    "name": "OLD CROC AUSTRALIAN CHEESE SHARP",
+    "url": "https://images.cdn.shoprite.com/cell/00891613000224_1",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://images.cdn.shoprite.com/cell/00891613000224_1",
+    "reason": ""
+  },
+  {
+    "gtin": "02293771076505",
+    "name": "RICOTTA SALATA",
+    "url": "https://www.latteriavaltellina.it/files/prodotti/28/ricotta-salata.png",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://www.latteriavaltellina.it/files/prodotti/28/ricotta-salata.png",
+    "reason": ""
+  },
+  {
+    "gtin": "02813702009442",
+    "name": "GOUDA RED WAX WHEEL - REC",
+    "url": "https://static1.squarespace.com/static/5f58ecf49869192cf2a94b7f/t/5f58fda6358cae77ef30ec89/1788457919138/",
+    "valid": true,
+    "contentType": "image/gif",
+    "finalUrl": "https://images.squarespace-cdn.com/content/5f58ecf49869192cf2a94b7f/1599667622148-ZES5YDNTLT4QAIZ3YLRO/AbbeyLogo.gif?content-type=image%2Fgif",
+    "reason": ""
+  },
+  {
+    "gtin": "03254550025991",
+    "name": "BUTTER ISIGNY SEA SALT",
+    "url": "https://cdn.auchan.fr/media/A0220150318000805480PRIMARY_0x0/B2CD/?width=2048&height=2048&fit=pad&format=rw&quality=75",
+    "valid": true,
+    "contentType": "image/webp",
+    "finalUrl": "https://cdn.auchan.fr/media/A0220150318000805480PRIMARY_0x0/B2CD/?width=2048&height=2048&fit=pad&format=rw&quality=75",
+    "reason": ""
+  },
+  {
+    "gtin": "10034463016145",
+    "name": "1057 EX MATURE SCOTTISH CHEDDAR - REC",
+    "url": "https://scottishcheddarcheese.com/products/",
+    "valid": false,
+    "contentType": "text/html; charset=utf-8",
+    "finalUrl": "https://scottishcheddarcheese.com/products/",
+    "reason": "not an image response"
+  },
+  {
+    "gtin": "10643831003252",
+    "name": "MEISTER CARAWAY CHEDDAR - REC",
+    "url": "https://snarklesauce.com/blog/wp-content/uploads/2026/03/Meister-Cheese_Caraway-Cheddar_charcuterie-2.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://snarklesauce.com/blog/wp-content/uploads/2026/03/Meister-Cheese_Caraway-Cheddar_charcuterie-2.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "10827615000839",
+    "name": "POINT REYES FENNEL BLUE WEDGE - REC",
+    "url": "https://images.albertsons-media.com/is/image/ABS/971077091-ECOM?$ng-ecom-pdp-desktop$&defaultImage=Not_Available",
+    "valid": false,
+    "reason": "known placeholder"
+  },
+  {
+    "gtin": "10850003685745",
+    "name": "BROOKLYN CURED BEEF SALAMI TRIO - REC",
+    "url": "http://brooklyncured.com/cdn/shop/files/BKC_BeefSalamiTrio.png?v=1739834483",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://brooklyncured.com/cdn/shop/files/BKC_BeefSalamiTrio.png?v=1739834483",
+    "reason": ""
+  },
+  {
+    "gtin": "10851222005925",
+    "name": "FACE ROCK ONION & CHIVE CHEDDAR EW - REC",
+    "url": "http://facerockcreamery.com/cdn/shop/files/Onion_New_600x600.png?v=1749230426",
+    "valid": true,
+    "contentType": "image/png",
+    "finalUrl": "https://facerockcreamery.com/cdn/shop/files/Onion_New_600x600.png?v=1749230426",
+    "reason": ""
+  },
+  {
+    "gtin": "10858847003053",
+    "name": "BEEHIVE BARELY BUZZED WEDGE - REC",
+    "url": "https://target.scene7.com/is/image/Target/GUEST_18ca52c6-7ff4-4fdd-8745-dfa4793819c8",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://target.scene7.com/is/image/Target/GUEST_18ca52c6-7ff4-4fdd-8745-dfa4793819c8",
+    "reason": ""
+  },
+  {
+    "gtin": "18412289203741",
+    "name": "GARCIA BAQUERO SPANISH CHEESE PLATE - REC",
+    "url": "https://eurousa.com/wp-content/uploads/016601-garcia-baquero-tapas-spanish-cheese-plate-01.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://eurousa.com/wp-content/uploads/016601-garcia-baquero-tapas-spanish-cheese-plate-01.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "90827615000064",
+    "name": "POINT REYES ORIGINAL BLUE WEDGE - REC",
+    "url": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_fc0c249c-6a21-473c-a7c7-16ac9998bbd0.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://d2lnr5mha7bycj.cloudfront.net/product-image/file/large_fc0c249c-6a21-473c-a7c7-16ac9998bbd0.jpg",
+    "reason": ""
+  },
+  {
+    "gtin": "95397248657911",
+    "name": "JARLSBERG WHEEL - REC",
+    "url": "https://eurousa.com/wp-content/uploads/016001-jarlsberg-wheel-01.jpg",
+    "valid": true,
+    "contentType": "image/jpeg",
+    "finalUrl": "https://eurousa.com/wp-content/uploads/016001-jarlsberg-wheel-01.jpg",
+    "reason": ""
+  }
+]

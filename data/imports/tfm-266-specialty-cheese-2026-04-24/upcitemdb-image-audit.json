@@ -1,0 +1,770 @@
+[
+  {
+    "gtin": "00002421130038",
+    "requestedName": "NUESKE BEEF SUMMER SAUSAGE",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "98"
+  },
+  {
+    "gtin": "00002421130939",
+    "requestedName": "NUESKE SMOKED BRATWURST",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "97"
+  },
+  {
+    "gtin": "00017869805516",
+    "requestedName": "FIORUCCI JAMON SERRANO PANINO",
+    "checkedAt": "2026-10-03",
+    "status": "matched",
+    "title": "JAMON SERRANO PANINO DRY-CURED HARM WRAPPED MANCHEGO CHEESE",
+    "brand": "",
+    "images": [],
+    "remaining": "96"
+  },
+  {
+    "gtin": "00023004612659",
+    "requestedName": "ENTREMONT EMMENTAL EW",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "95"
+  },
+  {
+    "gtin": "00023004651795",
+    "requestedName": "ENTREMONT FRENCH GRUYERE EW",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142001198",
+    "requestedName": "TRIUMPH OF CHEESE BURRATA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142001525",
+    "requestedName": "BELGIOIOSO STRACCIATELLA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142004823",
+    "requestedName": "TRIUMPH OF CHEESE MOZZARELLA PEARLS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142101768",
+    "requestedName": "TRIUMPH OF CHEESE ZESTY MOZZARELLA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142309126",
+    "requestedName": "DOMESTIC PARMESAN",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142534887",
+    "requestedName": "FONTINA CHEESE SNACK BITES",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142812558",
+    "requestedName": "GORGONZOLA EW WEDGE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00031142852516",
+    "requestedName": "5 TH 4 FT SECTION \u2013 FROM LEFT BELGIOIOSO PROVOLONE EW",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00032499001077",
+    "requestedName": "DIMITRIS TRADITIONAL FETA CHEESE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00036514237540",
+    "requestedName": "ADAMS RESERVE STICK",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00036514251683",
+    "requestedName": "SMALL THREE CHEESE BLEND FLAKES",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00038101003118",
+    "requestedName": "BUSSETO ARTISAN PAPER WRAPPER-MILD",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00038101003125",
+    "requestedName": "BUSSETO ARTISAN PAPER WRAPPER-RED WINE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00038101003132",
+    "requestedName": "BUSSETO ARTISAN PAPER WRAPPER-SPICY",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00038101007314",
+    "requestedName": "BUSSETO GENOA AND PROVOLONE TRAY",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00039496001048",
+    "requestedName": "CYPRESS GROVE PSYCHEDILLIC",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00039496001079",
+    "requestedName": "CYPRESS GROVE SGT PEPPER",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00039496001086",
+    "requestedName": "CYPRESS GROVE PURPLE HAZE DISKS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00039496001116",
+    "requestedName": "CYPRESS GROVE MEYER LEMON HONEY GOAT CHEESE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00040822011242",
+    "requestedName": "SABRA ROASTED GARLIC HUMMUS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00040822017497",
+    "requestedName": "SABRA LARGE CLASSIC HUMMUS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00041757031459",
+    "requestedName": "PORT SALUT",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00041793442004",
+    "requestedName": "AMBRIOLA REGGIANO DOP GRATED BAGS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00041793518952",
+    "requestedName": "LOCATELLI SHREDDED PECORINO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00044115403035",
+    "requestedName": "CEDARS ORGANIC GARLIC HOMMUS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00044115403042",
+    "requestedName": "CEDARS ORGANIC RED PEPPER HOMMUS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00045885394011",
+    "requestedName": "TRUFFLE MOUSSE SLICE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00054783081367",
+    "requestedName": "WOOD RIVER CHEDDAR GRUYERE ORIGINAL",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00054783832105",
+    "requestedName": "WOOD RIVER GOUDA GRUYERE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00056653160004",
+    "requestedName": "ST ANDRE MINI",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00073541361220",
+    "requestedName": "ROLL & GO SPICY SALAME PROVOLONE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00074310300600",
+    "requestedName": "MARIN FRENCH PETITE CAMEMBERT",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00076306180807",
+    "requestedName": "MERKT BEER CHEESE SPREAD",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "94"
+  },
+  {
+    "gtin": "00078354719220",
+    "requestedName": "CABOT 50% REDUCED FAT WHITE CHEDDAR BAR",
+    "checkedAt": "2026-10-03",
+    "status": "matched",
+    "title": "CABOT, SHARP LIGHT CHEDDAR CHEESE",
+    "brand": "Cabot",
+    "images": [],
+    "remaining": "93"
+  },
+  {
+    "gtin": "00079813000279",
+    "requestedName": "BOURSIN SHALLOT AND CHIVE",
+    "checkedAt": "2026-10-03",
+    "status": "matched",
+    "title": "GOURNAY CHEESE",
+    "brand": "Boursin",
+    "images": [
+      "https://i5.walmartimages.com/asr/2fab3f56-2d22-4e65-a7b6-be46134e94d5_1.a74aaee9db7ad1537baddc511398aa67.jpeg?odnHeight=450&odnWidth=450&odnBg=ffffff",
+      "https://i5.walmartimages.ca/images/Enlarge/937/885/6000209937885.jpg?skipOpt=1",
+      "https://target.scene7.com/is/image/Target/GUEST_110f4800-9a3d-4af0-9546-794a385a3cec?wid=1000&hei=1000"
+    ],
+    "remaining": "92"
+  },
+  {
+    "gtin": "00084892026393",
+    "requestedName": "LE ROULE HERB",
+    "checkedAt": "2026-10-03",
+    "status": "matched",
+    "title": "CREAMY AND SPREADABLE GOURMET CHEESE",
+    "brand": "Le Roule",
+    "images": [],
+    "remaining": "91"
+  },
+  {
+    "gtin": "00089991164366",
+    "requestedName": "PLAINVILLE SLICED OR CHICKEN BREAST",
+    "checkedAt": "2026-10-03",
+    "status": "matched",
+    "title": "OVEN ROASTED CHICKEN BREAST",
+    "brand": "",
+    "images": [],
+    "remaining": "90"
+  },
+  {
+    "gtin": "00089991517254",
+    "requestedName": "TFM SLC HNY RSTD TRKY",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "89"
+  },
+  {
+    "gtin": "00089991517261",
+    "requestedName": "TFM SLC HNY MPL HAM",
+    "checkedAt": "2026-10-03",
+    "status": "not_found",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00089991517292",
+    "requestedName": "TFM SLC OV RST TKY",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00089991517308",
+    "requestedName": "TFM SLC HKRY SMK TRKY",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00089991517315",
+    "requestedName": "TFM SLC BLK FOREST HAM",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00195463000022",
+    "requestedName": "JUST FOR CHEESE RASPBERRY ROSE PETAL",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00195463000039",
+    "requestedName": "JUST FOR CHEESE BLACK FIG MACADAMIA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00195463000053",
+    "requestedName": "JUST FOR CHEESE GOLDEN APPLE PISTACHIO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00195463000077",
+    "requestedName": "JUST FOR CHEESE QUINCE MADAGASCAR VANILLA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201184000002",
+    "requestedName": "ST ANDRE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201316000009",
+    "requestedName": "HUMBOLDT FOG",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201368000002",
+    "requestedName": "STILTON MANGO GINGER",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201377000000",
+    "requestedName": "MIDNIGHT MOON",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201582000000",
+    "requestedName": "AURRICHIO PROVOLONE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201697000001",
+    "requestedName": "GOAT GOUDA",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201938000005",
+    "requestedName": "TAKE & BAKE BRIE STRAWBERRY WALNUT (SERVES",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201951000006",
+    "requestedName": "DRUNKEN GOAT",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201957000000",
+    "requestedName": "TAKE & BAKE BRIE APRICOT ALMOND (SERVES 4-6)",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00201969000005",
+    "requestedName": "TAKE & BAKE BRIE RASPBERRY ALMOND (SERVES 4-6)",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211249000007",
+    "requestedName": "MAYTAG BLUE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211260000000",
+    "requestedName": "ST ANGEL",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211331000007",
+    "requestedName": "DOMESTIC PARMESAN GRATED BELGIOSO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211334000004",
+    "requestedName": "PARMIGIANO REGGIANO GRATED 2121",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211343000002",
+    "requestedName": "FETA CRUMBLES",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211347000008",
+    "requestedName": "DOMESTIC PARMESAN SHAVED",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211483000009",
+    "requestedName": "CUBED SWISS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211484000008",
+    "requestedName": "CUBED CHEDDAR",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211637000008",
+    "requestedName": "CAMPO DE MONTALBAN",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211640000002",
+    "requestedName": "ST. PETES BLUE CHEESE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211650000009",
+    "requestedName": "CUBED PEPPER JACK",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211689000001",
+    "requestedName": "WHITE AMERICAN - GRAB & GO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211693000004",
+    "requestedName": "PROVOLONE - GRAB & GO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211694000003",
+    "requestedName": "SWISS DOMESTIC SANDWICH - GRAB & GO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211712000008",
+    "requestedName": "FLORETTE GOAT BRIE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211717000003",
+    "requestedName": "BLUE VALDEON",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211740000001",
+    "requestedName": "TFM CHEDDAR",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211808000004",
+    "requestedName": "DANISH BLUE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211837000006",
+    "requestedName": "DELICE DE FRANCE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211838000005",
+    "requestedName": "CHAMPIGNON MUSHROOM",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211860000004",
+    "requestedName": "FROMAGE D'AFFINOIS",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211868000006",
+    "requestedName": "FROMAGER D'AFFINOS BLUE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211930000002",
+    "requestedName": "FROMAGERD'AFFINOIS TRUFFLE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00211978000002",
+    "requestedName": "HAM BLACK FOREST - GRAB & GO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221102000006",
+    "requestedName": "SNACK TRAY HERBED SALAMI AND CHEESE (9 OZ)",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221185000009",
+    "requestedName": "SNACK TRAY CAPRESE (13 OZ)",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221186000008",
+    "requestedName": "SNACK TRAY CHEESE AND FRUIT (11 OZ)",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221228000003",
+    "requestedName": "SMOKIN GOAT WHEEL",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221235000003",
+    "requestedName": "KRETSCHMAR HONEY TURKEY - GRAB & GO",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221237000001",
+    "requestedName": "KRETSCHMAR HICKORY SMOKED TURKEY - GRAB &",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00221238000000",
+    "requestedName": "KRETSCHMAR SLOW ROASTED TURKEY - GRAB & G",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00604262013282",
+    "requestedName": "GOUDA SMOKED BAR KOSHER",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00633622555728",
+    "requestedName": "YANCEYS JALAPENO CHEDDAR WEDGE",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  },
+  {
+    "gtin": "00633622555858",
+    "requestedName": "YANCEYS FINGER LAKE CHAMPAGNE CHEDDAR W",
+    "checkedAt": "2026-10-03",
+    "status": "failed",
+    "error": "HTTPError: HTTP Error 429: Too Many Requests",
+    "remaining": "88"
+  }
+]

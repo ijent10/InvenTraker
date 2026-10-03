@@ -1,0 +1,264 @@
+[
+  {
+    "query": "bratwurst cooked",
+    "result": {
+      "fdcId": 172957,
+      "description": "Bratwurst, chicken, cooked",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 56,
+      "servingSize": "2 oz (56 g)",
+      "caloriesKcal": 413.28,
+      "fatG": 5.82,
+      "saturatedFatG": null,
+      "carbohydratesG": 0.0,
+      "fiberG": 0.0,
+      "sugarsG": 0.0,
+      "proteinG": 10.86,
+      "sodiumMg": 40.32
+    }
+  },
+  {
+    "query": "cheese blue",
+    "result": {
+      "fdcId": 172175,
+      "description": "Cheese, blue",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 414.4,
+      "fatG": 8.04,
+      "saturatedFatG": 5.24,
+      "carbohydratesG": 0.66,
+      "fiberG": 0.0,
+      "sugarsG": 0.14,
+      "proteinG": 5.99,
+      "sodiumMg": 322.0
+    }
+  },
+  {
+    "query": "cheese brie",
+    "result": {
+      "fdcId": 172177,
+      "description": "Cheese, brie",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 392.0,
+      "fatG": 7.76,
+      "saturatedFatG": 4.87,
+      "carbohydratesG": 0.13,
+      "fiberG": 0.0,
+      "sugarsG": 0.13,
+      "proteinG": 5.82,
+      "sodiumMg": 176.12
+    }
+  },
+  {
+    "query": "cheese camembert",
+    "result": {
+      "fdcId": 172178,
+      "description": "Cheese, camembert",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 84.0,
+      "fatG": 6.8,
+      "saturatedFatG": 4.28,
+      "carbohydratesG": 0.13,
+      "fiberG": 0.0,
+      "sugarsG": 0.13,
+      "proteinG": 5.54,
+      "sodiumMg": 235.76
+    }
+  },
+  {
+    "query": "cheese cheddar",
+    "result": {
+      "fdcId": 328637,
+      "description": "Cheese, cheddar",
+      "dataType": "Foundation",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 478.8,
+      "fatG": 9.52,
+      "saturatedFatG": 5.38,
+      "carbohydratesG": 0.68,
+      "fiberG": null,
+      "sugarsG": null,
+      "proteinG": 6.52,
+      "sodiumMg": 183.12
+    }
+  },
+  {
+    "query": "cheese colby",
+    "result": {
+      "fdcId": 173416,
+      "description": "Cheese, colby",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 462.0,
+      "fatG": 8.99,
+      "saturatedFatG": 5.66,
+      "carbohydratesG": 0.72,
+      "fiberG": 0.0,
+      "sugarsG": 0.15,
+      "proteinG": 6.66,
+      "sodiumMg": 169.12
+    }
+  },
+  {
+    "query": "cheese crisps",
+    "result": {
+      "fdcId": 173140,
+      "description": "Snacks, soy chips or crisps, salted",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 107.8,
+      "fatG": 2.06,
+      "saturatedFatG": 0.31,
+      "carbohydratesG": 14.9,
+      "fiberG": 0.98,
+      "sugarsG": 0.5,
+      "proteinG": 7.42,
+      "sodiumMg": 235.76
+    }
+  },
+  {
+    "query": "cheese feta",
+    "result": {
+      "fdcId": 2259796,
+      "description": "Cheese, feta, whole milk, crumbled",
+      "dataType": "Foundation",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 76.44,
+      "fatG": 5.35,
+      "saturatedFatG": 3.14,
+      "carbohydratesG": 1.56,
+      "fiberG": null,
+      "sugarsG": null,
+      "proteinG": 5.52,
+      "sodiumMg": 288.4
+    }
+  },
+  {
+    "query": "cheese goat soft",
+    "result": {
+      "fdcId": 173435,
+      "description": "Cheese, goat, soft type",
+      "dataType": "SR Legacy",
+      "servingWeightGrams": 28,
+      "servingSize": "1 oz (28 g)",
+      "caloriesKcal": 310.8,
+      "fatG": 5.91,
+      "saturatedFatG": 4.09,
+      "carbohydratesG": 0.0,
+      "fiberG": 0.0,
+      "sugarsG": 0.0,
+      "proteinG": 5.18,
+      "sodiumMg": 128.52
+    }
+  },
+  {
+    "query": "cheese gouda",
+    "result": null
+  },
+  {
+    "query": "cheese gruyere",
+    "result": null
+  },
+  {
+    "query": "cheese manchego",
+    "result": null
+  },
+  {
+    "query": "cheese monterey jack",
+    "result": null
+  },
+  {
+    "query": "cheese mozzarella whole milk",
+    "result": null
+  },
+  {
+    "query": "cheese muenster",
+    "result": null
+  },
+  {
+    "query": "cheese natural",
+    "result": null
+  },
+  {
+    "query": "cheese parmesan hard",
+    "result": null
+  },
+  {
+    "query": "cheese provolone",
+    "result": null
+  },
+  {
+    "query": "cheese spread",
+    "result": null
+  },
+  {
+    "query": "cheese swiss",
+    "result": null
+  },
+  {
+    "query": "crackers cheese",
+    "result": null
+  },
+  {
+    "query": "frankfurter beef",
+    "result": null
+  },
+  {
+    "query": "ham sliced deli meat",
+    "result": null
+  },
+  {
+    "query": "hummus prepared",
+    "result": null
+  },
+  {
+    "query": "kielbasa cooked",
+    "result": null
+  },
+  {
+    "query": "mortadella",
+    "result": null
+  },
+  {
+    "query": "pate liver",
+    "result": null
+  },
+  {
+    "query": "pepperoni sliced",
+    "result": null
+  },
+  {
+    "query": "pickles cucumber dill",
+    "result": null
+  },
+  {
+    "query": "prosciutto",
+    "result": null
+  },
+  {
+    "query": "salami cooked beef and pork",
+    "result": null
+  },
+  {
+    "query": "salami dry",
+    "result": null
+  },
+  {
+    "query": "sausage smoked",
+    "result": null
+  },
+  {
+    "query": "turkey breast deli meat",
+    "result": null
+  }
+]

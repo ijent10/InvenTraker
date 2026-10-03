@@ -24,5 +24,16 @@
     "productsWithImages": 116,
     "productsWithNutrition": 178,
     "variableMeasureProductsWithScalableNutrition": 57
+  },
+  "enrichment": {
+    "auditedAt": "2026-10-03",
+    "products": 331,
+    "withCalories": 331,
+    "withServingWeight": 331,
+    "withVerifiedImages": 120,
+    "exactProductNutrition": 48,
+    "matchedProductNutrition": 34,
+    "nutritionLabelOcr": 11,
+    "representativeNutrition": 238
   }
 }

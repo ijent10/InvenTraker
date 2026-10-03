@@ -283,7 +283,7 @@ struct SpotCheckView: View {
     }
 
     private func selectScannedItem(_ code: String) {
-        guard let item = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) else {
+        guard let item = session.inventory.first(where: { $0.matchesBarcode(code) }) else {
             error = "No existing portal item matches this barcode or SKU."
             return
         }
@@ -421,7 +421,7 @@ struct RestockView: View {
     }
 
     private func addScannedItem(_ code: String) {
-        guard let item = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) else {
+        guard let item = session.inventory.first(where: { $0.matchesBarcode(code) }) else {
             error = "No existing portal item matches this barcode or SKU."
             return
         }
@@ -514,7 +514,7 @@ struct WasteView: View {
     }
 
     private func selectScannedItem(_ code: String) {
-        guard let item = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) else {
+        guard let item = session.inventory.first(where: { $0.matchesBarcode(code) }) else {
             error = "No existing portal item matches this barcode or SKU."
             return
         }
@@ -618,7 +618,7 @@ struct ReceivingView: View {
     }
 
     private func selectScannedItem(_ code: String) {
-        guard let item = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) else {
+        guard let item = session.inventory.first(where: { $0.matchesBarcode(code) }) else {
             error = "No existing portal item matches this barcode or SKU."
             return
         }
@@ -931,7 +931,7 @@ struct ItemPickerView: View {
         }
         .sheet(isPresented: $scanEntry) {
             ScanEntryView { code in
-                if let match = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) {
+                if let match = session.inventory.first(where: { $0.matchesBarcode(code) }) {
                     onSelect(match)
                     dismiss()
                 } else {

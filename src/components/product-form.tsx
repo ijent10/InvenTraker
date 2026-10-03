@@ -90,7 +90,13 @@ export function ProductForm({
           allergens: textField(formData, "nutritionAllergens"),
           labels: textField(formData, "nutritionLabels"),
           imageUrl: textField(formData, "nutritionImageUrl"),
-          sourceSummary: textField(formData, "nutritionSourceSummary")
+          sourceSummary: textField(formData, "nutritionSourceSummary"),
+          sourceUrl: product?.nutrition?.sourceUrl,
+          servingWeightGrams: product?.nutrition?.servingWeightGrams,
+          basisAmount: product?.nutrition?.basisAmount,
+          basisUnit: product?.nutrition?.basisUnit,
+          scalableByWeight: product?.nutrition?.scalableByWeight,
+          dataKind: product?.nutrition?.dataKind
         })
       : {}
     const displayAssignment = isOnDisplay

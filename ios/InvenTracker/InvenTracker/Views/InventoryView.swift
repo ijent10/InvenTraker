@@ -34,7 +34,7 @@ struct InventoryView: View {
         }
         .sheet(isPresented: $scanEntry) {
             ScanEntryView { code in
-                search = code
+                search = session.inventory.first(where: { $0.matchesBarcode(code) })?.name ?? code
                 scanEntry = false
             }
         }
@@ -70,6 +70,7 @@ struct InventoryRow: View {
 struct InventoryDetailView: View {
     @EnvironmentObject private var session: AppSession
     let item: InventoryItem
+    @State private var nutritionAmount = 0.25
     private var batches: [InventoryBatch] {
         session.batches
             .filter { $0.itemId == item.id && $0.remainingQuantity > 0 }
@@ -151,6 +152,21 @@ struct InventoryDetailView: View {
                             }
                         }
                     }
+                }
+            }
+            if let nutrition = item.nutrition, nutrition.servingWeightGrams > 0 {
+                Section("Nutrition for cut weight") {
+                    Stepper("Cut: \(nutritionAmount.formatted(.number.precision(.fractionLength(2)))) \(item.unit)", value: $nutritionAmount, in: 0...100, step: item.unit == "pounds" ? 0.05 : 0.25)
+                    let grams = item.unit == "pounds" ? nutritionAmount * 453.59237 : item.unit == "ounces" ? nutritionAmount * 28.349523125 : nutritionAmount
+                    let servings = grams / nutrition.servingWeightGrams
+                    LabeledContent("Serving basis", value: nutrition.servingSize)
+                    LabeledContent("Servings", value: servings.formatted(.number.precision(.fractionLength(2))))
+                    if let calories = nutrition.caloriesKcal { LabeledContent("Calories", value: (calories * servings).formatted(.number.precision(.fractionLength(0)))) }
+                    if let fat = nutrition.fatG { LabeledContent("Fat", value: "\((fat * servings).formatted(.number.precision(.fractionLength(1)))) g") }
+                    if let carbs = nutrition.carbohydratesG { LabeledContent("Carbohydrates", value: "\((carbs * servings).formatted(.number.precision(.fractionLength(1)))) g") }
+                    if let protein = nutrition.proteinG { LabeledContent("Protein", value: "\((protein * servings).formatted(.number.precision(.fractionLength(1)))) g") }
+                    if let sodium = nutrition.sodiumMg { LabeledContent("Sodium", value: "\((sodium * servings).formatted(.number.precision(.fractionLength(0)))) mg") }
+                    if nutrition.dataKind == "representative_product_type" { Text("Representative values for this cut product type.").font(.caption).foregroundStyle(.secondary) }
                 }
             }
         }

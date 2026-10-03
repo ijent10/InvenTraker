@@ -498,6 +498,7 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
     let expires: Bool
     let status: String
     let revision: Int
+    let nutrition: ProductNutrition?
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: DynamicKey.self)
@@ -519,6 +520,45 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
         expires = values.bool("expires")
         status = values.string("status", fallback: "Active")
         revision = Int(values.double("revision"))
+        nutrition = values.decode(ProductNutrition.self, "nutrition")
+    }
+
+    func matchesBarcode(_ scanned: String) -> Bool {
+        let left = sku.filter(\.isNumber)
+        let right = scanned.filter(\.isNumber)
+        if left.caseInsensitiveCompare(right) == .orderedSame { return true }
+        let storedUPC = String(left.suffix(12))
+        let scannedUPC = String(right.suffix(12))
+        return storedUPC.count == 12 && scannedUPC.count == 12 && storedUPC.first == "2" && scannedUPC.first == "2" && storedUPC.prefix(6) == scannedUPC.prefix(6)
+    }
+}
+
+struct ProductNutrition: Decodable, Hashable {
+    let servingSize: String
+    let servingWeightGrams: Double
+    let caloriesKcal: Double?
+    let fatG: Double?
+    let saturatedFatG: Double?
+    let carbohydratesG: Double?
+    let sugarsG: Double?
+    let fiberG: Double?
+    let proteinG: Double?
+    let sodiumMg: Double?
+    let dataKind: String
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: DynamicKey.self)
+        servingSize = values.string("servingSize")
+        servingWeightGrams = values.double("servingWeightGrams")
+        caloriesKcal = values.optionalDouble("caloriesKcal")
+        fatG = values.optionalDouble("fatG")
+        saturatedFatG = values.optionalDouble("saturatedFatG")
+        carbohydratesG = values.optionalDouble("carbohydratesG")
+        sugarsG = values.optionalDouble("sugarsG")
+        fiberG = values.optionalDouble("fiberG")
+        proteinG = values.optionalDouble("proteinG")
+        sodiumMg = values.optionalDouble("sodiumMg")
+        dataKind = values.string("dataKind")
     }
 }
 
@@ -790,6 +830,12 @@ private extension KeyedDecodingContainer where Key == DynamicKey {
         if let value = try? decodeIfPresent(Double.self, forKey: DynamicKey(key)) { return value }
         if let value = try? decodeIfPresent(Int.self, forKey: DynamicKey(key)) { return Double(value) }
         return fallback
+    }
+
+    func optionalDouble(_ key: String) -> Double? {
+        if let value = try? decodeIfPresent(Double.self, forKey: DynamicKey(key)) { return value }
+        if let value = try? decodeIfPresent(Int.self, forKey: DynamicKey(key)) { return Double(value) }
+        return nil
     }
 
     func bool(_ key: String, fallback: Bool = false) -> Bool {

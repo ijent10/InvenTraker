@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft, Pencil } from "lucide-react"
 
 import { InventoryForm } from "@/components/inventory-form"
+import { NutritionCalculator } from "@/components/nutrition-calculator"
 import { PageHeader } from "@/components/page-header"
 import { PermissionGate } from "@/components/permission-gate"
 import { ButtonLink, Panel, StatusPill } from "@/components/ui"
@@ -124,6 +125,8 @@ export default async function EditInventoryItemPage({
           </div>
         </Panel>
       </div>
+
+      {!editing && item.nutrition?.servingWeightGrams ? <NutritionCalculator nutrition={item.nutrition} organizationUnit={item.unit} /> : null}
 
       {!editing && item.expires ? (
         <Panel className="mt-6 p-4">

@@ -43,6 +43,9 @@ export type InventoryItem = {
   expires: boolean
   status: "Active" | "Low" | "Archived"
   revision?: number
+  nutrition?: ProductNutritionInfo
+  hasNutritionInfo?: boolean
+  variableMeasure?: VariableMeasureInfo
 }
 
 export type InventoryBatch = {
@@ -170,6 +173,24 @@ export type ProductNutritionInfo = {
   labels?: string
   imageUrl?: string
   sourceSummary?: string
+  sourceUrl?: string
+  servingWeightGrams?: number
+  basisAmount?: number
+  basisUnit?: "serving" | "100g"
+  scalableByWeight?: boolean
+  dataKind?: "exact_product" | "matched_product" | "representative_product_type"
+}
+
+export type VariableMeasureInfo = {
+  isVariableMeasure: boolean
+  symbology?: string
+  rcnPrefix?: string
+  itemReference?: string
+  lookupPrefix?: string
+  priceVerifierDigitPosition?: number
+  embeddedPriceDigits?: number
+  encodedValue?: "price" | "weight"
+  placeholderBarcode?: string
 }
 
 export type ProductDisplayAssignment = {

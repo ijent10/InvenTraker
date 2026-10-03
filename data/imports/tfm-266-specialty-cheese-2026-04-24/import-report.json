@@ -1,0 +1,28 @@
+{
+  "store": {
+    "id": "Thev6hRLBvEFZnpf18PU",
+    "code": "266",
+    "name": "The Fresh Market \u2014 Pittsburgh #266",
+    "address": "5880 Centre Ave., Pittsburgh, PA 15206",
+    "phone": "412-704-6014"
+  },
+  "sourceDocument": "5 Deck 24 ft Charcuterie and Artisan Cheese Wall Planogram",
+  "sourceDate": "2026-04-24",
+  "preparedAt": "2026-10-03T04:58:11.839Z",
+  "uniqueProducts": 331,
+  "variableMeasureProducts": 57,
+  "exactBarcodeEnrichments": 11,
+  "pendingSourceEnrichments": 320,
+  "writePlan": {
+    "centralCatalog": 331,
+    "organizationProducts": 331,
+    "storeProductDetails": 331,
+    "inventory": 331
+  },
+  "webResearch": {
+    "corroboratedSources": 250,
+    "productsWithImages": 116,
+    "productsWithNutrition": 178,
+    "variableMeasureProductsWithScalableNutrition": 57
+  }
+}

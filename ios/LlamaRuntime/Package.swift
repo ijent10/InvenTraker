@@ -4,7 +4,10 @@ import PackageDescription
 let package = Package(
     name: "LlamaRuntime",
     platforms: [.iOS(.v17), .macOS(.v14)],
-    products: [.library(name: "LlamaRuntime", targets: ["LlamaRuntime"])],
+    products: [
+        .library(name: "LlamaRuntime", targets: ["LlamaRuntime"]),
+        .library(name: "LlamaFramework", targets: ["LlamaFramework"])
+    ],
     targets: [
         .binaryTarget(
             name: "LlamaFramework",

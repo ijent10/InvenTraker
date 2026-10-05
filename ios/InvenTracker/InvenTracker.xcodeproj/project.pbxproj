@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A20000000000000000000003 /* LlamaRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* LlamaRuntime */; };
+		A20000000000000000000005 /* LlamaFramework in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* LlamaFramework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000003 /* LlamaRuntime in Frameworks */,
+				A20000000000000000000005 /* LlamaFramework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 			name = InvenTracker;
 			packageProductDependencies = (
 				A20000000000000000000002 /* LlamaRuntime */,
+				A20000000000000000000004 /* LlamaFramework */,
 			);
 			productName = InvenTracker;
 			productReference = A10000000000000000000001 /* InvenTracker.app */;
@@ -194,6 +197,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan product barcodes for spot checks, receiving, restocks, transfers, and discards.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -222,6 +226,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan product barcodes for spot checks, receiving, restocks, transfers, and discards.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -267,6 +272,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */;
 			productName = LlamaRuntime;
+		};
+		A20000000000000000000004 /* LlamaFramework */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */;
+			productName = LlamaFramework;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

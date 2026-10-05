@@ -208,6 +208,37 @@ actor APIClient {
         return envelope.data.chats
     }
 
+    func assistantModelManifest() async throws -> AssistantModelManifest {
+        let envelope: APIEnvelope<AssistantModelManifest> = try await send(path: "/api/mobile/v1/assistant/model")
+        return envelope.data
+    }
+
+    func assistantBusinessContext() async throws -> AssistantContextPayload {
+        let envelope: APIEnvelope<AssistantContextPayload> = try await send(path: "/api/mobile/v1/assistant/context")
+        return envelope.data
+    }
+
+    func downloadAssistantModel(from remoteURL: URL) async throws -> URL {
+        var session = try await validSession()
+        func download(_ token: String) async throws -> (URL, HTTPURLResponse) {
+            var request = URLRequest(url: remoteURL)
+            request.timeoutInterval = 1800
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let (url, response) = try await URLSession.shared.download(for: request)
+            guard let http = response as? HTTPURLResponse else { throw APIClientError.invalidResponse }
+            return (url, http)
+        }
+        var result = try await download(session.idToken)
+        if result.1.statusCode == 401 {
+            session = try await refresh(session)
+            result = try await download(session.idToken)
+        }
+        guard (200..<300).contains(result.1.statusCode) else {
+            throw APIClientError.server("model_download_failed", "The on-device model could not be downloaded.")
+        }
+        return result.0
+    }
+
     func askAssistant(question: String, history: [AssistantHistoryLine]) async throws -> AssistantAnswer {
         try await send(path: "/api/ai/ask", method: "POST", body: AssistantAskRequest(question: question, history: history))
     }

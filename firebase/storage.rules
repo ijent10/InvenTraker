@@ -24,6 +24,11 @@ service firebase.storage {
       allow read, write: if platformAdmin();
     }
 
+    match /models/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if platformAdmin();
+    }
+
     match /orgs/{orgId}/public/{allPaths=**} {
       allow read: if true;
       allow write: if platformAdmin() || orgMember(orgId);

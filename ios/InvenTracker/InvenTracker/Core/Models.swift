@@ -64,6 +64,47 @@ struct AssistantHistoryLine: Encodable { let role: String; let text: String }
 struct AssistantAskRequest: Encodable { let question: String; let history: [AssistantHistoryLine] }
 struct AssistantAnswer: Decodable { let answer: String; let recommendedActions: [String] }
 struct AssistantDeleteResult: Decodable { let deleted: Bool }
+struct AssistantModelManifest: Decodable {
+    let id: String
+    let name: String
+    let downloadURL: String
+    let sha256: String
+    let bytes: Int64
+}
+struct AssistantContextPayload: Decodable {
+    let generatedAt: String
+    let privacy: String
+    let sections: [AssistantContextSection]
+}
+struct AssistantContextSection: Decodable {
+    let name: String
+    let records: [[String: JSONValue]]
+}
+enum JSONValue: Codable, Hashable {
+    case string(String), number(Double), boolean(Bool), object([String: JSONValue]), array([JSONValue]), null
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        if value.decodeNil() { self = .null }
+        else if let decoded = try? value.decode(Bool.self) { self = .boolean(decoded) }
+        else if let decoded = try? value.decode(Double.self) { self = .number(decoded) }
+        else if let decoded = try? value.decode(String.self) { self = .string(decoded) }
+        else if let decoded = try? value.decode([String: JSONValue].self) { self = .object(decoded) }
+        else { self = .array(try value.decode([JSONValue].self)) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var value = encoder.singleValueContainer()
+        switch self {
+        case .string(let item): try value.encode(item)
+        case .number(let item): try value.encode(item)
+        case .boolean(let item): try value.encode(item)
+        case .object(let item): try value.encode(item)
+        case .array(let item): try value.encode(item)
+        case .null: try value.encodeNil()
+        }
+    }
+}
 
 struct WorkspaceBootstrap: Decodable {
     let session: WorkspaceSession
@@ -127,6 +168,7 @@ struct MobileObservability: Decodable {
 
 enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     case work
+    case assistant
     case inventory
     case spotCheck
     case restock
@@ -143,6 +185,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     var title: String {
         switch self {
         case .work: "Work Center"
+        case .assistant: "Assistant"
         case .inventory: "Inventory"
         case .spotCheck: "Spot Check"
         case .restock: "Restock"
@@ -159,6 +202,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     var tabTitle: String {
         switch self {
         case .work: "Quick work"
+        case .assistant: "Assistant"
         case .inventory: "Inventory"
         case .spotCheck: "Spot check"
         case .restock: "Restock"
@@ -175,6 +219,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     var detail: String {
         switch self {
         case .work: "Choose a task whenever you open this tab."
+        case .assistant: "Chat privately with your on-device business assistant."
         case .inventory: "Browse stock already set up in the portal."
         case .spotCheck: "Count floor and backstock as you work."
         case .restock: "Calculate what to pull to the sales floor."
@@ -191,6 +236,7 @@ enum WorkShortcut: String, CaseIterable, Identifiable, Codable {
     var icon: String {
         switch self {
         case .work: "square.grid.2x2.fill"
+        case .assistant: "bubble.left.and.bubble.right.fill"
         case .inventory: "shippingbox.fill"
         case .spotCheck: "viewfinder"
         case .restock: "arrow.triangle.2.circlepath"

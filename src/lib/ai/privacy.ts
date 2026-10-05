@@ -21,9 +21,10 @@ export const assistantPrivacyContract =
   "The assistant may use product, inventory, organization, store, import, training, approved internal document, store-resource, and approved web verification data. It must not receive or infer personal identifying information, authentication data, employee identifiers, task-owner history, restricted HR/payroll/discipline records, or private billing identifiers."
 
 const blockedAssistantKeys = new Set([
-  "actor", "actorid", "actoruid", "approvedby", "assignedto", "assignee", "auth", "createdby",
-  "email", "employeeid", "password", "permissions", "phone", "phonenumber", "session", "submittedby",
-  "taskowner", "token", "uid", "updatedby", "userid", "username"
+  "actor", "actorid", "actoruid", "approvedby", "approvedbyname", "assignedto", "assignee", "assigneename", "auth",
+  "badgeid", "badgenumber", "completedby", "completedbyname", "createdby", "email", "employeeid", "employeename",
+  "firstname", "fullname", "lastname", "membername", "password", "permissions", "phone", "phonenumber", "session",
+  "staffname", "submittedby", "submittedbyname", "taskowner", "token", "uid", "updatedby", "userid", "username"
 ])
 
 function normalizedAssistantKey(key: string) {

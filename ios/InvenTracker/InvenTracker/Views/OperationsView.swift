@@ -8,6 +8,8 @@ struct WorkShortcutHostView: View {
             switch shortcut {
             case .work:
                 OperationsView()
+            case .assistant:
+                AssistantChatView()
             case .inventory:
                 InventoryView()
             case .spotCheck:
@@ -92,6 +94,8 @@ struct OperationsView: View {
 
     private func color(for module: WorkShortcut) -> Color {
         switch module {
+        case .assistant:
+            Color.teal
         case .inventory:
             session.theme.accentColor
         case .spotCheck:

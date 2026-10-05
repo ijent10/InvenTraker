@@ -6,6 +6,10 @@
 	objectVersion = 71;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A20000000000000000000003 /* LlamaRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* LlamaRuntime */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* InvenTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InvenTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -29,6 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000003 /* LlamaRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +76,7 @@
 			);
 			name = InvenTracker;
 			packageProductDependencies = (
+				A20000000000000000000002 /* LlamaRuntime */,
 			);
 			productName = InvenTracker;
 			productReference = A10000000000000000000001 /* InvenTracker.app */;
@@ -102,6 +108,9 @@
 			mainGroup = A10000000000000000000004;
 			minimizedProjectReferenceProxies = 1;
 			productRefGroup = A10000000000000000000005 /* Products */;
+			packageReferences = (
+				A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -245,6 +254,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../LlamaRuntime;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A20000000000000000000002 /* LlamaRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */;
+			productName = LlamaRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1000000000000000000000A /* Project object */;
 }

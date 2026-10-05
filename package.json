@@ -26,6 +26,8 @@
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs"
   },
   "dependencies": {
+    "@emnapi/runtime": "1.11.3",
+    "@opentelemetry/api": "1.9.1",
     "@types/pdf-parse": "^1.1.5",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.4.0",

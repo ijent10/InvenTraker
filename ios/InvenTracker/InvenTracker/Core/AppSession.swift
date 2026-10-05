@@ -19,6 +19,7 @@ final class AppSession: ObservableObject {
     @Published var toast: String?
     @Published var isWorking = false
     @Published var assistantChats: [AssistantChat] = []
+    let onDeviceAssistant = OnDeviceAssistant()
 
     private let api = APIClient()
     private let localPreferencesKey = "inventraker.mobile-preferences.v2"
@@ -36,7 +37,7 @@ final class AppSession: ObservableObject {
     var canSubmitOrders: Bool { capabilities.canSubmitOrders }
     var canViewHealthChecks: Bool { capabilities.canViewHealthChecks }
     var canViewInsights: Bool { capabilities.canViewInsights }
-    var hasWorkAccess: Bool { canViewInventory || canUpdateInventory || canViewOrders || canViewHealthChecks || canViewInsights }
+    var hasWorkAccess: Bool { true }
     var workShortcut: WorkShortcut {
         mobilePreferences.workShortcut != .work && canUseWorkShortcut(mobilePreferences.workShortcut)
             ? mobilePreferences.workShortcut
@@ -169,9 +170,9 @@ final class AppSession: ObservableObject {
         chat.updatedAt = timestamp
         if let index { assistantChats[index] = chat } else { assistantChats.insert(chat, at: 0) }
         try await api.saveAssistantChat(chat)
-        let answer = try await api.askAssistant(question: text, history: chat.messages.suffix(12).map { AssistantHistoryLine(role: $0.role, text: $0.text) })
+        let answer = try await onDeviceAssistant.answer(question: text, history: Array(chat.messages.dropLast().suffix(8)))
         let answeredAt = ISO8601DateFormatter().string(from: Date())
-        chat.messages.append(AssistantMessage(id: UUID().uuidString.lowercased(), role: "assistant", text: answer.answer + (answer.recommendedActions.isEmpty ? "" : "\n\nNext steps\n" + answer.recommendedActions.prefix(3).map { "• \($0)" }.joined(separator: "\n")), createdAt: answeredAt))
+        chat.messages.append(AssistantMessage(id: UUID().uuidString.lowercased(), role: "assistant", text: answer, createdAt: answeredAt))
         chat.updatedAt = answeredAt
         if let savedIndex = assistantChats.firstIndex(where: { $0.id == chat.id }) { assistantChats[savedIndex] = chat }
         try await api.saveAssistantChat(chat)
@@ -210,6 +211,8 @@ final class AppSession: ObservableObject {
         switch shortcut {
         case .work:
             hasWorkAccess
+        case .assistant:
+            true
         case .inventory:
             canViewInventory
         case .spotCheck, .restock, .receiving, .waste, .transfer, .portion:

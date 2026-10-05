@@ -18,6 +18,7 @@ final class AppSession: ObservableObject {
     @Published var selectedStoreId = ""
     @Published var toast: String?
     @Published var isWorking = false
+    @Published var assistantChats: [AssistantChat] = []
 
     private let api = APIClient()
     private let localPreferencesKey = "inventraker.mobile-preferences.v2"
@@ -153,6 +154,33 @@ final class AppSession: ObservableObject {
 
     func recommendOrder(_ order: OrderDraft) async throws -> MobileOrderRecommendation {
         try await api.recommendOrder(storeId: order.storeId, vendorId: order.vendorId)
+    }
+
+    func loadAssistantChats() async {
+        do { assistantChats = try await api.assistantChats() }
+        catch { toast = "Chat history could not sync" }
+    }
+
+    func askAssistant(chatId: String?, text: String) async throws -> String {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let index = chatId.flatMap { id in assistantChats.firstIndex(where: { $0.id == id }) }
+        var chat = index.map { assistantChats[$0] } ?? AssistantChat(id: UUID().uuidString.lowercased(), title: String(text.prefix(54)), createdAt: timestamp, updatedAt: timestamp, messages: [])
+        chat.messages.append(AssistantMessage(id: UUID().uuidString.lowercased(), role: "user", text: text, createdAt: timestamp))
+        chat.updatedAt = timestamp
+        if let index { assistantChats[index] = chat } else { assistantChats.insert(chat, at: 0) }
+        try await api.saveAssistantChat(chat)
+        let answer = try await api.askAssistant(question: text, history: chat.messages.suffix(12).map { AssistantHistoryLine(role: $0.role, text: $0.text) })
+        let answeredAt = ISO8601DateFormatter().string(from: Date())
+        chat.messages.append(AssistantMessage(id: UUID().uuidString.lowercased(), role: "assistant", text: answer.answer + (answer.recommendedActions.isEmpty ? "" : "\n\nNext steps\n" + answer.recommendedActions.prefix(3).map { "• \($0)" }.joined(separator: "\n")), createdAt: answeredAt))
+        chat.updatedAt = answeredAt
+        if let savedIndex = assistantChats.firstIndex(where: { $0.id == chat.id }) { assistantChats[savedIndex] = chat }
+        try await api.saveAssistantChat(chat)
+        return chat.id
+    }
+
+    func deleteAssistantChat(_ chat: AssistantChat) async {
+        assistantChats.removeAll { $0.id == chat.id }
+        try? await api.deleteAssistantChat(chat.id)
     }
 
     func readNotifications(_ ids: [String]) async {

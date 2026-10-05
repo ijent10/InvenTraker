@@ -3,6 +3,7 @@ import { z } from "zod"
 import { firestoreCollections } from "@/lib/firestore-schema"
 import { money } from "@/lib/order-contract"
 import { recommendOrder } from "@/lib/ordering-engine"
+import { assistOrderRecommendation } from "@/lib/ai/operational-decisions"
 import { assertStoreAccess, mobileEnvelope, mobileError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
 
 export const runtime = "nodejs"
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     const expectedArrival = typeof rawVendor.expectedArrival === "string"
       ? rawVendor.expectedArrival
       : nextArrival(leadTimeDays, deliveryDays)
-    const run = recommendOrder({
+    const deterministicRun = recommendOrder({
       storeId: parsed.data.storeId,
       vendor: {
         id: vendorSnapshot.id,
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
         return { sku: typeof data.sku === "string" ? data.sku : undefined, name: String(data.name ?? ""), unitCost: money(data.unitCostAmount ?? data.lastCost ?? data.averagePrice) }
       })
     })
+    const run = await assistOrderRecommendation(deterministicRun)
     return Response.json(mobileEnvelope({
       ...run,
       vendor: { id: vendorSnapshot.id, name: String(rawVendor.name ?? "Vendor"), expectedArrival, orderDueAt: rawVendor.orderDueAt ?? null }

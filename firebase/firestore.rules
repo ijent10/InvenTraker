@@ -312,6 +312,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /assistantChats/{chatId} {
+        allow read: if orgMember(orgId) && resource.data.ownerId == request.auth.uid;
+        allow create: if orgMember(orgId) && request.resource.data.ownerId == request.auth.uid;
+        allow update: if orgMember(orgId) && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == request.auth.uid;
+        allow delete: if orgMember(orgId) && resource.data.ownerId == request.auth.uid;
+      }
+
       match /inventoryBatches/{batchId} {
         allow read: if orgMember(orgId);
         allow write: if false;

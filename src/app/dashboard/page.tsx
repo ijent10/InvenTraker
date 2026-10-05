@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header"
 import { Panel, StatusPill } from "@/components/ui"
 import { getHealthChecks, getInventoryBatches, getInventoryItems, getOrderDrafts, getShiftNotes, getStockOperations, getStores, syncOperationalIssues } from "@/lib/server-data"
 import { generateTodayIssues, operationalObservability } from "@/lib/today-issues"
+import { selectTodayIssues } from "@/lib/ai/operational-decisions"
 
 export default async function DashboardPage() {
   const [inventoryItems, batches, orderDrafts, shiftNotes, healthChecks, stockOperations, stores] = await Promise.all([
@@ -18,7 +19,7 @@ export default async function DashboardPage() {
   const normalizedInventory = inventoryItems.map((item) => ({ ...item, storeId: item.storeId || fallbackStoreId }))
   const storeIds = [...new Set(normalizedInventory.map((item) => item.storeId))]
   const generatedAt = new Date()
-  const allTodayIssues = storeIds.flatMap((storeId) => generateTodayIssues({
+  const allTodayCandidates = storeIds.flatMap((storeId) => generateTodayIssues({
     storeId,
     inventory: normalizedInventory,
     batches,
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
     stockOperations: stockOperations as never,
     now: generatedAt
   })).sort((left, right) => right.priorityScore - left.priorityScore)
+  const allTodayIssues = await selectTodayIssues(allTodayCandidates)
   const todayIssues = allTodayIssues.slice(0, 6)
   const observability = operationalObservability({ inventory: normalizedInventory, batches, orders: orderDrafts, stockOperations: stockOperations as never })
   const dueChecks = healthChecks.filter((check) => ["Due today", "Overdue"].includes(check.status))

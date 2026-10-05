@@ -1,0 +1,10 @@
+{
+  "ollamaModel": "inventracker-qwen3:0.6b-q5km",
+  "baseModel": "unsloth/Qwen3-0.6B",
+  "quantization": "Q5_K_M",
+  "sha256": "7888de3385a567fcc971a6bbecbdd77862b8a4a6bf911a13560420ea577fe8fe",
+  "promptVersion": "inventracker-operations-2026-10-04.1",
+  "temperature": 0,
+  "seed": 42,
+  "role": "Centralized Today ranking, draft order assistance, and operational explanations"
+}

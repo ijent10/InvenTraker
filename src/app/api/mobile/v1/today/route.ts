@@ -2,6 +2,7 @@ import { adminFieldValue } from "@/lib/firebase-admin"
 import { firestoreCollections } from "@/lib/firestore-schema"
 import { assertStoreAccess, mobileCapabilities, mobileEnvelope, mobileError, mobileRecord, mobileRecordMatchesStore, orgCollection, requireMobilePrincipal, requireMobileStoreId } from "@/lib/mobile-api"
 import { generateTodayIssues, operationalObservability, type TodayIssue } from "@/lib/today-issues"
+import { selectTodayIssues } from "@/lib/ai/operational-decisions"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,7 +26,8 @@ export async function GET(request: Request) {
     const orders = records(orderSnapshot)
     const stockOperations = records(operationSnapshot)
     const now = new Date()
-    const issues = generateTodayIssues({ storeId, inventory: inventory as never, batches: batches as never, orders: orders as never, stockOperations: stockOperations as never, now })
+    const candidates = generateTodayIssues({ storeId, inventory: inventory as never, batches: batches as never, orders: orders as never, stockOperations: stockOperations as never, now })
+    const issues = await selectTodayIssues(candidates)
     const previous = issueSnapshot.docs.map((doc) => mobileRecord(doc.id, doc.data())) as unknown as TodayIssue[]
     const activeIds = new Set(issues.map((issue) => issue.id))
     const FieldValue = await adminFieldValue()

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkspaceView: View {
-    enum Tab: Hashable { case home, today, inventory, shortcut, account }
+    enum Tab: Hashable { case home, today, inventory, assistant, shortcut, account }
     @EnvironmentObject private var session: AppSession
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .home
@@ -25,6 +25,9 @@ struct WorkspaceView: View {
                     .tag(Tab.inventory)
                     .tabItem { Label("Inventory", systemImage: "shippingbox.fill") }
             }
+            NavigationStack { AssistantChatView() }
+                .tag(Tab.assistant)
+                .tabItem { Label("Assistant", systemImage: "bubble.left.and.bubble.right.fill") }
             if session.hasWorkAccess {
                 NavigationStack { WorkShortcutHostView(shortcut: session.workShortcut) }
                     .tag(Tab.shortcut)

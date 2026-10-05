@@ -203,6 +203,23 @@ actor APIClient {
         return envelope.data
     }
 
+    func assistantChats() async throws -> [AssistantChat] {
+        let envelope: APIEnvelope<AssistantChatsPayload> = try await send(path: "/api/mobile/v1/assistant/chats")
+        return envelope.data.chats
+    }
+
+    func askAssistant(question: String, history: [AssistantHistoryLine]) async throws -> AssistantAnswer {
+        try await send(path: "/api/ai/ask", method: "POST", body: AssistantAskRequest(question: question, history: history))
+    }
+
+    func saveAssistantChat(_ chat: AssistantChat) async throws {
+        let _: APIEnvelope<AssistantChat> = try await send(path: "/api/mobile/v1/assistant/chats", method: "PUT", body: chat)
+    }
+
+    func deleteAssistantChat(_ id: String) async throws {
+        let _: APIEnvelope<AssistantDeleteResult> = try await send(path: "/api/mobile/v1/assistant/chats/\(id)", method: "DELETE", body: Optional<EmptyRequest>.none)
+    }
+
     private func send<Response: Decodable>(path: String, method: String = "GET") async throws -> Response {
         try await send(path: path, method: method, body: Optional<EmptyRequest>.none)
     }

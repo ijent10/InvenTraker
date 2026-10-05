@@ -15,6 +15,7 @@ import {
   requireMobileStoreId
 } from "@/lib/mobile-api"
 import { generateTodayIssues, operationalObservability } from "@/lib/today-issues"
+import { selectTodayIssues } from "@/lib/ai/operational-decisions"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -158,7 +159,8 @@ export async function GET(request: Request) {
     const notificationRecords = notifications.docs.map((document) => mobileRecord(document.id, document.data()))
     const stockOperationRecords = stockOperations.docs.map((document) => mobileRecord(document.id, document.data())).filter(matchesStore)
     const generatedAt = new Date()
-    const todayIssues = generateTodayIssues({ storeId: selectedStoreId, inventory: inventoryRecords as never, batches: batchRecords as never, orders: orderRecords as never, stockOperations: stockOperationRecords as never, now: generatedAt })
+    const todayCandidates = generateTodayIssues({ storeId: selectedStoreId, inventory: inventoryRecords as never, batches: batchRecords as never, orders: orderRecords as never, stockOperations: stockOperationRecords as never, now: generatedAt })
+    const todayIssues = await selectTodayIssues(todayCandidates)
     const issueWrites: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
     const activeIssueIds = new Set(todayIssues.map((issue) => issue.id))
     todayIssues.forEach((issue) => issueWrites.push((batch) => batch.set(orgCollection(principal, firestoreCollections.operationalIssues).doc(issue.id), {

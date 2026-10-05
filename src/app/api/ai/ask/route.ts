@@ -15,7 +15,8 @@ import { answerRetailIntelligenceQuery } from "@/lib/intelligence/engine"
 import type { RetailAssistantIntent } from "@/lib/ai/types"
 
 const requestSchema = z.object({
-  question: z.string().trim().min(2).max(1000)
+  question: z.string().trim().min(2).max(1000),
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(4000) })).max(12).optional()
 })
 
 function inferRetailIntent(question: string, answer: Awaited<ReturnType<typeof answerRetailIntelligenceQuery>>): RetailAssistantIntent {
@@ -195,6 +196,7 @@ export async function POST(request: Request) {
 
     const answer = await askOpenAiStructured({
       question: parsed.data.question,
+      conversationHistory: parsed.data.history,
       context,
       intelligenceAnswer,
       toolResults: orchestration.toolResults,

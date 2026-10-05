@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "validate": "npm run lint && npm run typecheck && npm run build",
     "assistant:eval": "node scripts/eval-assistant.mjs",
+    "ai:install-local": "node scripts/install-local-ai.mjs",
+    "ai:check-local": "node scripts/check-local-ai.mjs",
     "stock:check": "node --experimental-strip-types scripts/check-stock-invariants.mts",
     "orders:check": "node --experimental-strip-types scripts/check-order-invariants.mts",
     "today:check": "node --experimental-strip-types scripts/check-today-invariants.mts",

@@ -44,6 +44,27 @@ struct FirebaseRefreshResponse: Decodable {
     }
 }
 
+struct AssistantMessage: Identifiable, Codable, Hashable {
+    let id: String
+    let role: String
+    let text: String
+    let createdAt: String
+}
+
+struct AssistantChat: Identifiable, Codable, Hashable {
+    let id: String
+    var title: String
+    let createdAt: String
+    var updatedAt: String
+    var messages: [AssistantMessage]
+}
+
+struct AssistantChatsPayload: Decodable { let chats: [AssistantChat] }
+struct AssistantHistoryLine: Encodable { let role: String; let text: String }
+struct AssistantAskRequest: Encodable { let question: String; let history: [AssistantHistoryLine] }
+struct AssistantAnswer: Decodable { let answer: String; let recommendedActions: [String] }
+struct AssistantDeleteResult: Decodable { let deleted: Bool }
+
 struct WorkspaceBootstrap: Decodable {
     let session: WorkspaceSession
     let organization: Organization

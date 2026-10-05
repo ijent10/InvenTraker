@@ -215,3 +215,9 @@ The script refuses to run without `--yes`.
 ## Product Direction
 
 The first rebuilt product surface is inventory/order management. The future assistant layer can attach to the product catalog and order generation workflow once the new data model is stable.
+
+### Shared local assistant
+
+The Assistant is a full-screen, ChatGPT-style workspace on Mac/web and a native chat tab on iPhone. Conversations sync per user through `assistantChats`, retain message timestamps, and can be searched by title, message text, or displayed date. The shared server runs the pinned `inventracker-qwen3:0.6b-q5km` Ollama model for chat, Today ranking, and draft order assistance; verified inventory calculations and normal order approval remain enforced by the application.
+
+Install and verify the pinned local model with `npm run ai:install-local` and `npm run ai:check-local`. Set `AI_MODEL_PROVIDER=ollama` on the server used by both devices so they receive the same decisions and conversation behavior.

@@ -8,6 +8,7 @@ import {
 import type { AiAnswer, AiOperationalContext } from "@/lib/ai/types"
 import type { RetailAssistantToolResult } from "@/lib/ai/tool-orchestrator"
 import type { RetailIntelligenceAnswer } from "@/lib/intelligence/types"
+import { askOllamaJson, localAiEnabled } from "@/lib/ai/ollama"
 
 const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const
 const WEB_SEARCH_CONTEXT_SIZES = ["low", "medium", "high"] as const
@@ -264,12 +265,14 @@ function shouldPreserveInternalAnswer(fallback: AiAnswer, modelAnswer: AiAnswer)
 
 export async function askOpenAiStructured({
   question,
+  conversationHistory,
   context,
   intelligenceAnswer,
   toolResults,
   fallback
 }: {
   question: string
+  conversationHistory?: Array<{ role: "user" | "assistant"; text: string }>
   context: AiOperationalContext
   intelligenceAnswer: RetailIntelligenceAnswer
   toolResults: RetailAssistantToolResult[]
@@ -277,6 +280,31 @@ export async function askOpenAiStructured({
 }): Promise<AiAnswer> {
   const apiKey = process.env.OPENAI_API_KEY
   const deterministic = fallbackStructuredAnswer(fallback)
+
+  if (localAiEnabled()) {
+    const local = await askOllamaJson({
+      system: assistantDeveloperPrompt("The model is not a source of truth. Use only the supplied verified operational facts and citations."),
+      input: {
+        question,
+        conversation_history: conversationHistory ?? [],
+        deterministic_answer: intelligenceAnswer,
+        internal_tool_results: toolResults,
+        allowed_context: summarizeContextForModel(context),
+        response_contract: "Return only strict JSON matching the schema. Preserve direct verified facts and identify missing information."
+      },
+      schema: assistantStructuredResponseSchema,
+      jsonSchema: assistantStructuredResponseJsonSchema
+    })
+    if (local) {
+      const modelAnswer = structuredResponseToAiAnswer({ response: local.data, fallback, mode: "local" })
+      if (shouldPreserveInternalAnswer(fallback, modelAnswer)) return { ...modelAnswer, answer: fallback.answer, quickFacts: fallback.quickFacts }
+      return modelAnswer
+    }
+    if (!apiKey) return {
+      ...structuredResponseToAiAnswer({ response: deterministic, fallback, mode: "local" }),
+      recommendedActions: [...fallback.recommendedActions, "The shared local model was unavailable; deterministic operational rules supplied this answer."].slice(0, 6)
+    }
+  }
 
   if (!apiKey) {
     return {
@@ -325,6 +353,7 @@ export async function askOpenAiStructured({
               type: "input_text",
               text: JSON.stringify({
                 question,
+                conversation_history: conversationHistory ?? [],
                 deterministic_answer: {
                   answer: intelligenceAnswer.answer,
                   confidence: intelligenceAnswer.confidence,

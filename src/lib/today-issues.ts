@@ -22,6 +22,7 @@ export type TodayIssue = {
   status: "open" | "resolved"
   freshness: { asOf: string | null; state: "fresh" | "stale" | "unknown" }
   engineVersion: string
+  aiDecision?: { model: string; promptVersion: string; reason: string }
 }
 
 type Inventory = {

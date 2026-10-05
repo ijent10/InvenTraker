@@ -344,6 +344,7 @@ export type AiOperationalContext = {
   assistantMemory: AssistantProductMemory[]
   waste: WasteSignal[]
   nationalSignals: NationalSignal[]
+  businessData?: Record<string, unknown>
   orderingAwareness?: OrderingAwareness
   approvedDocuments?: DocumentCandidate[]
   documentCitations?: DocumentCitation[]

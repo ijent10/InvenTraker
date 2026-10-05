@@ -51,7 +51,8 @@ export function AiChatWorkspace() {
     const pending = { ...chat, title: chat.messages.length ? chat.title : question.slice(0, 54), updatedAt: createdAt, messages: [...chat.messages, userMessage] }
     setActiveId(pending.id); setDraft(""); setLoading(true); await save(pending)
     try {
-      const response = await fetch("/api/ai/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, history: pending.messages.slice(-12).map(({ role, text }) => ({ role, text })) }) })
+      const token = await session.user?.getIdToken()
+      const response = await fetch("/api/ai/ask", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-inventracker-org": session.orgId } : {}) }, body: JSON.stringify({ question, history: pending.messages.slice(-12).map(({ role, text }) => ({ role, text })) }) })
       const answer = await response.json() as AiAnswer
       const reply: ChatMessage = { id: crypto.randomUUID(), role: "assistant", text: answer.answer, answer, createdAt: now() }
       await save({ ...pending, updatedAt: reply.createdAt, messages: [...pending.messages, reply] })

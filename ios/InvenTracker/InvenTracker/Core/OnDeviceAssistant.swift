@@ -63,6 +63,9 @@ final class OnDeviceAssistant: ObservableObject {
             if case .failed(let message) = state { throw APIClientError.server("on_device_ai_unavailable", message) }
             throw APIClientError.server("on_device_ai_unavailable", "The on-device assistant is not ready yet.")
         }
+        if let refreshedContext = try? await api.assistantBusinessContext() {
+            context = refreshedContext
+        }
         let prompt = prompt(question: question, history: history)
         return try await runtime.complete(prompt: prompt)
     }

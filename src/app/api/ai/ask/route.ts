@@ -13,6 +13,7 @@ import { runRetailAssistantTools } from "@/lib/ai/tool-orchestrator"
 import { retailAnswerToAiAnswer } from "@/lib/intelligence/assistant-adapter"
 import { answerRetailIntelligenceQuery } from "@/lib/intelligence/engine"
 import type { RetailAssistantIntent } from "@/lib/ai/types"
+import { mobileError, requireMobilePrincipal } from "@/lib/mobile-api"
 
 const requestSchema = z.object({
   question: z.string().trim().min(2).max(1000),
@@ -37,6 +38,7 @@ function inferRetailIntent(question: string, answer: Awaited<ReturnType<typeof a
 export async function POST(request: Request) {
   const requestId = randomUUID()
   try {
+    const principal = await requireMobilePrincipal(request)
     const body = await request.json().catch(() => null)
     const parsed = requestSchema.safeParse(body)
 
@@ -80,14 +82,16 @@ export async function POST(request: Request) {
 
     const intelligenceAnswer = await answerRetailIntelligenceQuery({
       query: parsed.data.question,
+      orgId: principal.orgId,
       allowExternal: true
     })
     const fallbackAnswer = retailAnswerToAiAnswer(intelligenceAnswer)
     const [context, orchestration] = await Promise.all([
-      buildOperationalContext(),
+      buildOperationalContext(principal.orgId),
       runRetailAssistantTools({
         question: parsed.data.question,
-        retrievalAnswer: intelligenceAnswer
+        retrievalAnswer: intelligenceAnswer,
+        orgId: principal.orgId
       })
     ])
     if (orchestration.documentResult) {
@@ -205,6 +209,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(answer)
   } catch (error) {
+    if (error && typeof error === "object" && "status" in error && "code" in error) return mobileError(error)
     return NextResponse.json(
       {
         mode: "local",

@@ -23,7 +23,7 @@ export const assistantPrivacyContract =
 const blockedAssistantKeys = new Set([
   "actor", "actorid", "actoruid", "approvedby", "approvedbyname", "assignedto", "assignee", "assigneename", "auth",
   "badgeid", "badgenumber", "completedby", "completedbyname", "createdby", "email", "employeeid", "employeename",
-  "firstname", "fullname", "lastname", "membername", "password", "permissions", "phone", "phonenumber", "session",
+  "author", "firstname", "fullname", "lastname", "manager", "membername", "password", "permissions", "phone", "phonenumber", "session",
   "staffname", "submittedby", "submittedbyname", "taskowner", "token", "uid", "updatedby", "userid", "username"
 ])
 

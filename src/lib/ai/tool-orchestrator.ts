@@ -108,8 +108,8 @@ function productLookupTools(question: string, lookup: ProductLookupResult): Reta
   return tools
 }
 
-async function operationsTools(question: string, lookup: ProductLookupResult): Promise<RetailAssistantToolResult[]> {
-  const context = await buildOperationalContext()
+async function operationsTools(question: string, lookup: ProductLookupResult, orgId?: string): Promise<RetailAssistantToolResult[]> {
+  const context = await buildOperationalContext(orgId)
   const text = normalized(question)
   const productName = lookup.resolvedProduct?.name
   const inventoryMatches = productName
@@ -311,7 +311,7 @@ function memoryTools(question: string, lookup: ProductLookupResult): RetailAssis
   return tools
 }
 
-async function documentTools(question: string): Promise<{
+async function documentTools(question: string, orgId?: string): Promise<{
   result?: DocumentRetrievalResult
   tools: RetailAssistantToolResult[]
 }> {
@@ -319,7 +319,7 @@ async function documentTools(question: string): Promise<{
     return { tools: [] }
   }
 
-  const result = await retrieveApprovedDocuments({ query: question })
+  const result = await retrieveApprovedDocuments({ query: question, orgId })
   const usedTools = new Set(result.toolsUsed)
   const tools: RetailAssistantToolResult[] = [
     {
@@ -424,17 +424,19 @@ async function documentTools(question: string): Promise<{
 
 export async function runRetailAssistantTools({
   question,
-  retrievalAnswer
+  retrievalAnswer,
+  orgId
 }: {
   question: string
   retrievalAnswer: RetailIntelligenceAnswer
+  orgId?: string
 }) {
-  const lookup = retrievalAnswer.retrieval ?? (await lookupProductIntelligence({ query: question, allowExternal: true }))
-  const documentRetrieval = await documentTools(question)
+  const lookup = retrievalAnswer.retrieval ?? (await lookupProductIntelligence({ query: question, orgId, allowExternal: true }))
+  const documentRetrieval = await documentTools(question, orgId)
   const toolResults = [
     ...documentRetrieval.tools,
     ...productLookupTools(question, lookup),
-    ...(await operationsTools(question, lookup)),
+    ...(await operationsTools(question, lookup, orgId)),
     ...(await productFactTools(question, lookup)),
     ...memoryTools(question, lookup),
     ...(wantsAny(question, ["weather", "holiday", "event", "weekend", "traffic", "delivery", "order", "reorder", "demand"]) ? awarenessTools(retrievalAnswer) : [])
@@ -448,7 +450,8 @@ export async function runRetailAssistantTools({
   ) {
     const enrichment = await generateProductEnrichmentSuggestions({
       query: question,
-      productId: lookup.resolvedProduct?.productId ?? lookup.candidates[0]?.productId
+      productId: lookup.resolvedProduct?.productId ?? lookup.candidates[0]?.productId,
+      orgId
     })
     enrichmentSuggestions = enrichment.suggestions
   }

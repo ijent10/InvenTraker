@@ -1,18 +1,27 @@
 import { nationalSignals, productEvidence, wasteSignals } from "@/lib/ai/product-intelligence"
 import { readAssistantProductMemory } from "@/lib/ai/memory-store"
 import { buildOrderingAwareness } from "@/lib/ai/ordering-awareness"
-import { assistantPrivacyPayload } from "@/lib/ai/privacy"
+import { assistantPrivacyPayload, privacyFilterAssistantValue } from "@/lib/ai/privacy"
 import type { AiOperationalContext } from "@/lib/ai/types"
-import { getCentralCatalogProducts, getCompanyFiles, getInventoryItems, getProducts, getStores } from "@/lib/server-data"
+import { getCentralCatalogProducts, getCompanyFiles, getHealthChecks, getHistoryRecords, getInventoryBatches, getInventoryItems, getOperationalIssues, getOrderDrafts, getProducts, getShiftNotes, getStockOperations, getStoreDisplays, getStores, getVendors } from "@/lib/server-data"
 
-export async function buildOperationalContext(): Promise<AiOperationalContext> {
-  const [centralCatalog, inventoryItems, products, stores, assistantMemory, companyFiles] = await Promise.all([
+export async function buildOperationalContext(orgId?: string): Promise<AiOperationalContext> {
+  const [centralCatalog, inventoryItems, products, stores, assistantMemory, companyFiles, vendors, orders, healthChecks, history, batches, stockOperations, operationalIssues, displays, shiftNotes] = await Promise.all([
     getCentralCatalogProducts(),
-    getInventoryItems(),
-    getProducts(),
-    getStores(),
-    readAssistantProductMemory(),
-    getCompanyFiles()
+    getInventoryItems(orgId),
+    getProducts(orgId),
+    getStores(orgId),
+    readAssistantProductMemory(orgId),
+    getCompanyFiles(orgId),
+    getVendors(orgId),
+    getOrderDrafts(orgId),
+    getHealthChecks(orgId),
+    getHistoryRecords(orgId),
+    getInventoryBatches(orgId),
+    getStockOperations(orgId),
+    getOperationalIssues(orgId),
+    getStoreDisplays(orgId),
+    getShiftNotes(orgId)
   ])
   const activeStore = stores[0]
   const orderingAwareness = await buildOrderingAwareness(activeStore)
@@ -76,6 +85,7 @@ export async function buildOperationalContext(): Promise<AiOperationalContext> {
     assistantMemory,
     waste: wasteSignals,
     nationalSignals,
+    businessData: privacyFilterAssistantValue({ vendors, orders, healthChecks, history, inventoryBatches: batches, stockOperations, operationalIssues, displays, shiftNotes, stores }) as Record<string, unknown>,
     orderingAwareness,
     approvedDocuments: companyFiles
       .filter((file) => file.approvedStatus === "approved")
@@ -130,6 +140,7 @@ export function summarizeContextForModel(context: AiOperationalContext) {
     })),
     waste: context.waste,
     nationalSignals: context.nationalSignals,
+    businessData: context.businessData,
     orderingAwareness: context.orderingAwareness,
     approvedDocuments: context.approvedDocuments
   }

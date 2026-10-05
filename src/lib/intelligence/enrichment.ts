@@ -54,7 +54,7 @@ export async function generateProductEnrichmentSuggestions({
 }) {
   const [lookup, context, learning] = await Promise.all([
     query ? lookupProductIntelligence({ query, orgId, allowExternal: true }) : Promise.resolve(undefined),
-    buildOperationalContext(),
+    buildOperationalContext(orgId),
     readVerifiedLearningRecords(orgId)
   ])
   const records = buildProductLookupRecords(context, learning)

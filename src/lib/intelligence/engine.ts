@@ -259,6 +259,15 @@ type OperationalAnswer = {
   sourceDetail: string
 }
 
+function queryIsBusinessAggregate(query: string) {
+  return /\b(how many|count|total number|number of)\b.*\b(products?|inventory|items?|orders?|vendors?|suppliers?|stores?|locations?|health checks?)\b/i.test(query)
+}
+
+function businessRecords(context: AiOperationalContext, key: string) {
+  const value = context.businessData?.[key]
+  return Array.isArray(value) ? value : []
+}
+
 function formatRecommendation(recommendation: BusinessRecommendation) {
   return `${recommendation.title}: ${recommendation.detail} Suggested action: ${recommendation.suggestedAction}`
 }
@@ -273,6 +282,38 @@ function broadOperationalAnswer({
   recommendations: BusinessRecommendation[]
 }): OperationalAnswer | undefined {
   const normalized = query.toLowerCase()
+
+  if (queryIsBusinessAggregate(query)) {
+    const activeInventory = context.inventory.filter((item) => item.status !== "Archived")
+    const orders = businessRecords(context, "orders")
+    const vendors = businessRecords(context, "vendors")
+    const stores = businessRecords(context, "stores")
+    const healthChecks = businessRecords(context, "healthChecks")
+    const counts = [
+      { match: /\bproducts?\b/, label: "product records", count: context.organizationProducts.length },
+      { match: /\b(inventory|items?)\b/, label: "active inventory items", count: activeInventory.length },
+      { match: /\borders?\b/, label: "orders", count: orders.length },
+      { match: /\b(vendors?|suppliers?)\b/, label: "vendors", count: vendors.length },
+      { match: /\b(stores?|locations?)\b/, label: "stores", count: stores.length },
+      { match: /\bhealth checks?\b/, label: "health checks", count: healthChecks.length }
+    ]
+    const requested = counts.filter((entry) => entry.match.test(normalized))
+    if (requested.length) {
+      return {
+        answer: `You have ${requested.map((entry) => `${entry.count} ${entry.label}`).join(" and ")}.`,
+        confidenceScore: 0.98,
+        facts: [
+          ...requested.map((entry) => `${entry.label}: ${entry.count}`),
+          `Active inventory items: ${activeInventory.length}`,
+          `Archived inventory items: ${context.inventory.length - activeInventory.length}`
+        ],
+        suggestedFollowUp: /\bproducts?\b/.test(normalized)
+          ? "I can also break the products down by department, category, store, stock status, or vendor."
+          : "I can break that total down by status, store, department, category, or vendor.",
+        sourceDetail: "Current organization product, inventory, order, vendor, store, and health-check records."
+      }
+    }
+  }
 
   if (/(what|which).*(low|out of stock)|low right now|low stock|what is low/.test(normalized)) {
     const lowItems = context.inventory
@@ -628,8 +669,8 @@ export async function answerRetailIntelligenceQuery({
         : [])
     ],
     suggestedFollowUp: complianceAnswer?.suggestedFollowUp ?? operationalAnswer?.suggestedFollowUp ?? lookup.suggestedFollowUp,
-    retrieval: lookup,
-    recommendations,
+    retrieval: queryIsBusinessAggregate(query) && operationalAnswer ? undefined : lookup,
+    recommendations: queryIsBusinessAggregate(query) && operationalAnswer ? [] : recommendations,
     enrichmentSuggestions,
     imageCandidates,
     nutritionCandidates: externalProducts.map((product) => product.nutrition).filter((nutrition): nutrition is NonNullable<typeof nutrition> => Boolean(nutrition)),

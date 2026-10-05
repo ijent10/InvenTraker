@@ -27,7 +27,16 @@ export async function GET(request: Request) {
         records: snapshot.docs.map((document) => ({ id: document.id, ...document.data() }))
       }
     }))
-    const filtered = privacyFilterAssistantValue(plain(sections))
+    const collectionCounts = Object.fromEntries(sections.map((section) => [section.name, section.records.length]))
+    const businessSummary = {
+      name: "businessSummary",
+      records: [{
+        type: "authoritative_collection_counts",
+        ...collectionCounts,
+        activeInventory: sections.find((section) => section.name === "inventory")?.records.filter((record) => String((record as Record<string, unknown>).status ?? "").toLowerCase() !== "archived").length ?? 0
+      }]
+    }
+    const filtered = privacyFilterAssistantValue(plain([businessSummary, ...sections]))
     return Response.json(mobileEnvelope({
       generatedAt: new Date().toISOString(),
       privacy: "Employee names, IDs, badge numbers, contact details, authentication data, and task-owner identities are excluded.",

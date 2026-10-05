@@ -27,7 +27,7 @@ export function PermissionLab() {
           <div>
             <h2 className="font-semibold text-[var(--app-text)]">Current signed-in access</h2>
             <p className="app-tip mt-1 text-sm leading-6 text-[var(--app-muted)]">
-              This reads the live Firebase Auth user and the member record at orgs/demo-org/members/uid.
+              This reads the live Firebase Auth user and the member record for the user&apos;s organization.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -38,7 +38,7 @@ export function PermissionLab() {
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Email", session.user?.email ?? "Demo mode"],
+            ["Email", session.user?.email ?? "Not signed in"],
             ["Member", session.member?.name ?? "No member"],
             ["Role/title", session.member?.jobTitle ?? "Not set"],
             ["Store", session.member?.store ?? "Not set"]

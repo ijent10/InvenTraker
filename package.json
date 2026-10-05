@@ -23,6 +23,7 @@
     "firebase:seed": "node scripts/seed-firebase.mjs",
     "firebase:seed-admin": "node scripts/seed-platform-admin.mjs",
     "firebase:seed-test-users": "node scripts/seed-auth-test-users.mjs",
+    "firebase:seed-demo-store": "node scripts/seed-demo-store.mjs",
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs"
   },
   "dependencies": {

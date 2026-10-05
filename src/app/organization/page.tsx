@@ -7,6 +7,7 @@ import { OrganizationLogoPreview } from "@/components/organization-logo-preview"
 import { OrganizationSaveButton } from "@/components/organization-save-button"
 import { PageHeader } from "@/components/page-header"
 import { ThemeControls } from "@/components/theme-controls"
+import { SalesImportPanel } from "@/components/sales-import-panel"
 import { Field, Panel, SelectInput, StatusPill, TextInput, ToggleRow } from "@/components/ui"
 import {
   departments,
@@ -52,7 +53,7 @@ export default function OrganizationPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Organization name">
-              <TextInput name="organizationName" defaultValue="InvenTracker Demo" />
+              <TextInput name="organizationName" defaultValue="Organization" />
             </Field>
             <Field label="Primary timezone">
               <SelectInput name="primaryTimezone" defaultValue="America/New_York">
@@ -209,6 +210,10 @@ export default function OrganizationPage() {
           addLabel="Add template"
           placeholder="Bakery lead: Inventory, Health checks, Orders"
         />
+      </div>
+
+      <div className="mt-6">
+        <SalesImportPanel scope="organization" />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_420px]">

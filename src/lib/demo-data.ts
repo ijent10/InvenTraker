@@ -933,7 +933,7 @@ export const jobTitles = ["Owner", "Store Manager", "Assistant Manager", "Invent
 export const departments = ["Executive", "Store Operations", "Inventory", "Beer & Wine", "Bakery", "Produce", "Grocery", "Customer Service"]
 
 export const organizationBranding: OrganizationBranding = {
-  companyName: "InvenTracker Demo",
+  companyName: "Organization",
   logoUrl: "/inventracker-logo.png",
   headerText: "Inventory operations",
   accentColor: "#2563eb",
@@ -1595,7 +1595,7 @@ export const healthChecks: HealthCheck[] = [
 ]
 
 export const organizationSettings = [
-  ["Organization name", "InvenTracker Demo"],
+  ["Organization name", "Organization"],
   ["Default unit", "eaches"],
   ["Expiration default", "No expiration"],
   ["Owner access", "Owners always retain full control"],

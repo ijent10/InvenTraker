@@ -167,7 +167,7 @@ export async function readAssistantProductMemory(orgId = DEFAULT_ORG_ID): Promis
   try {
     const db = await adminDb()
     if (!db) {
-      return demoAssistantProductMemory.filter((memory) => memory.orgId === orgId || memory.orgId === GLOBAL_ASSISTANT_MEMORY_ORG_ID)
+      return []
     }
 
     const snapshot = await db
@@ -184,7 +184,7 @@ export async function readAssistantProductMemory(orgId = DEFAULT_ORG_ID): Promis
         }) as AssistantProductMemory
     )
   } catch {
-    return demoAssistantProductMemory.filter((memory) => memory.orgId === orgId || memory.orgId === GLOBAL_ASSISTANT_MEMORY_ORG_ID)
+    return []
   }
 }
 

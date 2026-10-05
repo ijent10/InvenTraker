@@ -4,6 +4,7 @@ import { ActionButton } from "@/components/action-button"
 import { DataTable } from "@/components/data-table"
 import { EditableSettingsList } from "@/components/editable-settings-list"
 import { PageHeader } from "@/components/page-header"
+import { SalesImportPanel } from "@/components/sales-import-panel"
 import { Field, Panel, SelectInput, StatusPill, TextInput } from "@/components/ui"
 import { departments, jobTitles, type StoreDisplay, type StoreRecord } from "@/lib/demo-data"
 import { getStoreDisplays, getStores, getVendors } from "@/lib/server-data"
@@ -116,6 +117,10 @@ export default async function StoresPage() {
             <ActionButton icon={<Save className="h-4 w-4" />}>Save store</ActionButton>
           </form>
         </Panel>
+      </div>
+
+      <div className="mt-6">
+        <SalesImportPanel scope="store" storeId={selectedStore.id} />
       </div>
 
       <Panel className="mt-6">

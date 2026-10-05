@@ -53,12 +53,8 @@ type FirestoreRecord = {
   id: string
 }
 
-function demoDataEnabled() {
-  return process.env.INVENTRAKER_DEMO_MODE === "true"
-}
-
 function demoFallback<T>(fallback: T) {
-  return demoDataEnabled() ? fallback : Array.isArray(fallback) ? [] as T : fallback
+  return Array.isArray(fallback) ? [] as T : fallback
 }
 
 function serializeFirestoreValue(value: unknown): unknown {

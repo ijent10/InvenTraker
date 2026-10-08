@@ -606,12 +606,36 @@ struct InventoryItem: Identifiable, Decodable, Hashable {
     }
 
     func matchesBarcode(_ scanned: String) -> Bool {
-        let left = sku.filter(\.isNumber)
-        let right = scanned.filter(\.isNumber)
-        if left.caseInsensitiveCompare(right) == .orderedSame { return true }
-        let storedUPC = String(left.suffix(12))
-        let scannedUPC = String(right.suffix(12))
-        return storedUPC.count == 12 && scannedUPC.count == 12 && storedUPC.first == "2" && scannedUPC.first == "2" && storedUPC.prefix(6) == scannedUPC.prefix(6)
+        let stored = sku.filter(\.isNumber)
+        let captured = scanned.filter(\.isNumber)
+        guard !stored.isEmpty, !captured.isEmpty else {
+            return sku.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(scanned.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+        }
+
+        if stored == captured { return true }
+
+        // A UPC-A may arrive as 12 digits, EAN-13 as the same code with a leading
+        // zero, and database exports commonly store either form as a 14-digit GTIN.
+        if stored.count >= 8, captured.count >= 8,
+           stored.drop(while: { $0 == "0" }) == captured.drop(while: { $0 == "0" }) {
+            return true
+        }
+
+        // Some Fresh Market scanner/POS exports omit the first GTIN digit. Accept
+        // that single-digit truncation only for full retail barcode lengths.
+        if stored.count >= 12, captured.count >= 11 {
+            if stored.count == captured.count + 1, String(stored.dropFirst()) == captured { return true }
+            if captured.count == stored.count + 1, String(captured.dropFirst()) == stored { return true }
+        }
+
+        // Variable-measure UPC-A labels change their embedded price/weight digits.
+        // Their number-system digit plus five-digit item reference stays constant.
+        let storedUPC = String(stored.suffix(12))
+        let capturedUPC = String(captured.suffix(12))
+        return storedUPC.count == 12 && capturedUPC.count == 12
+            && storedUPC.first == "2" && capturedUPC.first == "2"
+            && storedUPC.prefix(6) == capturedUPC.prefix(6)
     }
 }
 

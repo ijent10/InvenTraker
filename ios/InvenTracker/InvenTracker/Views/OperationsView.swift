@@ -741,7 +741,7 @@ struct TransferView: View {
     }
 
     private func selectScannedItem(_ code: String) {
-        guard let item = session.inventory.first(where: { $0.sku.caseInsensitiveCompare(code) == .orderedSame }) else {
+        guard let item = session.inventory.first(where: { $0.matchesBarcode(code) }) else {
             error = "No existing portal item matches this barcode or SKU."
             return
         }

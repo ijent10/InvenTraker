@@ -161,6 +161,18 @@ function AppShellContent({
     return <>{children}</>
   }
 
+  if (session.status === "unconfigured") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 text-[var(--app-text)]">
+        <div className="w-full max-w-md rounded-panel border border-[var(--app-border)] bg-[var(--app-panel)] p-5 text-center">
+          <ShieldAlert className="mx-auto h-8 w-8 text-rose-300" />
+          <h1 className="mt-4 text-xl font-semibold">Firebase configuration required</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">The workspace cannot open until its Firebase web configuration is available.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (session.configured && session.status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 text-[var(--app-text)]">

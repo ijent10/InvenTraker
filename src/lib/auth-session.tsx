@@ -9,7 +9,7 @@ import { DEFAULT_ORG_ID } from "@/lib/firestore-schema"
 import type { Employee, EmployeePermission } from "@/lib/demo-data"
 import type { PermissionKey } from "@/lib/permissions"
 
-export type AuthSessionStatus = "demo" | "loading" | "signed-out" | "no-member" | "ready" | "unconfigured"
+export type AuthSessionStatus = "loading" | "signed-out" | "no-member" | "ready" | "unconfigured"
 
 export type AuthSession = {
   status: AuthSessionStatus
@@ -61,13 +61,13 @@ export function AuthSessionProvider({
   const [member, setMember] = useState<Employee | null>(fallbackMember ?? null)
   const [orgId, setOrgId] = useState(DEFAULT_ORG_ID)
   const [platformAdmin, setPlatformAdmin] = useState(false)
-  const [status, setStatus] = useState<AuthSessionStatus>(firebaseConfigured && auth && db ? "loading" : "demo")
+  const [status, setStatus] = useState<AuthSessionStatus>(firebaseConfigured && auth && db ? "loading" : "unconfigured")
   const [error, setError] = useState("")
 
   useEffect(() => {
     if (!firebaseConfigured || !auth || !db) {
-      setStatus("demo")
-      setMember((current) => current ?? fallbackMember ?? null)
+      setStatus("unconfigured")
+      setMember(null)
       return
     }
 
@@ -163,10 +163,18 @@ export function AuthSessionProvider({
     }
   }, [fallbackMember])
 
+  useEffect(() => {
+    const cookieName = "inventraker_org"
+    if (status === "ready" && orgId) {
+      document.cookie = `${cookieName}=${encodeURIComponent(orgId)}; Path=/; Max-Age=31536000; SameSite=Lax`
+    } else if (status === "signed-out") {
+      document.cookie = `${cookieName}=; Path=/; Max-Age=0; SameSite=Lax`
+    }
+  }, [orgId, status])
+
   const value = useMemo<AuthSession>(() => {
     function can(permission?: PermissionKey) {
       if (!permission) return true
-      if (status === "demo") return member?.permissions.includes("*") ?? true
       if (permission === "platform.admin") return platformAdmin
       if (!member || member.status === "Suspended") return false
       return member.permissions.includes("*") || member.permissions.includes(permission)

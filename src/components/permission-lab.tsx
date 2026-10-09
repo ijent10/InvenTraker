@@ -31,7 +31,7 @@ export function PermissionLab() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <StatusPill tone={session.status === "ready" || session.status === "demo" ? "green" : "amber"}>{session.status}</StatusPill>
+            <StatusPill tone={session.status === "ready" ? "green" : "amber"}>{session.status}</StatusPill>
             {session.platformAdmin ? <StatusPill tone="blue">Platform admin</StatusPill> : null}
           </div>
         </div>

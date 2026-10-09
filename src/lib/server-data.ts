@@ -1,4 +1,5 @@
 import { unstable_noStore as noStore } from "next/cache"
+import { cookies } from "next/headers"
 
 import { adminDb, adminFieldValue } from "@/lib/firebase-admin"
 import {
@@ -77,14 +78,24 @@ function serializeFirestoreValue(value: unknown): unknown {
   return value
 }
 
-async function readOrgCollection<T extends FirestoreRecord>(collectionKey: FirestoreCollectionKey, fallback: T[], orgId = DEFAULT_ORG_ID) {
+async function requestOrgId(orgId?: string) {
+  if (orgId) return orgId
+  try {
+    return (await cookies()).get("inventraker_org")?.value || DEFAULT_ORG_ID
+  } catch {
+    return DEFAULT_ORG_ID
+  }
+}
+
+async function readOrgCollection<T extends FirestoreRecord>(collectionKey: FirestoreCollectionKey, fallback: T[], orgId?: string) {
   noStore()
 
   const db = await adminDb()
   if (!db) return demoFallback(fallback)
 
   try {
-    const snapshot = await db.collection(firestoreCollections.orgs).doc(orgId).collection(firestoreCollections[collectionKey]).get()
+    const resolvedOrgId = await requestOrgId(orgId)
+    const snapshot = await db.collection(firestoreCollections.orgs).doc(resolvedOrgId).collection(firestoreCollections[collectionKey]).get()
     return snapshot.docs.map((document) => ({ id: document.id, ...(serializeFirestoreValue(document.data()) as Record<string, unknown>) }) as T)
   } catch (error) {
     console.error(`[server-data] Could not read org collection ${collectionKey}.`, error)
@@ -111,26 +122,27 @@ export function defaultOrgId() {
   return DEFAULT_ORG_ID
 }
 
-export function getInventoryItems(orgId = DEFAULT_ORG_ID) {
+export function getInventoryItems(orgId?: string) {
   return readOrgCollection<InventoryItem>("inventory", inventoryItems, orgId)
 }
 
-export function getInventoryBatches(orgId = DEFAULT_ORG_ID) {
+export function getInventoryBatches(orgId?: string) {
   return readOrgCollection<InventoryBatch>("inventoryBatches", [], orgId)
 }
 
-export function getStockOperations(orgId = DEFAULT_ORG_ID) {
+export function getStockOperations(orgId?: string) {
   return readOrgCollection<Record<string, unknown> & FirestoreRecord>("stockOperations", [], orgId)
 }
 
-export function getOperationalIssues(orgId = DEFAULT_ORG_ID) {
+export function getOperationalIssues(orgId?: string) {
   return readOrgCollection<TodayIssue>("operationalIssues", [], orgId)
 }
 
-export async function syncOperationalIssues(issues: TodayIssue[], storeIds: string[], orgId = DEFAULT_ORG_ID) {
+export async function syncOperationalIssues(issues: TodayIssue[], storeIds: string[], orgId?: string) {
   const db = await adminDb()
   if (!db) return
-  const collection = db.collection(firestoreCollections.orgs).doc(orgId).collection(firestoreCollections.operationalIssues)
+  const resolvedOrgId = await requestOrgId(orgId)
+  const collection = db.collection(firestoreCollections.orgs).doc(resolvedOrgId).collection(firestoreCollections.operationalIssues)
   const snapshot = await collection.get()
   const activeIds = new Set(issues.map((issue) => issue.id))
   const FieldValue = await adminFieldValue()
@@ -151,7 +163,7 @@ export async function syncOperationalIssues(issues: TodayIssue[], storeIds: stri
   }
 }
 
-export function getProducts(orgId = DEFAULT_ORG_ID) {
+export function getProducts(orgId?: string) {
   return readOrgCollection<Product>("products", products, orgId)
 }
 
@@ -159,43 +171,43 @@ export function getCentralCatalogProducts() {
   return readTopCollection<CentralCatalogProduct>("centralCatalog", centralCatalog)
 }
 
-export function getVendors(orgId = DEFAULT_ORG_ID) {
+export function getVendors(orgId?: string) {
   return readOrgCollection<Vendor>("vendors", vendors, orgId)
 }
 
-export function getOrderDrafts(orgId = DEFAULT_ORG_ID) {
+export function getOrderDrafts(orgId?: string) {
   return readOrgCollection<OrderDraft>("orders", orderDrafts, orgId)
 }
 
-export function getEmployees(orgId = DEFAULT_ORG_ID) {
+export function getEmployees(orgId?: string) {
   return readOrgCollection<Employee>("members", employees, orgId)
 }
 
-export function getStores(orgId = DEFAULT_ORG_ID) {
+export function getStores(orgId?: string) {
   return readOrgCollection<StoreRecord>("stores", stores, orgId)
 }
 
-export function getStoreDisplays(orgId = DEFAULT_ORG_ID) {
+export function getStoreDisplays(orgId?: string) {
   return readOrgCollection<StoreDisplay>("displays", storeDisplays, orgId)
 }
 
-export function getCompanyFiles(orgId = DEFAULT_ORG_ID) {
+export function getCompanyFiles(orgId?: string) {
   return readOrgCollection<CompanyFile>("companyFiles", companyFiles, orgId)
 }
 
-export function getCompanyFileCategories(orgId = DEFAULT_ORG_ID) {
+export function getCompanyFileCategories(orgId?: string) {
   return readOrgCollection<CompanyFileCategory>("fileCategories", companyFileCategories, orgId)
 }
 
-export function getCompanyFileChunks(orgId = DEFAULT_ORG_ID) {
+export function getCompanyFileChunks(orgId?: string) {
   return readOrgCollection<CompanyFileChunk>("documentChunks", companyFileChunks, orgId)
 }
 
-export function getHealthChecks(orgId = DEFAULT_ORG_ID) {
+export function getHealthChecks(orgId?: string) {
   return readOrgCollection<HealthCheck>("healthChecks", healthChecks, orgId)
 }
 
-export function getHistoryRecords(orgId = DEFAULT_ORG_ID) {
+export function getHistoryRecords(orgId?: string) {
   return readOrgCollection<HistoryActionRecord>("history", historyRecords, orgId).then((records) => records.map((record) => {
     const createdAt = String((record as unknown as Record<string, unknown>).createdAt ?? "")
     const parsedDate = createdAt ? new Date(createdAt) : null
@@ -218,15 +230,15 @@ export function getHistoryRecords(orgId = DEFAULT_ORG_ID) {
   }))
 }
 
-export function getShiftNotes(orgId = DEFAULT_ORG_ID) {
+export function getShiftNotes(orgId?: string) {
   return readOrgCollection<ShiftNote>("shiftNotes", shiftNotes, orgId).then((notes) => notes.filter((note) => !note.deleted))
 }
 
-export function getNotifications(orgId = DEFAULT_ORG_ID) {
+export function getNotifications(orgId?: string) {
   return readOrgCollection<WorkspaceNotification>("notifications", notifications, orgId)
 }
 
-export function getPendingAutofillBatches(orgId = DEFAULT_ORG_ID) {
+export function getPendingAutofillBatches(orgId?: string) {
   return readOrgCollection<PendingAutofillBatch>("aiPendingAutofills", demoPendingAutofillBatches, orgId)
 }
 
@@ -246,14 +258,15 @@ export function getPlatformSubscriptions() {
   return readTopCollection<PlatformSubscription>("platformSubscriptions", platformSubscriptions)
 }
 
-export async function getOrganizationBranding(orgId = DEFAULT_ORG_ID): Promise<OrganizationBranding> {
+export async function getOrganizationBranding(orgId?: string): Promise<OrganizationBranding> {
   noStore()
 
   const db = await adminDb()
   if (!db) return organizationBranding
 
   try {
-    const snapshot = await db.collection(firestoreCollections.orgs).doc(orgId).get()
+    const resolvedOrgId = await requestOrgId(orgId)
+    const snapshot = await db.collection(firestoreCollections.orgs).doc(resolvedOrgId).get()
     if (!snapshot.exists) return organizationBranding
     const data = snapshot.data() ?? {}
     const branding = "branding" in data && typeof data.branding === "object" && data.branding ? data.branding : data

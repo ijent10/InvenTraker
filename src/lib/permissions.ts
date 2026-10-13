@@ -52,7 +52,7 @@ export const permissionGroups: PermissionGroup[] = [
   {
     id: "platform",
     title: "Platform administrator",
-    description: "Global InvenTracker controls for legal content, organizations, subscriptions, and support operations.",
+    description: "Global InvenTraker controls for legal content, organizations, subscriptions, and support operations.",
     permissions: [
       {
         key: "platform.admin",

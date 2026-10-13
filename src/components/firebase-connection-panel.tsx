@@ -32,7 +32,7 @@ export function FirebaseConnectionPanel({ defaultName, defaultEmail }: { default
   const [name, setName] = useState(defaultName ?? "")
   const [email, setEmail] = useState(defaultEmail ?? "")
   const [password, setPassword] = useState("")
-  const [companyName, setCompanyName] = useState("InvenTracker Workspace")
+  const [companyName, setCompanyName] = useState("InvenTraker Workspace")
   const [busy, setBusy] = useState<"signin" | "create" | "prepare" | "signout" | null>(null)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
@@ -74,7 +74,7 @@ export function FirebaseConnectionPanel({ defaultName, defaultEmail }: { default
 
     const orgPayload = {
       ownerId: user.uid,
-      companyName: companyName.trim() || "InvenTracker Workspace",
+      companyName: companyName.trim() || "InvenTraker Workspace",
       logoUrl: "/inventracker-logo.png",
       headerText: "Connected workspace",
       accentColor: "#2563eb",

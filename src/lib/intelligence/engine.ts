@@ -209,7 +209,7 @@ function kosherComplianceAnswer({
   if (status === "not_verified" || status === "not_recorded") {
     return {
       statusLabel,
-      answer: `Kosher status: ${statusLabel}. Operational answer: do not treat ${productName} as kosher yet. This does not prove the product is non-kosher; it means InvenTracker does not currently have source-backed kosher certification for it.`,
+      answer: `Kosher status: ${statusLabel}. Operational answer: do not treat ${productName} as kosher yet. This does not prove the product is non-kosher; it means InvenTraker does not currently have source-backed kosher certification for it.`,
       confidenceScore: status === "not_verified" ? 0.86 : 0.74,
       facts: [
         `Kosher status: ${statusLabel}`,

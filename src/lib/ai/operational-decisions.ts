@@ -23,7 +23,7 @@ const todayJsonSchema = {
 export async function selectTodayIssues(candidates: TodayIssue[]) {
   if (!candidates.length) return candidates
   const result = await askOllamaJson({
-    system: `You select the shared InvenTracker Today list for store staff. Use only supplied candidates and evidence. Return only candidate IDs. Rank urgent stockouts, expiry, count variances, and order cutoffs by operational impact and deadline. You may omit low-value noise. Never invent inventory facts. Keep actions concrete.`,
+    system: `You select the shared InvenTraker Today list for store staff. Use only supplied candidates and evidence. Return only candidate IDs. Rank urgent stockouts, expiry, count variances, and order cutoffs by operational impact and deadline. You may omit low-value noise. Never invent inventory facts. Keep actions concrete.`,
     input: { candidates: candidates.map(({ id, type, title, detail, evidence, severity, priorityScore, deadline, freshness, suggestedAction }) => ({ id, type, title, detail, evidence, severity, deterministicPriority: priorityScore, deadline, freshness, suggestedAction })) },
     schema: todayDecisionSchema,
     jsonSchema: todayJsonSchema

@@ -68,7 +68,7 @@ async function fetchJson(url: string, timeoutMs = 4500) {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "InvenTracker/0.1 ordering-awareness"
+        "User-Agent": "InvenTraker/0.1 ordering-awareness"
       },
       signal: controller.signal
     })

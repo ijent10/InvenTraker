@@ -1148,7 +1148,7 @@ export const platformLegalDocuments: PlatformLegalDocument[] = [
     lastUpdated: "Jun 25, 2026",
     summary: "Rules for account access, subscriptions, acceptable use, data ownership, and service availability.",
     body:
-      "These terms outline how organizations use InvenTracker, how subscriptions are administered, and how operational data remains owned by the organization."
+      "These terms outline how organizations use InvenTraker, how subscriptions are administered, and how operational data remains owned by the organization."
   },
   {
     id: "privacy",
@@ -1157,7 +1157,7 @@ export const platformLegalDocuments: PlatformLegalDocument[] = [
     lastUpdated: "Jun 25, 2026",
     summary: "Explains how user, organization, store, inventory, and assistant-related data are separated and protected.",
     body:
-      "InvenTracker separates personal account data from operational product data. The assistant may use product, inventory, imports, store resources, and approved web sources, but not personal identity or task-owner data."
+      "InvenTraker separates personal account data from operational product data. The assistant may use product, inventory, imports, store resources, and approved web sources, but not personal identity or task-owner data."
   }
 ]
 
@@ -1165,7 +1165,7 @@ export const platformFeatureRequests: PlatformFeatureRequest[] = [
   {
     id: "fr-001",
     title: "Excel export templates by department",
-    organization: "InvenTracker Demo",
+    organization: "InvenTraker Demo",
     requestedBy: "Store operations",
     status: "Reviewing",
     priority: "High",
@@ -1174,7 +1174,7 @@ export const platformFeatureRequests: PlatformFeatureRequest[] = [
   {
     id: "fr-002",
     title: "Assistant product image verification queue",
-    organization: "InvenTracker Demo",
+    organization: "InvenTraker Demo",
     requestedBy: "Inventory leads",
     status: "Planned",
     priority: "Medium",
@@ -1218,7 +1218,7 @@ export const platformFaqs: PlatformFaq[] = [
 export const platformSubscriptions: PlatformSubscription[] = [
   {
     id: "sub-001",
-    organization: "InvenTracker Demo",
+    organization: "InvenTraker Demo",
     plan: "Trial",
     status: "Trialing",
     renewal: "Jul 25, 2026",

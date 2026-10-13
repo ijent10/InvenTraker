@@ -106,7 +106,7 @@ export function PlatformAdminBootstrap() {
       </div>
 
       <p className="mt-4 text-xs leading-5 text-[var(--app-muted)]">
-        This is not a normal employee permission. Approved platform administrators are controlled by InvenTracker, and the current approved account is {bootstrapAdminEmail}.
+        This is not a normal employee permission. Approved platform administrators are controlled by InvenTraker, and the current approved account is {bootstrapAdminEmail}.
       </p>
     </div>
   )

@@ -88,7 +88,7 @@ export function userPreferencesPath(userId: string) {
 }
 
 export const appDataModel = [
-  ["Platform admins", "platformAdmins/{uid}", "Global InvenTracker administrators who can manage legal, organizations, subscriptions, and support operations."],
+  ["Platform admins", "platformAdmins/{uid}", "Global InvenTraker administrators who can manage legal, organizations, subscriptions, and support operations."],
   ["Platform legal", "platformLegal/{documentId}", "Terms, privacy policy, public FAQ text, and publication state."],
   ["Platform feature requests", "platformFeatureRequests/{requestId}", "Incoming feature requests, status, priority, votes, and release notes."],
   ["Platform subscriptions", "platformSubscriptions/{subscriptionId}", "Plan, seat, billing status, renewal, and support metadata for each organization."],

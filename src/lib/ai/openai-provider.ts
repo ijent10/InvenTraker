@@ -15,7 +15,7 @@ const WEB_SEARCH_CONTEXT_SIZES = ["low", "medium", "high"] as const
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 
 function assistantDeveloperPrompt(internalSourcesOnlyPolicy: string) {
-  return `You are InvenTracker Assistant, a careful retail operations assistant for inventory, ordering, health checks, product records, employees, store history, and uploaded store documents.
+  return `You are InvenTraker Assistant, a careful retail operations assistant for inventory, ordering, health checks, product records, employees, store history, and uploaded store documents.
 
 Your job:
 - Answer questions using only verified store data, approved product records, uploaded documents, retrieved inventory/order/history context, verified memory, and cited approved external sources.

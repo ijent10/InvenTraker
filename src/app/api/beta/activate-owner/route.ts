@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     orgRef,
     {
       ownerId: uid,
-      companyName: "InvenTracker Beta",
+      companyName: "InvenTraker Beta",
       logoUrl: "/inventracker-logo.png",
       headerText: "Beta testing workspace",
       accentColor: "#2563eb",

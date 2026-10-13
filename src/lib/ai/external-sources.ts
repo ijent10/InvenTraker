@@ -1,6 +1,6 @@
 import type { ExternalProductMatch, NutritionFacts, NutritionValues, RecallMatch } from "@/lib/ai/types"
 
-const USER_AGENT = "InvenTracker/0.1 product-intelligence (local development)"
+const USER_AGENT = "InvenTraker/0.1 product-intelligence (local development)"
 
 function isBarcode(value?: string) {
   return Boolean(value && /^\d{8,14}$/.test(value))

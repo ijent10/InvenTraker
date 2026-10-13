@@ -36,7 +36,7 @@ export function OrganizationSaveButton() {
     try {
       const organizationName = fieldValue("organizationName")
       const companyDisplayName = fieldValue("companyDisplayName")
-      const companyName = companyDisplayName || organizationName || "InvenTracker Workspace"
+      const companyName = companyDisplayName || organizationName || "InvenTraker Workspace"
       const logoUrl = fieldValue("logoUrl") || "/inventracker-logo.png"
       const headerText = fieldValue("headerText")
 

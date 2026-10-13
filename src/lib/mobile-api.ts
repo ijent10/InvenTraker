@@ -57,7 +57,7 @@ export async function requireMobilePrincipal(request: Request, permission?: Perm
 
   const [auth, db] = await Promise.all([adminAuth(), adminDb()])
   if (!auth || !db) {
-    throw new MobileApiError("The InvenTracker data service is not configured.", 503, "service_unavailable")
+    throw new MobileApiError("The InvenTraker data service is not configured.", 503, "service_unavailable")
   }
 
   let decoded: Awaited<ReturnType<typeof auth.verifyIdToken>>

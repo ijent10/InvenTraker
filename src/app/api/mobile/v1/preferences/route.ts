@@ -62,7 +62,7 @@ export async function PATCH(request: Request) {
     const parsed = updateSchema.safeParse(await request.json().catch(() => null))
     if (!parsed.success) {
       return Response.json(
-        { error: { code: "invalid_request", message: "Send a valid InvenTracker preference update." } },
+        { error: { code: "invalid_request", message: "Send a valid InvenTraker preference update." } },
         { status: 400 }
       )
     }

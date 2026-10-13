@@ -135,7 +135,7 @@ export function HomeAuthActions({ variant = "header" }: { variant?: "header" | "
         <button
           type="button"
           onClick={() => setMode("create")}
-          className="rounded-md border border-white/15 bg-white/8 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/12 sm:px-4"
+          className="hidden rounded-md border border-white/15 bg-white/8 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/12 sm:inline-flex sm:px-4"
         >
           {createLabel}
         </button>

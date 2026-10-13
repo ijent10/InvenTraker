@@ -40,7 +40,7 @@ async function activateWithClientBootstrap() {
     doc(db, "orgs", DEFAULT_ORG_ID),
     {
       ownerId: user.uid,
-      companyName: "InvenTracker Beta",
+      companyName: "InvenTraker Beta",
       logoUrl: "/inventracker-logo.png",
       headerText: "Beta testing workspace",
       accentColor: "#2563eb",

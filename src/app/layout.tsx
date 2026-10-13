@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell"
 import { getEmployees, getNotifications, getOrganizationBranding } from "@/lib/server-data"
 
 export const metadata: Metadata = {
-  title: "InvenTracker",
+  title: "InvenTraker",
   description: "Inventory, ordering, vendor, and product operations for modern stores.",
   icons: {
     icon: [

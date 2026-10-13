@@ -251,7 +251,7 @@ function AppShellContent({
         <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
           <Image src="/inventracker-logo.png" alt="" width={40} height={40} />
           <div className="min-w-0">
-            <p className="text-base font-semibold">InvenTracker</p>
+            <p className="text-base font-semibold">InvenTraker</p>
             <p className="text-xs text-[var(--app-muted)]">Inventory operations</p>
           </div>
         </Link>
@@ -284,7 +284,7 @@ function AppShellContent({
             <div className="flex min-w-0 items-center gap-3">
               <Link href="/dashboard" className="flex shrink-0 items-center gap-2 lg:hidden">
                 <Image src="/inventracker-logo.png" alt="" width={36} height={36} />
-                <span className="hidden font-semibold sm:inline">InvenTracker</span>
+                <span className="hidden font-semibold sm:inline">InvenTraker</span>
               </Link>
               <GlobalSearch className="hidden w-full max-w-xs md:flex xl:w-80 xl:max-w-[30vw]" />
             </div>

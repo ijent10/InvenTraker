@@ -25,7 +25,7 @@ export const databaseProvisioningPlan = [
   {
     scope: "Platform database",
     databaseId: platformDatabaseId(),
-    owns: "Global InvenTracker records, central catalog, subscription records, legal/admin content, and product approval queues.",
+    owns: "Global InvenTraker records, central catalog, subscription records, legal/admin content, and product approval queues.",
     rule: "Only platform admins can approve new central catalog products."
   },
   {

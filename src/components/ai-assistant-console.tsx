@@ -196,7 +196,7 @@ export function AiAssistantConsole() {
     <div className="grid gap-6">
       <Panel className="p-4">
         <div className="mb-4">
-          <h2 className="font-semibold text-white">Ask InvenTracker Assistant</h2>
+          <h2 className="font-semibold text-white">Ask InvenTraker Assistant</h2>
           <p className="app-tip mt-1 text-sm leading-6 text-slate-400">
             Ask product, compliance, inventory, waste, reorder, or image-discovery questions.
           </p>

@@ -361,7 +361,7 @@ export function CreateAccountWizard({
         </div>
 
         <div className="rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] p-4 text-sm leading-6 text-[var(--app-muted)]">
-          Billing plans are paused for now. InvenTracker will create the organization, owner member record, stores, and employee invitations now, then mark Stripe linking as pending for later.
+          Billing plans are paused for now. InvenTraker will create the organization, owner member record, stores, and employee invitations now, then mark Stripe linking as pending for later.
         </div>
       </div>
     )

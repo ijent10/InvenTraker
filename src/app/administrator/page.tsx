@@ -42,7 +42,7 @@ export default async function AdministratorPage() {
     <>
       <PageHeader
         title="Administrator"
-        description="Global InvenTracker controls for legal content, support, organizations, stores, users, subscriptions, and assistant data boundaries."
+        description="Global InvenTraker controls for legal content, support, organizations, stores, users, subscriptions, and assistant data boundaries."
         actions={<ActionButton icon={<Save className="h-4 w-4" />}>Save administrator changes</ActionButton>}
       />
 
@@ -289,7 +289,7 @@ export default async function AdministratorPage() {
             </div>
             <div>
               <h2 className="font-semibold text-[var(--app-text)]">Subscriptions</h2>
-              <p className="app-tip mt-1 text-sm leading-6 text-[var(--app-muted)]">Stripe should own subscription lifecycle. InvenTracker stores the linked customer, subscription status, and support notes.</p>
+              <p className="app-tip mt-1 text-sm leading-6 text-[var(--app-muted)]">Stripe should own subscription lifecycle. InvenTraker stores the linked customer, subscription status, and support notes.</p>
             </div>
           </div>
           <div className="grid gap-3">

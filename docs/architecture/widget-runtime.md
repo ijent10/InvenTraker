@@ -12,7 +12,11 @@ The current dashboard persists an ordered array of widget IDs and renders them t
 
 Run `workspace:check` for geometry, deterministic adaptation, migration, permission filtering, unsupported configuration, and revision-conflict invariants. The production build checks the compatibility adapter's TypeScript imports.
 
-These modules are not yet connected to dashboard rendering or cloud persistence. Revision comparison must run inside a persistence transaction; calling the pure function alone does not provide concurrent-write protection. The next implementation adds that persistence adapter and the in-home editor.
+The web home screen now uses `WorkspaceHome` through `HomeWorkspaceRuntime`. Personal Settings redirects into in-home editing. The editor supports pointer handles, long-press touch movement, keyboard arrow alternatives, four-size corner snapping, add/remove, reset, undo, cancel, and dashboard-wide shapes. Notes retain their existing editing flow through a custom trigger.
+
+`GET/PUT /api/v1/workspace/layout` authenticate with the existing principal resolver and store documents in the server-only root `workspaceLayouts` collection. Document identity includes user, organization, and device. PUT validates geometry/provider contracts and compares revisions in a Firestore transaction. Conflicts return HTTP 409 and the current layout; the UI offers load remote or explicitly retry local. Layout edits are staged locally and committed with Done. Unfinished edits are cached under a user/organization/device-specific browser key for recovery. Legacy ordered IDs remain intact.
+
+The current renderer adapts summary density by size and uses existing live dashboard summaries. Unsupported metric data displays Unavailable rather than the legacy catalog's example values. Full engine data providers, automatic candidate selection, and native iOS customization remain pending.
 
 ## Ownership
 
@@ -104,4 +108,12 @@ Provider data invalidates on relevant engine events, organization/location chang
 
 ## Rollout
 
-Ship behind `workspaceLayoutV2`. First enable read-only rendering from converted layouts, then editing, then cloud writes. Roll back by disabling the flag and reading `dashboardWidgetIds`; retain versioned layouts for a later retry.
+`NEXT_PUBLIC_WORKSPACE_LAYOUT_V2=false` at build time restores the legacy renderer and settings customizer. The default enables the new web workspace. Rollback retains both server-side layouts and the untouched `dashboardWidgetIds` preference. No stock or operational schema migration is involved.
+
+## Verification record
+
+- Pure invariant suite: all device classes, 40 generated placement scenarios per class, resize snapping, collision bounds, adaptation, registry checks, migration, and revisions.
+- API integration against the existing test organization: unsigned 401, nonmember 403, mismatched layout owner 403, invalid geometry/provider 400, concurrent PUT responses 200/409, persisted increment, employee/owner isolation.
+- Local browser: keyboard move/resize; actual corner drag from Large to Medium; add and undo; shape change; successful cloud save; saved layout loaded after a fresh login; notes modal through a circular surface; explicit conflict resolution.
+- Phone viewport at 390px: all eight migrated widgets retained, independent four-column layout, document width equals viewport width.
+- Native touch/haptic behavior and screen-reader hardware validation remain unverified.

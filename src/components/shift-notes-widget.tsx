@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ComponentType } from "react"
+import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import { CheckCircle2, Loader2, Plus, Share2, Trash2, X } from "lucide-react"
 
 import { Button, Field, SelectInput, StatusPill, TextArea, TextInput } from "@/components/ui"
@@ -45,10 +45,12 @@ function noteAudienceLabel(note: ShiftNote) {
 export function ShiftNotesWidget({
   widget,
   notes,
+  trigger,
   className = ""
 }: {
   widget: DashboardWidgetShape
   notes: ShiftNote[]
+  trigger?: ReactNode
   className?: string
 }) {
   const [noteList, setNoteList] = useState(() => notes.filter((note) => !note.deleted))
@@ -156,7 +158,7 @@ export function ShiftNotesWidget({
     }
   }
 
-  const card = (
+  const card = trigger ? <button type="button" onClick={openList} className="workspace-content">{trigger}</button> : (
     <button
       type="button"
       onClick={openList}

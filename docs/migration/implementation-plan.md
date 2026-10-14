@@ -79,7 +79,9 @@ This slice is additive, independently testable, and does not touch stock data.
 
 Implemented the IDS token namespace, validated workspace schemas, pure packing/move/resize/snap/compaction utilities, device adaptation, revision comparison, registry validation/permission filtering, and legacy migration metadata adapter. Added `workspace:check` with collision/bounds tests across all device classes and multiple generated placement scenarios.
 
-Remaining before workspace release: transactional cloud persistence, authorization-scoped provider data services, in-home editor and gestures, accessible resize/move controls, size-specific rendering, shape surfaces, undo/reset, conflict presentation, and browser/device interaction validation. Existing dashboard rendering remains active until those pieces are ready.
+Web runtime delivered: transactional cloud persistence, in-home editor, pointer drag and corner resizing, keyboard alternatives, four-size snapping, shape surfaces, undo/reset/cancel, local draft recovery, revision-conflict presentation, migration from legacy preferences, and a build-time rollback switch. Browser and API integration checks are recorded in `widget-runtime.md`.
+
+Remaining: engine-owned data providers for all 11 domains, richer Large/XL content, candidate selection and invalidation, native iOS workspace editing, and hardware accessibility/touch verification. This is a web Workspace Engine milestone, not completion of the product-wide phase.
 
 ## Definition of done for every phase
 
@@ -90,3 +92,19 @@ Remaining before workspace release: transactional cloud persistence, authorizati
 - Migration and rollback are executable.
 - Production telemetry distinguishes old/new paths.
 - No capability is marked complete solely because a screen exists.
+
+
+## Phase status after web workspace integration
+
+| Phase | Status |
+|---|---|
+| 0 Audit | Documentation delivered |
+| 1 Design foundation | IDS namespace delivered; shared controls and native tokens still pending |
+| 2 Application shells | Existing shells preserved; full shell refinements pending |
+| 3 Shared contracts | Workspace schemas and authenticated layout API delivered; domain event/outbox contracts pending |
+| 4 Inventory reference | Existing stock transactions preserved; formal extraction pending |
+| 5 Workspace Engine | Web editor and persistence delivered; provider completeness and native parity pending |
+| 6 Remaining engines | Migration pending |
+| 7 AI intelligence | Existing assistant preserved; workspace ranking integration pending |
+| 8 Marketing | Existing public site preserved; final product-aligned update pending |
+| 9 Release validation | Workspace-specific checks run; full product validation pending |

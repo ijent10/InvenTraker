@@ -20,10 +20,10 @@ export const widgetInstanceSchema = z.object({
   id: z.string().min(1),
   engineId: z.string().min(1),
   widgetDefinitionId: z.string().min(1),
-  gridX: z.number().int().nonnegative(),
-  gridY: z.number().int().nonnegative(),
-  gridWidth: z.number().int().positive(),
-  gridHeight: z.number().int().positive(),
+  gridX: z.number().int().min(0).max(11),
+  gridY: z.number().int().min(0).max(1000),
+  gridWidth: z.number().int().min(1).max(12),
+  gridHeight: z.number().int().min(1).max(6),
   size: widgetSizeSchema,
   shapeOverride: widgetShapeSchema.optional(),
   pinnedContentId: z.string().min(1).optional(),
@@ -38,7 +38,7 @@ export const dashboardLayoutSchema = z.object({
   deviceClass: deviceClassSchema,
   revision: z.number().int().positive(),
   shapePreference: widgetShapeSchema.default("rounded-square"),
-  widgets: z.array(widgetInstanceSchema),
+  widgets: z.array(widgetInstanceSchema).max(60),
   updatedAt: z.string().datetime()
 })
 

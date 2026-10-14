@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3 } from "lucide-react"
 
-import { DashboardWidgetGrid } from "@/components/dashboard-widget-grid"
+import { HomeWorkspaceRuntime } from "@/components/home-workspace-runtime"
 import { PageHeader } from "@/components/page-header"
 import { Panel, StatusPill } from "@/components/ui"
 import { getHealthChecks, getInventoryBatches, getInventoryItems, getOrderDrafts, getShiftNotes, getStockOperations, getStores, syncOperationalIssues } from "@/lib/server-data"
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6"><DashboardWidgetGrid
+      <div className="mt-6"><HomeWorkspaceRuntime
         widgetStats={{
           inventory: {
             value: inventoryItems.length.toLocaleString(),

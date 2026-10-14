@@ -25,7 +25,8 @@ async function readCredential() {
 
   const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
   if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
-    return cert(JSON.parse(fs.readFileSync(serviceAccountPath, "utf8")))
+    const credential = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"))
+    return credential.type === "authorized_user" ? applicationDefault() : cert(credential)
   }
 
   if (!canUseApplicationDefaultCredentials()) return null

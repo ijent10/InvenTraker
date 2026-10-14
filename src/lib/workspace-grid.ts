@@ -50,7 +50,7 @@ export function packWidgets(widgets: WidgetInstance[], device: DeviceClass, acti
 export function moveWidget(widgets: WidgetInstance[], device: DeviceClass, id: string, x: number, y: number) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Invalid widget position")
   if (!widgets.some((widget) => widget.id === id)) throw new Error("Unknown widget instance")
-  return packWidgets(widgets.map((widget) => widget.id === id ? { ...widget, gridX: x, gridY: y } : widget), device, id)
+  return packWidgets(widgets.map((widget) => widget.id === id ? { ...widget, gridX: x, gridY: Math.min(500, y) } : widget), device, id)
 }
 
 /** Distance is measured in logical grid units, independent of pointer pixels. */

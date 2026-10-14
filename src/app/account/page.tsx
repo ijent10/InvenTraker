@@ -35,8 +35,8 @@ const accountSections = [
     tone: "from-blue-500 to-indigo-400"
   },
   {
-    title: "Dashboard customization",
-    description: "Choose exactly which tiles and widgets appear on your home dashboard.",
+    title: "Customize your home screen",
+    description: "Arrange widgets, drag to resize, and choose their shape.",
     href: "/account/dashboard-customization",
     icon: Gauge,
     tone: "from-lime-500 to-emerald-400"

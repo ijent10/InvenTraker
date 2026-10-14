@@ -6,9 +6,9 @@ This plan follows the smallest safe path. Phase 0 is complete when these audit d
 
 **Delivered:** repository map, current/target architecture, IDS, engine contract, Workspace Engine, AI architecture, and this migration plan.
 
-**Key decision:** keep the Next.js/Firebase modular monolith and separate SwiftUI client. Preserve transactional mobile stock endpoints as the Inventory reference implementation.
+**Key decision:** keep the Next.js/Firebase modular monolith and the API-backed SwiftUI client under `ios/InvenTracker`. Preserve transactional mobile stock endpoints as the Inventory reference implementation.
 
-**Gate:** reconcile the dirty iOS working tree before editing it; record a clean recovery point or commit the owner’s current work.
+**Gate:** preserve the dirty legacy sibling checkout. Native changes belong in the active `ios/InvenTracker` client. A full Xcode toolchain is required before native release validation.
 
 ## Phase 1 — Design foundation
 
@@ -99,7 +99,7 @@ Remaining: engine-owned data providers for all 11 domains, richer Large/XL conte
 | Phase | Status |
 |---|---|
 | 0 Audit | Documentation delivered |
-| 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native tokens pending |
+| 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace schemas and authenticated layout API delivered; domain event/outbox contracts pending |
 | 4 Inventory reference | Existing stock transactions preserved; formal extraction pending |

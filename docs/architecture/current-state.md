@@ -9,11 +9,12 @@ Status: audited 2026-10-14. This document records observed code, not planned cap
 | Public site and authenticated portal | `InvenTraker Website` | Next.js 14 App Router, React 18, TypeScript, Tailwind-generated CSS |
 | Backend | same repository | Next.js route handlers, Firebase Admin, Firestore, Firebase Storage, Firebase Auth |
 | Production hosting | same repository | Firebase App Hosting, GitHub source, backend `intrakbckend` |
-| iOS application | sibling repository `../InvenTracker` | SwiftUI, Firebase Auth/Firestore/Functions, local sync and notification services |
+| Current iOS application | `ios/InvenTracker` in the deployed repository | SwiftUI, Firebase authentication and versioned website API, Keychain credentials, on-device assistant adapter |
+| Legacy iOS application | sibling repository `../InvenTracker` | Older SwiftUI/Firebase client with a dirty working tree |
 | Android | none found | No Android project was observed |
 | Shared package | none in the deployed repository | Web and iOS share contracts by convention rather than a generated package |
 
-The iOS repository contains substantial uncommitted work. It was audited read-only. Its embedded legacy web monorepo is currently deleted in that checkout and is not the production website source.
+The sibling legacy iOS repository contains substantial uncommitted work and was audited read-only. Its embedded legacy web monorepo is currently deleted in that checkout. The active API-backed iOS client is in this repository under `ios/InvenTracker`; changes to that client do not require touching the dirty legacy checkout. This corrects the initial phase-zero repository attribution.
 
 ## Web application
 
@@ -48,9 +49,13 @@ Missing from the present runtime: grid coordinates, row spans, corner resizing, 
 
 ## iOS application
 
-The SwiftUI app includes Home, Inventory, Spot Check, Restock, Receiving, Waste/Discards, Transfers, Cut & Portion, Orders, Health Checks, Insights, settings, authentication, notifications, and account flows. Services include authentication, Firebase bootstrap, organization selection, central catalog, barcode scanning, image loading, action synchronization, inventory state synchronization, audit logging, recommendations, and offline pending actions.
+The current SwiftUI client is `ios/InvenTracker/InvenTracker.xcodeproj`. Its README identifies it as the fresh API-backed client. `AppSession` and `APIClient` request operational reads and writes from `/api/mobile/v1`; clients do not own an inventory database or primary recommendation math. It includes Home, Today, Inventory, configurable work shortcut, Account, scanner-based operations, Cut & Portion, Orders, Health Checks, Insights, and Assistant views.
 
-The app has valuable working behavior to preserve, including barcode scanning, transactional API calls, queued synchronization, organization/store assignment, notifications, and operational screens. Its navigation and home customization predate the proposed five-tab information architecture and Workspace Engine contract.
+Current native foundations live in `Design/AppTheme.swift`; shared screens are in `Views`. The web Workspace Engine is not yet consumed by this client. Native workspace editing and the proposed Home/Inventory/Activity/Assistant/More navigation remain future work.
+
+The legacy sibling app retains the older direct Firebase/Functions services and offline pending-action queue. Those legacy capabilities must not be claimed as implemented in the current API-backed app without separate verification.
+
+The available host has Swift command-line tools but no discoverable full Xcode installation. Native source syntax can be checked, but iOS SDK type checking, simulator builds, signing, and device runs cannot currently be verified on this host.
 
 ## AI and intelligence
 
@@ -74,7 +79,7 @@ Permission keys cover inventory, orders, health checks, history, files, AI, insi
 
 ## Testing and delivery
 
-The website has TypeScript/build validation and domain invariant scripts for stock, orders, today issues, pilot cycles, and operational intelligence. The iOS repository is an Xcode project. The production site deploys through Firebase App Hosting from GitHub. Automated coverage is strongest around existing stock/order invariants and weaker around accessibility, UI interaction, engine contracts, event publication, and workspace behavior.
+The website has TypeScript/build validation and domain invariant scripts for stock, orders, today issues, pilot cycles, and operational intelligence. The current API-backed iOS client and the legacy sibling client each have an Xcode project. The production site deploys through Firebase App Hosting from GitHub. Automated coverage is strongest around existing stock/order invariants and weaker around accessibility, UI interaction, engine contracts, event publication, and workspace behavior.
 
 ## Classification
 
@@ -85,7 +90,7 @@ The website has TypeScript/build validation and domain invariant scripts for sto
 - Tenant-scoped Firestore records
 - Transactional, idempotent core stock mutations
 - Operational history records
-- Barcode and operational iOS workflows
+- Barcode and operational screens in the current API-backed iOS client
 - Public site, portal, and App Hosting delivery
 - Theme and workspace preference persistence
 - Assistant context/tool foundations
@@ -114,7 +119,7 @@ The website has TypeScript/build validation and domain invariant scripts for sto
 1. Splitting data ownership too early could break proven transaction boundaries.
 2. The web and iOS repositories can drift because contracts are handwritten.
 3. Existing `demo-data` types are used by production components; the name does not mean the code is unused.
-4. The iOS working tree is dirty and must not be overwritten or broadly reformatted.
+4. The legacy iOS working tree is dirty and must not be overwritten or broadly reformatted; active client changes belong in `ios/InvenTracker`.
 5. A second recommendation implementation would violate the single-engine rule in the iOS repository.
 
 ## Test and rollback baseline

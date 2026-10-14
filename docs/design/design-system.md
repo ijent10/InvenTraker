@@ -106,3 +106,10 @@ Shared buttons, links, inputs, and selects now use IDS small-radius geometry and
 The portal supports a persisted collapsible desktop sidebar, accessible names in icon mode, current-page semantics, a skip link, bottom Personal Settings access, and a keyboard-operated compact navigation menu on narrow screens. The menu closes after selecting a destination. Reduced-motion and reduced-transparency preferences have dedicated shell behavior.
 
 Verified locally in browser: sidebar collapses to 80px, icon links remain named, compact menu opens with Enter and closes on navigation, phone document width stays at 390px, active account identity matches the signed-in member, and page headings remain readable in the existing light theme. Native IDS tokens and full assistive-technology hardware validation remain pending.
+
+
+## Native foundation checkpoint
+
+The active client is `ios/InvenTracker`, not the dirty legacy sibling checkout. Its existing `Design/AppTheme.swift` now contains IDS semantic adaptive colors, spacing, geometry, and motion constants. Missing personal/organization color overrides use adaptive light/dark defaults. Shared surface geometry and warning/critical colors consume those tokens. Entry-screen phase transitions honor Reduce Motion.
+
+Swift frontend syntax parsing passed for the changed native files. No full Xcode/iOS SDK is installed on the current host, so native type checking, simulator/device rendering, and signing remain unverified. These changes are source-only and have not been installed on a phone.

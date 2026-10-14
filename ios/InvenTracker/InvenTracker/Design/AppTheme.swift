@@ -26,19 +26,62 @@ extension Color {
     }
 }
 
+/// Shared IDS semantics. Explicit organization and personal theme colors take precedence.
+enum IDS {
+    enum Radius {
+        static let small: CGFloat = 10
+        static let medium: CGFloat = 14
+        static let large: CGFloat = 20
+        static let extraLarge: CGFloat = 28
+    }
+
+    enum Spacing {
+        static let compact: CGFloat = 8
+        static let standard: CGFloat = 16
+        static let section: CGFloat = 24
+    }
+
+    enum Motion {
+        static let immediate = 0.1
+        static let standard = 0.22
+        static let panel = 0.3
+    }
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            let value = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: CGFloat((value >> 16) & 255) / 255,
+                           green: CGFloat((value >> 8) & 255) / 255,
+                           blue: CGFloat(value & 255) / 255, alpha: 1)
+        })
+    }
+
+    static let background = adaptive(light: 0xF5F5F7, dark: 0x101012)
+    static let surface = adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
+    static let secondarySurface = adaptive(light: 0xF0F0F2, dark: 0x2C2C2E)
+    static let text = adaptive(light: 0x1D1D1F, dark: 0xF5F5F7)
+    static let secondaryText = adaptive(light: 0x6E6E73, dark: 0xAEAEB2)
+    static let tertiaryText = adaptive(light: 0x86868B, dark: 0x8E8E93)
+    static let accent = adaptive(light: 0x007AFF, dark: 0x0A84FF)
+    static let success = adaptive(light: 0x248A3D, dark: 0x30D158)
+    static let warning = adaptive(light: 0xB86E00, dark: 0xFF9F0A)
+    static let critical = adaptive(light: 0xD92D20, dark: 0xFF453A)
+    static let separator = Color(uiColor: .separator)
+}
+
 extension MobileTheme {
     var accentColor: Color { Color(hex: accent) }
     var secondaryColor: Color { Color(hex: secondary) }
-    var backgroundColor: Color { Color(hex: background ?? (mode == "Light" ? "#f8fafc" : "#020617")) }
-    var backgroundSoftColor: Color { Color(hex: backgroundSoft ?? (mode == "Light" ? "#eff6ff" : "#0f172a")) }
-    var panelColor: Color { Color(hex: panel ?? (mode == "Light" ? "#ffffff" : "#0f172a")) }
-    var panelStrongColor: Color { Color(hex: panelStrong ?? panel ?? (mode == "Light" ? "#ffffff" : "#111827")) }
-    var controlBackgroundColor: Color { Color(hex: controlBg ?? panel ?? (mode == "Light" ? "#ffffff" : "#020617")) }
-    var controlHoverColor: Color { Color(hex: controlHover ?? (mode == "Light" ? "#eff6ff" : "#172033")) }
-    var controlBorderColor: Color { Color(hex: controlBorder ?? (mode == "Light" ? "#cbd5e1" : "#334155")) }
-    var textColor: Color { Color(hex: text ?? (mode == "Light" ? "#0f172a" : "#f8fafc")) }
-    var mutedColor: Color { Color(hex: muted ?? (mode == "Light" ? "#475569" : "#94a3b8")) }
-    var subtleColor: Color { Color(hex: subtle ?? (mode == "Light" ? "#64748b" : "#64748b")) }
+    var backgroundColor: Color { background.map { Color(hex: $0) } ?? IDS.background }
+    var backgroundSoftColor: Color { backgroundSoft.map { Color(hex: $0) } ?? IDS.secondarySurface }
+    var panelColor: Color { panel.map { Color(hex: $0) } ?? IDS.surface }
+    var panelStrongColor: Color { (panelStrong ?? panel).map { Color(hex: $0) } ?? IDS.surface }
+    var controlBackgroundColor: Color { (controlBg ?? panel).map { Color(hex: $0) } ?? IDS.surface }
+    var controlHoverColor: Color { controlHover.map { Color(hex: $0) } ?? IDS.secondarySurface }
+    var controlBorderColor: Color { controlBorder.map { Color(hex: $0) } ?? IDS.separator }
+    var textColor: Color { text.map { Color(hex: $0) } ?? IDS.text }
+    var mutedColor: Color { muted.map { Color(hex: $0) } ?? IDS.secondaryText }
+    var subtleColor: Color { subtle.map { Color(hex: $0) } ?? IDS.tertiaryText }
     var buttonTextColor: Color { Color(hex: buttonText ?? "#ffffff") }
 
     var preferredColorScheme: ColorScheme? {
@@ -54,8 +97,8 @@ enum AppTheme {
     static let navy = Color(red: 0.06, green: 0.13, blue: 0.29)
     static let accent = Color(red: 0.14, green: 0.33, blue: 0.72)
     static let mint = Color(red: 0.08, green: 0.58, blue: 0.51)
-    static let amber = Color(red: 0.91, green: 0.57, blue: 0.12)
-    static let danger = Color(red: 0.82, green: 0.20, blue: 0.24)
+    static let amber = IDS.warning
+    static let danger = IDS.critical
 }
 
 struct BrandMark: View {
@@ -76,9 +119,9 @@ struct SurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(session.theme.panelColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(session.theme.panelColor, in: RoundedRectangle(cornerRadius: IDS.Radius.large, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: IDS.Radius.large, style: .continuous)
                     .stroke(session.theme.controlBorderColor, lineWidth: 1)
             }
     }

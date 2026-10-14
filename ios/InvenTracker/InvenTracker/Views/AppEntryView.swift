@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppEntryView: View {
     @EnvironmentObject private var session: AppSession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -17,11 +18,11 @@ struct AppEntryView: View {
             case .noAccess(let message):
                 StatusView(title: "No store access", message: message, icon: "building.2.crop.circle")
             case .failed(let message):
-                StatusView(title: "Couldn’t load InvenTracker", message: message, icon: "wifi.exclamationmark")
+                StatusView(title: "Couldn’t load InvenTraker", message: message, icon: "wifi.exclamationmark")
             }
         }
         .foregroundStyle(session.theme.textColor)
-        .animation(.easeInOut(duration: 0.22), value: session.phase)
+        .animation(reduceMotion ? nil : .easeInOut(duration: IDS.Motion.standard), value: session.phase)
         .overlay(alignment: .top) {
             if let toast = session.toast {
                 ToastView(message: toast)
@@ -46,7 +47,7 @@ private struct LaunchView: View {
             VStack(spacing: 22) {
                 BrandMark(size: 84)
                 VStack(spacing: 6) {
-                    Text("InvenTracker").font(.title2.bold())
+                    Text("InvenTraker").font(.title2.bold())
                     Text(message).font(.subheadline).foregroundStyle(session.theme.mutedColor)
                 }
                 ProgressView().controlSize(.regular).padding(.top, 4)

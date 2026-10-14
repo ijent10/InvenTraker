@@ -17,7 +17,7 @@ const config: Config = {
         lift: "0 20px 60px rgba(2, 8, 23, 0.28)"
       },
       borderRadius: {
-        panel: "8px"
+        panel: "var(--ids-radius-md)"
       }
     }
   },

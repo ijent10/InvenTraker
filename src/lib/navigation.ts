@@ -24,7 +24,7 @@ export type NavigationItem = {
 }
 
 export const navigation: NavigationItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/administrator", label: "Administrator", icon: ShieldCheck, permission: "platform.admin" },
   { href: "/inventory", label: "Inventory", icon: PackageSearch, permission: "inventory.view" },
   { href: "/orders", label: "Orders", icon: ShoppingCart, permission: "orders.view" },

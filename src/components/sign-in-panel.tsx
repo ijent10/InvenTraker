@@ -66,7 +66,7 @@ export function SignInPanel({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <StatusPill tone={configured ? "green" : "red"}>{configured ? "Firebase configured" : "Missing Firebase config"}</StatusPill>
+          <StatusPill tone={configured ? "green" : "red"}>{configured ? "Sign-in available" : "Sign-in unavailable"}</StatusPill>
           <StatusPill tone={signedIn ? "blue" : "neutral"}>{signedIn ? "Signed in" : "Signed out"}</StatusPill>
         </div>
       </div>
@@ -81,12 +81,12 @@ export function SignInPanel({
             onChange={(event) => setPassword(event.target.value)}
             type="password"
             placeholder="Password"
-            autoComplete={signedIn ? "current-password" : "new-password"}
+            autoComplete="current-password"
           />
         </Field>
       </div>
 
-      {session.member ? (
+      {signedIn && session.status === "ready" && session.member ? (
         <div className="mt-4 rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] p-3 text-sm text-[var(--app-muted)]">
           Signed in as <span className="font-semibold text-[var(--app-text)]">{session.member.name}</span> with{" "}
           <span className="font-semibold text-[var(--app-text)]">{session.member.permissions.includes("*") ? "owner" : session.member.permissions.length}</span>{" "}
@@ -96,8 +96,7 @@ export function SignInPanel({
 
       {session.status === "no-member" ? (
         <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm leading-6 text-amber-200">
-          This Firebase account is signed in, but it does not have a member record at <span className="font-semibold">orgs/{session.orgId}/members/{session.user?.uid}</span>.
-          Ask an organization owner to add this user or seed a test user.
+          Your account is signed in, but organization access could not be found. Ask your organization owner to check your membership.
           <BetaOwnerActivation />
         </div>
       ) : null}

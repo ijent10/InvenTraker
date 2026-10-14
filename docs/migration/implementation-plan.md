@@ -99,8 +99,8 @@ Remaining: engine-owned data providers for all 11 domains, richer Large/XL conte
 | Phase | Status |
 |---|---|
 | 0 Audit | Documentation delivered |
-| 1 Design foundation | IDS namespace delivered; shared controls and native tokens still pending |
-| 2 Application shells | Existing shells preserved; full shell refinements pending |
+| 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native tokens pending |
+| 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace schemas and authenticated layout API delivered; domain event/outbox contracts pending |
 | 4 Inventory reference | Existing stock transactions preserved; formal extraction pending |
 | 5 Workspace Engine | Web editor and persistence delivered; provider completeness and native parity pending |

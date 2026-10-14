@@ -23,7 +23,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold leading-5 transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant]} ${className}`}
+      className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[var(--ids-radius-sm)] border px-4 py-2 text-sm font-semibold leading-5 transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant]} ${className}`}
       {...props}
     >
       {icon}
@@ -54,7 +54,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className={`inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold leading-5 transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${styles[variant]} ${className}`}
+      className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[var(--ids-radius-sm)] border px-4 py-2 text-sm font-semibold leading-5 transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${styles[variant]} ${className}`}
     >
       {icon}
       {children}
@@ -86,13 +86,13 @@ export function StatusPill({
 }) {
   const styles = {
     blue: "border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[var(--app-text)]",
-    green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    red: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+    green: "border-transparent bg-[var(--ids-success-soft)] text-[var(--ids-status-success)]",
+    amber: "border-transparent bg-[var(--ids-warning-soft)] text-[var(--ids-status-warning)]",
+    red: "border-transparent bg-[var(--ids-critical-soft)] text-[var(--ids-status-critical)]",
     neutral: "border-[var(--app-control-border)] bg-[var(--app-control-bg)] text-[var(--app-muted)]"
   }
 
-  return <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${styles[tone]}`}>{children}</span>
+  return <span className={`rounded-[var(--ids-radius-sm)] border px-2 py-1 text-xs font-semibold ${styles[tone]}`}>{children}</span>
 }
 
 export function Field({
@@ -117,7 +117,7 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-10 w-full rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 text-sm text-[var(--app-control-text)] outline-none transition placeholder:text-[var(--app-subtle)] focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
+      className={`h-11 w-full rounded-[var(--ids-radius-sm)] border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 text-sm text-[var(--app-control-text)] outline-none transition placeholder:text-[var(--app-subtle)] focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
     />
   )
 }
@@ -126,7 +126,7 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return (
     <textarea
       {...props}
-      className={`min-h-24 w-full rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 py-2 text-sm text-[var(--app-control-text)] outline-none transition placeholder:text-[var(--app-subtle)] focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
+      className={`min-h-24 w-full rounded-[var(--ids-radius-sm)] border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 py-2 text-sm text-[var(--app-control-text)] outline-none transition placeholder:text-[var(--app-subtle)] focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
     />
   )
 }
@@ -135,7 +135,7 @@ export function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>
   return (
     <select
       {...props}
-      className={`h-10 w-full cursor-pointer rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 text-sm text-[var(--app-control-text)] outline-none transition focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
+      className={`h-11 w-full cursor-pointer rounded-[var(--ids-radius-sm)] border border-[var(--app-control-border)] bg-[var(--app-control-bg)] px-3 text-sm text-[var(--app-control-text)] outline-none transition focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)] ${props.className ?? ""}`}
     />
   )
 }
@@ -154,7 +154,7 @@ export function ToggleRow({
   name?: string
 }) {
   return (
-    <label className="flex cursor-pointer gap-3 rounded-md border border-[var(--app-control-border)] bg-[var(--app-control-bg)] p-3 transition hover:border-[var(--app-accent)] hover:bg-[var(--app-control-bg-hover)] has-[:checked]:border-[var(--app-accent)] has-[:checked]:bg-[var(--app-accent-soft)]">
+    <label className="flex cursor-pointer gap-3 rounded-[var(--ids-radius-sm)] border border-[var(--app-control-border)] bg-[var(--app-control-bg)] p-3 transition hover:border-[var(--app-accent)] hover:bg-[var(--app-control-bg-hover)] has-[:checked]:border-[var(--app-accent)] has-[:checked]:bg-[var(--app-accent-soft)]">
       <input
         type="checkbox"
         name={name}

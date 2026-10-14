@@ -97,3 +97,12 @@ The marketing site remains a presentation surface. The portal uses a collapsible
 ## Migration and rollback
 
 Map existing CSS variables to IDS names first, then migrate components incrementally. Keep compatibility aliases until all pages move. On iOS, introduce an `IDS` token namespace without replacing native semantics. Roll back at token alias or component level; no data migration is required.
+
+
+## Web implementation checkpoint
+
+Shared buttons, links, inputs, and selects now use IDS small-radius geometry and 44px minimum control heights. Status pills use semantic success/warning/critical colors and soft surface tokens. Page headings follow active theme text colors. Numeric table cells use tabular figures.
+
+The portal supports a persisted collapsible desktop sidebar, accessible names in icon mode, current-page semantics, a skip link, bottom Personal Settings access, and a keyboard-operated compact navigation menu on narrow screens. The menu closes after selecting a destination. Reduced-motion and reduced-transparency preferences have dedicated shell behavior.
+
+Verified locally in browser: sidebar collapses to 80px, icon links remain named, compact menu opens with Enter and closes on navigation, phone document width stays at 390px, active account identity matches the signed-in member, and page headings remain readable in the existing light theme. Native IDS tokens and full assistive-technology hardware validation remain pending.

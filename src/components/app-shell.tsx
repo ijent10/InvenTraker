@@ -3,9 +3,9 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { doc, onSnapshot } from "firebase/firestore"
-import { KeyRound, ShieldAlert, UserCircle } from "lucide-react"
+import { KeyRound, ShieldAlert, UserCircle, PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react"
 
 import { BetaOwnerActivation } from "@/components/beta-owner-activation"
 import { GlobalSearch } from "@/components/global-search"
@@ -86,6 +86,8 @@ function AppShellContent({
 }) {
   const pathname = usePathname()
   const session = useAuthSession()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const compactMenu = useRef<HTMLDetailsElement>(null)
   const [liveBranding, setLiveBranding] = useState(initialBranding)
   const visibleNavigation = navigation.filter((item) => session.can(item.permission))
   const currentEmployee = session.member ?? initialEmployee ?? employees[0]
@@ -94,6 +96,19 @@ function AppShellContent({
   const routePermission = requiredPermissionForPath(pathname)
   const bootstrapAdminCanClaim = routePermission === "platform.admin" && session.user?.email?.toLowerCase() === "ianjjent@icloud.com"
   const routeAllowed = !routePermission || session.can(routePermission) || bootstrapAdminCanClaim
+
+  useEffect(() => {
+    try { setSidebarCollapsed(localStorage.getItem("inventraker.sidebarCollapsed") === "true") } catch { /* Use expanded navigation. */ }
+  }, [])
+
+  useEffect(() => { if (compactMenu.current) compactMenu.current.open = false }, [pathname])
+
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => {
+      try { localStorage.setItem("inventraker.sidebarCollapsed", String(!current)) } catch { /* Session-only preference. */ }
+      return !current
+    })
+  }
 
   useEffect(() => {
     setLiveBranding(initialBranding)
@@ -246,17 +261,21 @@ function AppShellContent({
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-[var(--app-border)] bg-[var(--app-panel-strong)] px-4 py-5 lg:flex">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
+    <div className="portal-shell min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--app-text)]" data-sidebar-collapsed={sidebarCollapsed}>
+      <a href="#main-workspace" className="portal-skip-link">Skip to workspace</a>
+      <aside className="portal-sidebar fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[var(--app-border)] bg-[var(--app-panel-strong)] px-4 py-5 lg:flex">
+        <Link href="/dashboard" aria-label="InvenTraker home" className="flex shrink-0 items-center gap-3">
           <Image src="/inventracker-logo.png" alt="" width={40} height={40} />
-          <div className="min-w-0">
+          <div className={sidebarCollapsed ? "sr-only" : "min-w-0"}>
             <p className="text-base font-semibold">InvenTraker</p>
             <p className="text-xs text-[var(--app-muted)]">Inventory operations</p>
           </div>
         </Link>
 
-        <nav className="mt-8 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+        <button className="mt-5 flex min-h-11 items-center justify-center gap-2 rounded-md border border-[var(--app-control-border)] p-2 text-sm" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>
+          {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <><PanelLeftClose className="h-5 w-5" /><span>Collapse navigation</span></>}
+        </button>
+        <nav aria-label="Main navigation" className="mt-5 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
           {visibleNavigation.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
             const Icon = item.icon
@@ -264,6 +283,8 @@ function AppShellContent({
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
+                title={item.href === "/stores" ? storeNavLabel : item.label}
                 className={`flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
                   active
                     ? "bg-[var(--app-accent)] text-[var(--app-on-accent)]"
@@ -271,18 +292,19 @@ function AppShellContent({
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                <span className="truncate">{item.href === "/stores" ? storeNavLabel : item.label}</span>
+                <span className={sidebarCollapsed ? "sr-only" : "truncate"}>{item.href === "/stores" ? storeNavLabel : item.label}</span>
               </Link>
             )
           })}
         </nav>
+        <Link href="/account" className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-[var(--app-muted)]" title="Personal settings"><UserCircle className="h-4 w-4 shrink-0" /><span className={sidebarCollapsed ? "sr-only" : ""}>Personal settings</span></Link>
       </aside>
 
-      <div className="min-w-0 overflow-x-hidden lg:pl-64">
+      <div className="portal-body min-w-0 overflow-x-hidden">
         <header className="sticky top-0 z-10 border-b border-[var(--app-border)] bg-[var(--app-panel-strong)] backdrop-blur">
-          <div className="grid min-h-20 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
-              <Link href="/dashboard" className="flex shrink-0 items-center gap-2 lg:hidden">
+              <Link href="/dashboard" aria-label="InvenTraker home" className="flex shrink-0 items-center gap-2 lg:hidden">
                 <Image src="/inventracker-logo.png" alt="" width={36} height={36} />
                 <span className="hidden font-semibold sm:inline">InvenTraker</span>
               </Link>
@@ -290,7 +312,7 @@ function AppShellContent({
             </div>
 
             <Link href="/organization" className="flex min-w-0 flex-col items-center justify-center text-center">
-              <BrandLogo src={liveBranding.logoUrl} size={36} />
+              <span className="hidden sm:block"><BrandLogo src={liveBranding.logoUrl} size={36} /></span>
               <span className="mt-1 max-w-[36vw] truncate text-sm font-semibold text-[var(--app-text)] sm:max-w-sm">{liveBranding.companyName}</span>
               {liveBranding.headerText ? (
                 <span className="hidden max-w-[32vw] truncate text-xs text-[var(--app-muted)] sm:block">{liveBranding.headerText}</span>
@@ -301,6 +323,7 @@ function AppShellContent({
               <NotificationBell notifications={notifications} />
               <Link
                 href="/account"
+                aria-label="Open your account"
                 className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-md border border-[var(--app-control-border)] px-2 text-[var(--app-muted)] transition hover:bg-[var(--app-control-bg-hover)] hover:text-[var(--app-text)] sm:px-3"
               >
                 <UserCircle className="h-4 w-4" />
@@ -313,7 +336,9 @@ function AppShellContent({
             <GlobalSearch className="flex w-full" />
           </div>
 
-          <nav className="flex max-w-full gap-1 overflow-x-auto border-t border-[var(--app-border)] px-3 py-2 lg:hidden">
+          <details ref={compactMenu} className="portal-compact-menu border-t border-[var(--app-border)] lg:hidden">
+            <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 text-sm font-semibold"><Menu className="h-4 w-4" />Navigation<span className="ml-auto text-[var(--app-muted)]">{visibleNavigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? "Account"}</span></summary>
+          <nav aria-label="Compact navigation" className="grid max-h-[50vh] grid-cols-2 gap-1 overflow-y-auto px-3 py-2">
             {visibleNavigation.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
               const Icon = item.icon
@@ -321,7 +346,8 @@ function AppShellContent({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-xs font-semibold ${
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-xs font-semibold ${
                     active ? "bg-[var(--app-accent)] text-[var(--app-on-accent)]" : "text-[var(--app-muted)]"
                   }`}
                 >
@@ -331,9 +357,10 @@ function AppShellContent({
               )
             })}
           </nav>
+          </details>
         </header>
 
-        <main className="mx-auto min-w-0 max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main id="main-workspace" tabIndex={-1} className="mx-auto min-w-0 max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   )

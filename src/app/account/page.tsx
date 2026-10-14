@@ -2,8 +2,7 @@ import Link from "next/link"
 import { ArrowRight, Gauge, Info, KeyRound, Palette, Settings, UserCircle } from "lucide-react"
 
 import { PageHeader } from "@/components/page-header"
-import { Panel, StatusPill } from "@/components/ui"
-import { getCurrentEmployee } from "@/lib/account-data"
+import { PersonalAccountIdentity } from "@/components/personal-account-identity"
 
 const accountSections = [
   {
@@ -50,8 +49,7 @@ const accountSections = [
   }
 ] as const
 
-export default async function AccountPage() {
-  const employee = await getCurrentEmployee()
+export default function AccountPage() {
 
   return (
     <>
@@ -60,18 +58,7 @@ export default async function AccountPage() {
         description="Pick the setting you want to change. Each section opens on its own page so account settings stay clean."
       />
 
-      <Panel className="mb-6 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[var(--app-subtle)]">Signed in as</p>
-            <h2 className="mt-1 text-xl font-semibold text-[var(--app-text)]">{employee.name || employee.email || "Workspace user"}</h2>
-            <p className="mt-1 text-sm text-[var(--app-muted)]">
-              {employee.jobTitle || "No title"} - {employee.department || "No department"} - {employee.location || "No location"}
-            </p>
-          </div>
-          <StatusPill tone={employee.status === "Active" ? "green" : "blue"}>{employee.status}</StatusPill>
-        </div>
-      </Panel>
+      <PersonalAccountIdentity />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {accountSections.map((section) => {

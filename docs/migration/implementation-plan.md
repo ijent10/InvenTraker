@@ -75,6 +75,12 @@ Run accessibility, responsive, Core Web Vitals, authorization, tenant isolation,
 
 This slice is additive, independently testable, and does not touch stock data.
 
+### Foundation progress
+
+Implemented the IDS token namespace, validated workspace schemas, pure packing/move/resize/snap/compaction utilities, device adaptation, revision comparison, registry validation/permission filtering, and legacy migration metadata adapter. Added `workspace:check` with collision/bounds tests across all device classes and multiple generated placement scenarios.
+
+Remaining before workspace release: transactional cloud persistence, authorization-scoped provider data services, in-home editor and gestures, accessible resize/move controls, size-specific rendering, shape surfaces, undo/reset, conflict presentation, and browser/device interaction validation. Existing dashboard rendering remains active until those pieces are ready.
+
 ## Definition of done for every phase
 
 - Existing behavior inventory updated.

@@ -4,6 +4,16 @@
 
 The current dashboard persists an ordered array of widget IDs and renders them through one static definition list. It supports add/remove/reorder, but not direct home-screen editing, coordinates, resizing, shapes, device variants, revisions, conflicts, or engine data providers.
 
+## Foundation implemented
+
+`workspace-contracts.ts` validates layouts, instances, definitions, and candidates. `workspace-grid.ts` implements pure placement, move, size snapping, resize, compaction, device adaptation, geometry validation, and revision comparison. Phone XL uses a full-width six-row footprint so it remains distinct from Large.
+
+`workspace-registry.ts` validates provider metadata, filters definitions through a supplied permission predicate, and migrates legacy IDs. Unrecognized IDs are returned to the caller for resolution. `workspace-legacy-adapter.ts` maps the current widget catalog to provider metadata without treating its example values as operational facts.
+
+Run `workspace:check` for geometry, deterministic adaptation, migration, permission filtering, unsupported configuration, and revision-conflict invariants. The production build checks the compatibility adapter's TypeScript imports.
+
+These modules are not yet connected to dashboard rendering or cloud persistence. Revision comparison must run inside a persistence transaction; calling the pure function alone does not provide concurrent-write protection. The next implementation adds that persistence adapter and the in-home editor.
+
 ## Ownership
 
 The Workspace Engine owns layout and presentation preferences. Operational engines own facts, metrics, actions, and permissions. The shared renderer owns consistent visual states. The intelligence layer ranks approved candidates. AI never moves, resizes, adds, removes, or reshapes widgets.

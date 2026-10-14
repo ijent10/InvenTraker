@@ -582,3 +582,6 @@ textarea {
 .portal-shell td { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .portal-shell *, .portal-shell *::before, .portal-shell *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @media (prefers-reduced-transparency: reduce) { .portal-sidebar, .portal-shell header { background: var(--app-bg); backdrop-filter: none; } }
+.workspace-editing .workspace-content { padding-top: 48px; padding-bottom: 24px; gap: 4px; }
+.workspace-editing .workspace-content > svg { display: none; }
+.workspace-editing .workspace-shape-circle .workspace-content { padding: 24%; }

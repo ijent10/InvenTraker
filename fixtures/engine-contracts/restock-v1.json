@@ -1,0 +1,94 @@
+{
+  "request": {
+    "commandId": "00000000-0000-4000-8000-000000000004",
+    "locationId": "store",
+    "payload": {
+      "commit": true,
+      "lines": [
+        {
+          "itemId": "cheese",
+          "countedFrontStock": 2,
+          "expectedRevision": 3
+        }
+      ]
+    }
+  },
+  "response": {
+    "requestId": "00000000-0000-4000-8000-000000000004",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-15T12:00:00.000Z",
+    "replayed": false,
+    "data": {
+      "committed": true,
+      "recommendations": [
+        {
+          "itemId": "cheese",
+          "name": "Cheese",
+          "countedFrontStock": 2,
+          "previousBackStock": 8,
+          "targetFrontStock": 7,
+          "pullQuantity": 5,
+          "resultingFrontStock": 7,
+          "resultingBackStock": 3,
+          "expectedRevision": 3,
+          "unallocatedQuantity": 0,
+          "item": {
+            "id": "cheese",
+            "revision": 3
+          }
+        }
+      ]
+    }
+  },
+  "preview": {
+    "requestId": "00000000-0000-4000-8000-000000000004",
+    "schemaVersion": "1",
+    "generatedAt": "2026-10-15T12:00:00.000Z",
+    "data": {
+      "committed": false,
+      "recommendations": [
+        {
+          "itemId": "cheese",
+          "name": "Cheese",
+          "countedFrontStock": 2,
+          "previousBackStock": 8,
+          "targetFrontStock": 7,
+          "pullQuantity": 5,
+          "resultingFrontStock": 7,
+          "resultingBackStock": 3,
+          "expectedRevision": 3,
+          "unallocatedQuantity": 0,
+          "item": {
+            "id": "cheese",
+            "revision": 3
+          }
+        }
+      ]
+    }
+  },
+  "mobileResponse": {
+    "apiVersion": "2026-09-30",
+    "serverTime": "2026-10-15T12:00:00.000Z",
+    "data": {
+      "committed": true,
+      "recommendations": [
+        {
+          "itemId": "cheese",
+          "name": "Cheese",
+          "countedFrontStock": 2,
+          "previousBackStock": 8,
+          "targetFrontStock": 7,
+          "pullQuantity": 5,
+          "resultingFrontStock": 7,
+          "resultingBackStock": 3,
+          "expectedRevision": 3,
+          "unallocatedQuantity": 0,
+          "item": {
+            "id": "cheese",
+            "revision": 3
+          }
+        }
+      ]
+    }
+  }
+}

@@ -869,6 +869,7 @@ struct SpotCheckLine: Encodable, Identifiable {
 struct RestockLine: Encodable, Identifiable {
     let itemId: String
     var countedFrontStock: Double
+    var expectedRevision: Int? = nil
     var id: String { itemId }
 }
 
@@ -883,6 +884,7 @@ struct RestockRecommendation: Identifiable, Decodable {
     let countedFrontStock: Double
     let previousBackStock: Double
     let targetFrontStock: Double
+    let expectedRevision: Int?
     let pullQuantity: Double
     let resultingFrontStock: Double
     let resultingBackStock: Double

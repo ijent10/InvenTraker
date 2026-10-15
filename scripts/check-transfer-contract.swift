@@ -10,6 +10,7 @@ struct CheckTransferContract {
     struct CountFixture: Decodable { let response: EngineResult<CountResult>; let mobileResponse: APIEnvelope<CountResult> }
     struct ReceiptResult: Decodable { let receivedIds: [String] }
     struct ReceiptFixture: Decodable { let response: EngineResult<ReceiptResult>; let mobileResponse: APIEnvelope<ReceiptResult> }
+    struct RestockFixture: Decodable { let response: EngineResult<RestockResult>; let mobileResponse: APIEnvelope<RestockResult> }
     static func main() throws {
         let path = CommandLine.arguments.dropFirst().first ?? "fixtures/engine-contracts/transfer-v1.json"
         let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
@@ -26,6 +27,11 @@ struct CheckTransferContract {
         let encoded = try JSONEncoder().encode(ReceivingLine(itemId: "cheese", quantity: 1, expirationDate: nil))
         let payload = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
         precondition(payload["itemId"] as? String == "cheese")
-        print("Swift transfer, count and receiving fixtures passed with the app's actual models and receiving request.")
+        let restock = try JSONDecoder().decode(RestockFixture.self, from: Data(contentsOf: URL(fileURLWithPath: "fixtures/engine-contracts/restock-v1.json")))
+        precondition(restock.response.data.recommendations[0].pullQuantity == restock.mobileResponse.data.recommendations[0].pullQuantity)
+        precondition(restock.response.data.recommendations[0].expectedRevision == 3)
+        let restockLine = try JSONSerialization.jsonObject(with: JSONEncoder().encode(RestockLine(itemId: "cheese", countedFrontStock: 2, expectedRevision: 3))) as! [String: Any]
+        precondition(restockLine["expectedRevision"] as? Int == 3)
+        print("Swift transfer, count, receiving and restock fixtures passed using the app's actual models.")
     }
 }

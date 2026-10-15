@@ -367,6 +367,7 @@ struct RestockView: View {
     @State private var scanEntry = false
     @State private var manualPicker = false
     @State private var error = ""
+    @State private var calculating = false
 
     var body: some View {
         List {
@@ -395,11 +396,13 @@ struct RestockView: View {
                 }
             }
         }
+        .disabled(calculating || session.isWorking)
+        .onChange(of: lines.map { "\($0.itemId):\($0.countedFrontStock)" }) { _, _ in recommendations = [] }
         .navigationTitle("Restock")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(recommendations.isEmpty ? "Calculate" : "Complete") { action() }
-                    .disabled(lines.isEmpty || session.isWorking)
+                    .disabled(lines.isEmpty || session.isWorking || calculating)
             }
         }
         .sheet(isPresented: $scanEntry) {
@@ -420,10 +423,24 @@ struct RestockView: View {
     }
 
     private func action() {
+        guard !calculating && !session.isWorking else { return }
+        calculating = true
         Task {
+            defer { calculating = false }
             do {
-                if recommendations.isEmpty { recommendations = try await session.previewRestock(lines).recommendations }
+                if recommendations.isEmpty {
+                    recommendations = try await session.previewRestock(lines).recommendations
+                    for index in lines.indices {
+                        if let revision = recommendations.first(where: { $0.itemId == lines[index].itemId })?.expectedRevision {
+                            lines[index].expectedRevision = revision
+                        }
+                    }
+                }
                 else { try await session.commitRestock(lines); lines = []; recommendations = [] }
+            } catch let failure as APIClientError where failure.code == "stale_count" {
+                lines = []; recommendations = []
+                await session.loadWorkspace(storeId: session.selectedStoreId, quiet: true)
+                error = "Stock changed. Scan the items again and recount before completing restock."
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -438,7 +455,7 @@ struct RestockView: View {
 
     private func add(_ item: InventoryItem) {
         guard !lines.contains(where: { $0.itemId == item.id }) else { return }
-        lines.append(RestockLine(itemId: item.id, countedFrontStock: item.frontStock))
+        lines.append(RestockLine(itemId: item.id, countedFrontStock: item.frontStock, expectedRevision: item.revision))
     }
 }
 

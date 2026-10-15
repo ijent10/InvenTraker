@@ -102,7 +102,7 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
-| 4 Inventory reference | Front/back transfer, spot-check reconciliation and receiving application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
+| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving and restock application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -138,3 +138,11 @@ Moved Receiving behind an Inventory application service and transaction reposito
 Fixed inconsistent physical/order-unit receipts and repeated partial-case rounding. The shared Orders contract now tracks canonical received stock and derives order-unit progress, with the legacy helper delegating to that calculation. Existing order progress is preserved conservatively.
 
 Domain, shared order/pilot, Swift fixture, build and real Firestore checks cover receiving once, partial/full receipts, invalid status, scope, unit mismatch, over-receipt, concurrency, distinct expiration batches and rollback across the order and stock records. Shipment sessions/discrepancy workflows, remaining stock command extraction, event delivery and native device validation remain pending.
+
+## Restock command milestone
+
+Moved Restock preview/commit behind the Inventory application/repository boundary and added the versioned endpoint. Preview metadata distinguishes generation from commitment; commit fingerprints prevent replaying different counts. Versioned commits require a preview revision and reject competing/stale observations. Legacy mobile callers remain compatible, with optional revision protection.
+
+Retained the pull rule and floor-count reconciliation. Explicit undated batches cover found floor stock, pulled stock without batch details and remaining untracked backstock. Invalid over-covered backstock and malformed batch data fail before writes. Native source carries preview revisions, invalidates edited previews and requires recount after a conflict.
+
+Domain, Swift fixture/syntax, build and isolated Firestore checks verify previews are read-only, API parity, retry safety, revision conflicts, quantity conservation after count variance, complete batch coverage and rollback. The full Xcode toolchain is still unavailable; native build/device validation, restock request/assignment workflows, remaining commands and event delivery are pending.

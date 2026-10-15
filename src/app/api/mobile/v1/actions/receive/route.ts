@@ -1,10 +1,11 @@
+import { postStockOperation } from "@/lib/engines/inventory/post-stock-operation"
 import { z } from "zod"
 
 import { adminFieldValue } from "@/lib/firebase-admin"
 import { firestoreCollections } from "@/lib/firestore-schema"
 import { applyOrderReceipt } from "@/lib/order-contract"
 import { assertStoreAccess, mobileEnvelope, mobileError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
-import { assertInventoryItemStore, assertUniqueItemLines, derivedStockStatus, nextStockState, operationIdSchema, replayStockOperation, stockChange, stockOperationRecord, stockOperationSource, stockState, type StockChange } from "@/lib/stock-operations"
+import { assertInventoryItemStore, assertUniqueItemLines, derivedStockStatus, nextStockState, operationIdSchema, replayStockOperation, stockChange, stockOperationSource, stockState, type StockChange } from "@/lib/stock-operations"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
       })
 
       const operationResult = { receivedIds }
-      transaction.create(operationRef, stockOperationRecord({
+      postStockOperation(transaction, operationRef, {
         principal,
         operationId: parsed.data.operationId,
         operationType: "receive",
@@ -171,7 +172,7 @@ export async function POST(request: Request) {
         result: operationResult,
         timestamp: FieldValue.serverTimestamp(),
         source: stockOperationSource(request)
-      }))
+      })
       return operationResult
     })
 

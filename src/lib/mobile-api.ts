@@ -1,4 +1,5 @@
 import type { DocumentData, Firestore } from "firebase-admin/firestore"
+import { EngineError } from "@/lib/engines/contracts"
 
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { DEFAULT_ORG_ID, firestoreCollections } from "@/lib/firestore-schema"
@@ -288,7 +289,7 @@ export function mobileEnvelope<T>(data: T) {
 }
 
 export function mobileError(error: unknown) {
-  if (error instanceof MobileApiError) {
+  if (error instanceof MobileApiError || error instanceof EngineError) {
     return Response.json(
       { apiVersion: MOBILE_API_VERSION, error: { code: error.code, message: error.message } },
       { status: error.status }

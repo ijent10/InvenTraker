@@ -1,0 +1,5 @@
+{
+  "request": { "commandId": "00000000-0000-4000-8000-000000000001", "locationId": "store", "payload": { "itemId": "cheese", "quantity": 3, "source": "back", "destination": "front" } },
+  "response": { "requestId": "00000000-0000-4000-8000-000000000001", "schemaVersion": "1", "committedAt": "2026-10-15T01:30:00.000Z", "replayed": false, "data": { "itemId": "cheese", "itemName": "Cheese", "frontStock": 5, "backStock": 5, "onHand": 10, "batchAllocations": [{ "batchId": "first", "quantity": 2, "remainingQuantity": 0 }, { "batchId": "later", "quantity": 1, "remainingQuantity": 5 }], "unallocatedQuantity": 0, "allocationMethod": "earliest_expiring_first", "selectedBatchId": null } },
+  "mobileResponse": { "apiVersion": "2026-09-30", "serverTime": "2026-10-15T01:30:00.000Z", "data": { "itemId": "cheese", "itemName": "Cheese", "frontStock": 5, "backStock": 5, "onHand": 10, "batchAllocations": [{ "batchId": "first", "quantity": 2, "remainingQuantity": 0 }, { "batchId": "later", "quantity": 1, "remainingQuantity": 5 }], "unallocatedQuantity": 0, "allocationMethod": "earliest_expiring_first", "selectedBatchId": null } }
+}

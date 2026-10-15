@@ -1,7 +1,8 @@
 import { deterministicCandidateScore, type WidgetCandidate, type WidgetInstance } from "./workspace-contracts.ts"
 import type { PermissionKey } from "./permissions"
+import { engineIdSchema } from "./engines/contracts.ts"
 
-export const workspaceEngines = ["inventory", "spot-check", "restock", "receiving", "discards", "transfers", "production", "orders", "health-checks", "assistant", "insights"] as const
+export const workspaceEngines = engineIdSchema.options
 export type WorkspaceSource = "inventory" | "inventoryBatches" | "stockOperations" | "orders" | "healthChecks" | "waste" | "receiving" | "portions"
 export type SourceResult = { records: Record<string, unknown>[]; partial: boolean; failed?: boolean }
 export type WidgetSummary = { state: "loaded" | "empty" | "permission-denied" | "engine-unavailable"; value: string; detail: string; partial?: boolean; candidates: WidgetCandidate[] }

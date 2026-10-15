@@ -1,10 +1,11 @@
+import { postStockOperation } from "@/lib/engines/inventory/post-stock-operation"
 import { z } from "zod"
 
 import { adminFieldValue } from "@/lib/firebase-admin"
 import { allocateBatches } from "@/lib/batch-allocation"
 import { firestoreCollections } from "@/lib/firestore-schema"
 import { assertStoreAccess, MobileApiError, mobileEnvelope, mobileError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
-import { assertInventoryItemStore, derivedStockStatus, nextStockState, operationIdSchema, replayStockOperation, stockChange, stockOperationRecord, stockOperationSource, stockState, type StockChange } from "@/lib/stock-operations"
+import { assertInventoryItemStore, derivedStockStatus, nextStockState, operationIdSchema, replayStockOperation, stockChange, stockOperationSource, stockState, type StockChange } from "@/lib/stock-operations"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -131,7 +132,7 @@ export async function POST(request: Request) {
         createdAt: FieldValue.serverTimestamp()
       })
       const operationResult = { wasteIds: ids, humanOverrideCount: parsed.data.lines.filter((line) => Boolean(line.batchId)).length }
-      transaction.create(operationRef, stockOperationRecord({
+      postStockOperation(transaction, operationRef, {
         principal,
         operationId: parsed.data.operationId,
         operationType: "waste",
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
         result: operationResult,
         timestamp: FieldValue.serverTimestamp(),
         source: stockOperationSource(request)
-      }))
+      })
       return operationResult
     })
 

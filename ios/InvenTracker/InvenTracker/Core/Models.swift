@@ -1,5 +1,15 @@
 import Foundation
 
+/// Versioned engine responses coexist with the mobile compatibility envelope.
+struct EngineResult<Value: Decodable>: Decodable {
+    let requestId: String
+    let schemaVersion: String
+    let committedAt: String
+    let replayed: Bool
+    let data: Value
+    let degraded: Bool?
+}
+
 struct APIEnvelope<Value: Decodable>: Decodable {
     let apiVersion: String
     let serverTime: String

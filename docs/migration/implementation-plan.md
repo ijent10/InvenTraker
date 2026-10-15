@@ -101,8 +101,8 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 0 Audit | Documentation delivered |
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
-| 3 Shared contracts | Workspace schemas and authenticated layout API delivered; domain event/outbox contracts pending |
-| 4 Inventory reference | Existing stock transactions preserved; formal extraction pending |
+| 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
+| 4 Inventory reference | Front/back transfer application service/repository extracted, both API versions share it, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -118,3 +118,9 @@ Added Spot Checks, Receiving, Transfers, and Cut & Portion to the compatible cat
 The client refreshes visible summaries once per minute, suspends background polling, aborts requests on context changes, and labels stale or unavailable results. Large/XL content uses source-authorized candidates, critical-first deterministic scores, expiry, and summary/automatic/pinned modes. No AI service is called by this new gateway.
 
 Validation: provider invariant checks, existing workspace invariants, type checking and production build; authenticated local integration with the existing test organization for owner/employee, unauthenticated rejection, organization rejection and unassigned-store rejection. Browser checked catalog addition, corner keyboard resize, pinned selection, cloud save and rendered priority content. Native build/device validation remains unavailable without the full Xcode toolchain.
+
+## Inventory reference milestone
+
+Extracted front/back transfers behind the Inventory application/repository boundary. Both API versions share one movement implementation; the old mobile response remains compatible. Added payload-aware replay validation, canonical-precision validation and current tenant/store/permission checks before repository access. Shared TypeScript and actual Swift model fixtures validate the response boundary.
+
+All seven stock operations now atomically stage a minimal event with their existing ledger write. Real Firestore tests on isolated fake-organization records verified retry behavior, receiving once, concurrent stock protection and full rollback when event creation fails. No dispatcher is enabled; delivery, consumer receipts, event-driven workspace refresh and remaining engine extraction are still pending. Native UI/device verification still needs the full Xcode toolchain.

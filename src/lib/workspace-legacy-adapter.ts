@@ -1,4 +1,5 @@
-import { dashboardWidgets } from "./demo-data"
+import { workspaceWidgetCatalog } from "./workspace-catalog"
+import { workspaceProviders } from "./workspace-providers"
 import { createWidgetRegistry } from "./workspace-registry"
 import type { WidgetDefinition } from "./workspace-contracts"
 
@@ -21,16 +22,16 @@ const providers: Record<string, { engine: string; permissions: string[] }> = {
   notes: { engine: "workspace", permissions: [] }
 }
 
-export const legacyWidgetDefinitions: WidgetDefinition[] = dashboardWidgets.map((widget) => {
-  const provider = providers[widget.id]
+export const legacyWidgetDefinitions: WidgetDefinition[] = workspaceWidgetCatalog.map((widget) => {
+  const provider = providers[widget.id] ?? { engine: widget.id, permissions: workspaceProviders[widget.id]?.permissions ?? [] }
   if (!provider) throw new Error(`Missing provider metadata for ${widget.id}`)
   return {
     id: widget.id, engineId: provider.engine, title: widget.title, description: widget.detail,
     supportedSizes: ["small", "medium", "large", "extra-large"],
     supportedShapes: ["circle", "square", "rounded-square"],
-    permissions: provider.permissions,
-    dataSource: `legacy-summary:${widget.id}`,
-    contentCapabilities: ["summary", "navigation"], availableActions: ["navigate"],
+    permissions: workspaceProviders[widget.id]?.permissions ?? provider.permissions,
+    dataSource: workspaceProviders[widget.id] ? `store-summary:${widget.id}` : `navigation:${widget.id}`,
+    contentCapabilities: ["summary", "navigation", "priorities"], availableActions: ["navigate"],
     defaultRefreshPolicy: { strategy: "visibility", staleAfterSeconds: 60 },
     fallbackRenderer: "unavailable-summary"
   }

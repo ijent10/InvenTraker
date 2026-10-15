@@ -15,6 +15,7 @@
     "ai:install-local": "node scripts/install-local-ai.mjs",
     "ai:check-local": "node scripts/check-local-ai.mjs",
     "stock:check": "node --experimental-strip-types scripts/check-stock-invariants.mts",
+    "workspace:providers": "node --experimental-strip-types scripts/check-workspace-providers.mts",
     "workspace:check": "node --experimental-strip-types scripts/check-workspace-invariants.mts",
     "orders:check": "node --experimental-strip-types scripts/check-order-invariants.mts",
     "today:check": "node --experimental-strip-types scripts/check-today-invariants.mts",

@@ -117,3 +117,14 @@ Provider data invalidates on relevant engine events, organization/location chang
 - Local browser: keyboard move/resize; actual corner drag from Large to Medium; add and undo; shape change; successful cloud save; saved layout loaded after a fresh login; notes modal through a circular surface; explicit conflict resolution.
 - Phone viewport at 390px: all eight migrated widgets retained, independent four-column layout, document width equals viewport width.
 - Native touch/haptic behavior and screen-reader hardware validation remain unverified.
+
+
+### Store-scoped summary providers
+
+`workspace-providers.ts` defines the explicit source/permission map and pure candidate selection. `/api/v1/workspace/widgets?widgets=inventory,orders&storeId=...` accepts known catalog IDs; omitted IDs request the complete provider set for compatibility. Membership and selected-store access are checked on every request, including refreshes. Only permitted sources are queried, with explicit field projections. The response carries `generatedAt`, per-widget state, partial-coverage labels and short-lived candidates. No writes or AI requests occur.
+
+Eight supported source collections cover the 11 domain summaries. Activity counts are record counts, not totals of incompatible units or fabricated session states. Spot-check/restock/transfer counts refer to the stock ledger. Transfers currently mean front/back movements. Assistant and Insights consume authorized inventory/expiry/order/check summaries only. Legacy navigation-only widgets stay navigational.
+
+The client polls visible pages at 60 seconds and refreshes on reconnect/visibility return; fetches time out after 20 seconds. Requests are aborted and prior context is hidden on organization/store/widget-set changes. Source failures are independent. Cached data is labeled stale after failure or two minutes; stale candidates are hidden. This is refresh-based invalidation; transactional event/outbox invalidation remains pending.
+
+Large and extra-large rectangular widgets render bounded priority lists. Summary, automatic, and pinned modes persist in the existing versioned layout. Missing/expired pins fall back to the summary. Selection is engine- and size-filtered, critical-first, deterministically scored, then ID-tiebroken. `workspace:providers` checks filtering, privacy boundaries, source selection, expiry, modes and failure isolation.

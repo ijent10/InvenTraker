@@ -81,7 +81,7 @@ Implemented the IDS token namespace, validated workspace schemas, pure packing/m
 
 Web runtime delivered: transactional cloud persistence, in-home editor, pointer drag and corner resizing, keyboard alternatives, four-size snapping, shape surfaces, undo/reset/cancel, local draft recovery, revision-conflict presentation, migration from legacy preferences, and a build-time rollback switch. Browser and API integration checks are recorded in `widget-runtime.md`.
 
-Remaining: engine-owned data providers for all 11 domains, richer Large/XL content, candidate selection and invalidation, native iOS workspace editing, and hardware accessibility/touch verification. This is a web Workspace Engine milestone, not completion of the product-wide phase.
+Store-scoped summary providers now cover all 11 operational domains. Large/XL widgets support deterministic automatic priorities and a pinned priority, with expiry and failure isolation. Native iOS workspace editing, domain-owned command/event extraction, and hardware accessibility/touch verification remain. This is a web Workspace Engine milestone, not completion of the product-wide phase.
 
 ## Definition of done for every phase
 
@@ -103,8 +103,18 @@ Remaining: engine-owned data providers for all 11 domains, richer Large/XL conte
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace schemas and authenticated layout API delivered; domain event/outbox contracts pending |
 | 4 Inventory reference | Existing stock transactions preserved; formal extraction pending |
-| 5 Workspace Engine | Web editor and persistence delivered; provider completeness and native parity pending |
+| 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
-| 7 AI intelligence | Existing assistant preserved; workspace ranking integration pending |
+| 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
 | 8 Marketing | Existing public site preserved; final product-aligned update pending |
 | 9 Release validation | Workspace-specific checks run; full product validation pending |
+
+## Store summary provider milestone
+
+Added an authenticated, read-only `/api/v1/workspace/widgets` gateway. It rechecks membership, source permissions and store assignment, projects an explicit field allowlist, loads only sources required by visible widgets (plus authorized priority dependencies), bounds each source to 1,000 records, and labels incomplete counts. A failed source does not blank unrelated widgets. Private employee identities and assistant conversations are excluded.
+
+Added Spot Checks, Receiving, Transfers, and Cut & Portion to the compatible catalog. These expose existing stock-ledger/receiving/portion activity; they do not imply spot-check sessions, interstore transfer tracking, or a recipe production engine. Legacy history/vendor/employee/review tiles remain navigation where no scoped provider is supplied. Existing layouts retain their IDs and summary mode.
+
+The client refreshes visible summaries once per minute, suspends background polling, aborts requests on context changes, and labels stale or unavailable results. Large/XL content uses source-authorized candidates, critical-first deterministic scores, expiry, and summary/automatic/pinned modes. No AI service is called by this new gateway.
+
+Validation: provider invariant checks, existing workspace invariants, type checking and production build; authenticated local integration with the existing test organization for owner/employee, unauthenticated rejection, organization rejection and unassigned-store rejection. Browser checked catalog addition, corner keyboard resize, pinned selection, cloud save and rendered priority content. Native build/device validation remains unavailable without the full Xcode toolchain.

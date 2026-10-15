@@ -4,7 +4,10 @@ import Link from "next/link"
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent } from "react"
 import { GripVertical, MoveDownRight, Plus, Undo2, X } from "lucide-react"
 import { useAuthSession } from "@/lib/auth-session"
-import { dashboardWidgets, type ShiftNote } from "@/lib/demo-data"
+import { type ShiftNote } from "@/lib/demo-data"
+import { workspaceWidgetCatalog as dashboardWidgets } from "@/lib/workspace-catalog"
+import { useWorkspaceData } from "@/lib/use-workspace-data"
+import { selectWorkspaceCandidates } from "@/lib/workspace-providers"
 import { readCloudWorkspacePreferences } from "@/lib/cloud-preferences"
 import { readDashboardWidgetIds } from "@/lib/dashboard-layout"
 import { legacyWidgetDefinitions, legacyWidgetRegistry } from "@/lib/workspace-legacy-adapter"
@@ -16,13 +19,15 @@ import { ShiftNotesWidget } from "@/components/shift-notes-widget"
 
 type Stats = Record<string, { value?: string; detail?: string }>
 
-export function WorkspaceHome({ widgetStats = {}, shiftNotes = [] }: { widgetStats?: Stats; shiftNotes?: ShiftNote[] }) {
+export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftNotes?: ShiftNote[] }) {
   const session = useAuthSession()
   const [device, setDevice] = useState<DeviceClass | null>(null)
   const [layout, setLayout] = useState<DashboardLayout | null>(null)
+  const providers = useWorkspaceData(session.orgId, session.user?.uid, session.status === "ready" && Boolean(layout), layout?.widgets.map((item) => item.widgetDefinitionId).sort().join(",") ?? "")
   const [editing, setEditing] = useState(false)
   const [history, setHistory] = useState<DashboardLayout[]>([])
   const [catalog, setCatalog] = useState(false)
+  const [contentWidgetId, setContentWidgetId] = useState("")
   const [message, setMessage] = useState("")
   const [saving, setSaving] = useState(false)
   const [activeWidget, setActiveWidget] = useState<string | null>(null)
@@ -154,7 +159,14 @@ export function WorkspaceHome({ widgetStats = {}, shiftNotes = [] }: { widgetSta
   if (!layout) return <section id="workspace" className="mt-6 rounded-panel bg-[var(--app-panel)] p-6" role="status">{message || "Loading your home screen…"}{message && <button className="ml-3 underline" onClick={() => setLoadAttempt((value) => value + 1)}>Retry</button>}</section>
 
   const permitted = legacyWidgetRegistry.permitted((permission) => session.can(permission as Parameters<typeof session.can>[0]))
+  const contentWidget = layout.widgets.find((item) => item.id === contentWidgetId) ?? layout.widgets[0]
+  const contentOptions = contentWidget ? providers.data?.widgets[contentWidget.widgetDefinitionId]?.candidates ?? [] : []
   return <section id="workspace" className="mt-6 scroll-mt-28" aria-label="Your home widgets">
+    <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+      <label className="flex items-center gap-2">Store <select className="min-h-11 rounded-control border border-[var(--app-border)] bg-[var(--app-panel)] px-3" aria-label="Widget store" value={providers.data?.storeId ?? ""} onChange={(event) => providers.setStoreId(event.target.value)} disabled={!providers.data?.stores.length}>{!providers.data && <option value="">Loading…</option>}{providers.data?.stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <button className="min-h-11 px-3 underline" onClick={providers.refresh}>Refresh summaries</button>
+      <span role="status" className="text-[var(--app-muted)]">{providers.error || (providers.data && !providers.data.storeId ? "Ask your manager to assign a store." : providers.stale ? "Showing the last saved summaries. Refresh to update." : providers.data ? `Updated ${new Date(providers.data.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Loading store summaries…")}</span>
+    </div>
     {recovery && <div className="workspace-toolbar"><p>Unfinished edits are saved on this device.</p><button onClick={() => { revision.current = recovery.expectedRevision; setLayout(recovery.layout); setRecovery(null); setEditing(true) }}>Restore edits</button><button onClick={() => { setRecovery(null); localStorage.removeItem(cacheKey) }}>Discard unfinished edits</button></div>}
     {editing && <div className="workspace-toolbar">
       <h2 className="font-semibold">Customize your home screen</h2>
@@ -170,7 +182,16 @@ export function WorkspaceHome({ widgetStats = {}, shiftNotes = [] }: { widgetSta
     </div>}
     <p role="status" aria-live="polite" className="my-2 text-sm">{message}</p>
     {conflict && <div className="workspace-toolbar"><button onClick={() => { setLayout(conflict); base.current = conflict; revision.current = conflict.revision; setConflict(null); setHistory([]); setMessage("Loaded the other session’s layout.") }}>Load saved version</button><button onClick={() => void save(conflict.revision)}>Keep my layout</button></div>}
-    {editing && catalog && <div className="workspace-toolbar" aria-label="Widget catalog">{permitted.filter((definition) => !layout.widgets.some((w) => w.widgetDefinitionId === definition.id)).map((definition) => <button key={definition.id} onClick={() => change({ ...layout, widgets: packWidgets([...layout.widgets, { id: crypto.randomUUID(), widgetDefinitionId: definition.id, engineId: definition.engineId, size: "medium", gridX: 0, gridY: 0, gridWidth: 1, gridHeight: 1, mode: "fixed", preferences: {} }], layout.deviceClass) })}>{definition.title} +</button>)}</div>}
+    {editing && catalog && <div className="workspace-toolbar" aria-label="Widget catalog">{permitted.filter((definition) => !layout.widgets.some((w) => w.widgetDefinitionId === definition.id)).map((definition) => <button key={definition.id} onClick={() => change({ ...layout, widgets: packWidgets([...layout.widgets, { id: crypto.randomUUID(), widgetDefinitionId: definition.id, engineId: definition.engineId, size: "medium", gridX: 0, gridY: 0, gridWidth: 1, gridHeight: 1, mode: "automatic", preferences: {} }], layout.deviceClass) })}>{definition.title} +</button>)}</div>}
+    {editing && contentWidget && <details className="workspace-toolbar">
+      <summary className="cursor-pointer py-2 font-medium">Widget content</summary>
+      <div className="flex flex-wrap items-center gap-3">
+        <label>Widget <select aria-label="Content widget" value={contentWidget.id} onChange={(event) => setContentWidgetId(event.target.value)}>{layout.widgets.map((item) => <option key={item.id} value={item.id}>{legacyWidgetRegistry.get(item.widgetDefinitionId)?.title}</option>)}</select></label>
+        <label>Content <select aria-label="Content mode" disabled={saving} value={contentWidget.mode} onChange={(event) => change({ ...layout, widgets: layout.widgets.map((item) => item.id === contentWidget.id ? { ...item, mode: event.target.value as typeof item.mode, pinnedContentId: event.target.value === "pinned" ? contentOptions[0]?.id : undefined } : item) })}><option value="fixed">Summary</option><option value="automatic">Automatic priorities</option><option value="pinned" disabled={!contentOptions.length}>Pinned priority</option></select></label>
+        {contentWidget.mode === "pinned" && <label>Priority <select aria-label="Pinned priority" disabled={saving} value={contentWidget.pinnedContentId ?? ""} onChange={(event) => change({ ...layout, widgets: layout.widgets.map((item) => item.id === contentWidget.id ? { ...item, pinnedContentId: event.target.value } : item) })}>{!contentOptions.some((item) => item.id === contentWidget.pinnedContentId) && <option value={contentWidget.pinnedContentId ?? ""}>Priority no longer available</option>}{contentOptions.map((item) => <option key={item.id} value={item.id}>{item.title} — {item.summary}</option>)}</select></label>}
+      </div>
+      <p className="text-sm text-[var(--app-muted)]">Priorities appear in large and extra-large widgets. Automatic content uses urgency and impact. A resolved pinned priority returns to the summary.</p>
+    </details>}
     {layout.widgets.length === 0 && <p className="p-8 text-center text-[var(--app-muted)]">Your home screen is empty. Add widgets from Personal Settings → Customize your home screen.</p>}
     <div ref={grid} className="workspace-grid" style={{ gridTemplateColumns: `repeat(${workspaceColumns[layout.deviceClass]}, minmax(0, 1fr))` }}>
       {layout.widgets.map((widget) => {
@@ -179,14 +200,16 @@ export function WorkspaceHome({ widgetStats = {}, shiftNotes = [] }: { widgetSta
         const allowed = definition.permissions.every((permission) => session.can(permission as Parameters<typeof session.can>[0]))
         const Icon = legacy.icon
         const shape = widget.shapeOverride ?? layout.shapePreference
-        const stat = allowed ? widgetStats[definition.id] : undefined
-        const value = stat?.value ?? (legacy.type === "Tile" || legacy.type === "Shortcut" ? "Open" : "Unavailable")
+        const stat = allowed ? providers.data?.widgets[definition.id] : undefined
+        const isProvider = definition.dataSource.startsWith("store-summary:")
+        const value = stat?.value ?? (isProvider ? providers.error ? "Unavailable" : providers.data ? "Choose store" : "Loading…" : "Open")
+        const candidates = stat && !providers.stale ? selectWorkspaceCandidates(stat.candidates, widget, new Date().toISOString()) : []
         return <article key={widget.id} className={`workspace-cell ${editing ? "workspace-editing" : ""} ${activeWidget === widget.id ? "workspace-lift" : ""}`} style={{ gridColumn: `${widget.gridX + 1} / span ${widget.gridWidth}`, gridRow: `${widget.gridY + 1} / span ${widget.gridHeight}` }}>
           {editing && <><button className="workspace-move" aria-label={`Move ${definition.title}; use arrow keys`} onPointerDown={(e) => begin(e, widget.id, "move")} onPointerMove={track} onPointerUp={() => end()} onPointerCancel={() => end(true)} onKeyDown={(e) => keyboard(e, widget.id, "move")}><GripVertical className="h-5 w-5" /></button><button className="workspace-remove" disabled={saving} aria-label={`Remove ${definition.title}`} onClick={() => change({ ...layout, widgets: layout.widgets.filter((w) => w.id !== widget.id) })}><X className="h-4 w-4" /></button></>}
           <div className={`workspace-surface workspace-shape-${shape}`}>
             {!allowed ? <div className="workspace-content"><Icon className="h-5 w-5" /><h3>{definition.title}</h3><p>Access unavailable</p></div>
             : definition.id === "notes" && !editing ? <ShiftNotesWidget widget={legacy} notes={shiftNotes} trigger={<><Icon className="h-6 w-6 text-[var(--app-accent)]" /><h3>Notes</h3><p className="workspace-value">{shiftNotes.length}</p>{widget.size !== "small" && shape !== "circle" && <p className="text-sm text-[var(--app-muted)]">Open your shift notes</p>}</>} />
-            : <Link href={legacy.href} tabIndex={editing ? -1 : 0} aria-disabled={editing} onClick={(e) => { if (editing) e.preventDefault() }} className="workspace-content"><Icon className="h-6 w-6 text-[var(--app-accent)]" /><h3>{definition.title}</h3><p className="workspace-value">{value}</p>{widget.size !== "small" && shape !== "circle" && <p className="text-sm text-[var(--app-muted)]">{stat?.detail ?? definition.description}</p>}</Link>}
+            : <Link href={legacy.href} tabIndex={editing ? -1 : 0} aria-disabled={editing} onClick={(e) => { if (editing) e.preventDefault() }} className="workspace-content" data-provider-state={providers.stale ? "stale" : stat?.state ?? (isProvider ? "loading" : "navigation")}><Icon className="h-6 w-6 text-[var(--app-accent)]" /><h3>{definition.title}</h3><p className="workspace-value">{value}{stat?.partial && <span className="text-sm">*</span>}</p>{widget.size !== "small" && shape !== "circle" && <p className="text-sm text-[var(--app-muted)]">{stat?.detail ?? definition.description}</p>}{!editing && shape !== "circle" && (widget.size === "large" || widget.size === "extra-large") && candidates.length > 0 && <ul className="workspace-priorities">{candidates.map((item) => <li key={item.id}><span className={item.severity === "critical" ? "text-[var(--app-danger)]" : "font-medium"}>{item.title}</span><span className="text-[var(--app-muted)]">{item.summary}</span></li>)}</ul>}</Link>}
           </div>
           {editing && <button className="workspace-resize" aria-label={`Resize ${definition.title}, ${widget.size}; use arrow keys`} onPointerDown={(e) => begin(e, widget.id, "resize")} onPointerMove={track} onPointerUp={() => end()} onPointerCancel={() => end(true)} onKeyDown={(e) => keyboard(e, widget.id, "resize")}><MoveDownRight className="h-5 w-5" /></button>}
         </article>

@@ -69,4 +69,11 @@ assert.throws(() => assertOrderTransition("Draft", "Submitted"), /cannot move/)
 assert.equal(calculateOrderTotal([{ finalQuantity: 2, unitCostAmount: 3.5 }]), 7)
 assert.throws(() => validateOrderLines([{ id: "x", itemName: "Milk", sku: "MILK-1", vendorOffered: true, suggestedQuantity: 2, finalQuantity: 3 }]), /Explain/)
 
+const fractionalCase = recommendOrder({
+  storeId: "store-1", vendor, inventory: [{ ...baseItem, onHand: 0, par: 1, expires: false }], batches: [],
+  openOrders: [{ id: "partial-case", storeId: "store-1", status: "Partially received", lines: [{ sku: "MILK-1", quantity: 1, stockUnitsPerOrderUnit: 6, receivedQuantity: 5 / 6 }] }],
+  costs: [{ sku: "MILK-1", name: "Milk", unitCost: 4 }], generatedAt: "2026-10-15T12:00:00Z"
+})
+assert.equal(fractionalCase.lines[0].confirmedIncoming, 1)
+assert.equal(fractionalCase.lines[0].suggestedQuantity, 0, "fractional-case floating point noise must not create a phantom reorder")
 console.log("Order invariants passed.")

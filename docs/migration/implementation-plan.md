@@ -102,7 +102,7 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
-| 4 Inventory reference | Front/back transfer and spot-check reconciliation application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
+| 4 Inventory reference | Front/back transfer, spot-check reconciliation and receiving application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -130,3 +130,11 @@ All seven stock operations now atomically stage a minimal event with their exist
 Moved count reconciliation into the Inventory application service and Firestore repository, retaining the mobile route as an adapter and adding the versioned count endpoint. Preserved revision checks and batch reconciliation, added payload-aware retry protection and safe transaction-size checks. Saved count results are not duplicated in ledger metadata.
 
 Validation covers domain invariants, active Swift inventory model decoding, and real Firestore integration in isolated fake-organization records: count/transfer API parity, repeated commands, competing counts, stale multi-item rejection, reconciled batch totals and complete rollback when event creation fails. Count sessions/approval workflows, remaining command extraction, event delivery and native device validation are still pending.
+
+## Receiving command milestone
+
+Moved Receiving behind an Inventory application service and transaction repository; the mobile adapter preserves its result and a versioned receipt endpoint uses the shared engine contract. Added payload-aware replay validation and original-receipt verification for historical ledger entries.
+
+Fixed inconsistent physical/order-unit receipts and repeated partial-case rounding. The shared Orders contract now tracks canonical received stock and derives order-unit progress, with the legacy helper delegating to that calculation. Existing order progress is preserved conservatively.
+
+Domain, shared order/pilot, Swift fixture, build and real Firestore checks cover receiving once, partial/full receipts, invalid status, scope, unit mismatch, over-receipt, concurrency, distinct expiration batches and rollback across the order and stock records. Shipment sessions/discrepancy workflows, remaining stock command extraction, event delivery and native device validation remain pending.

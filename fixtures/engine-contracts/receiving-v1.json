@@ -1,0 +1,34 @@
+{
+  "request": {
+    "commandId": "00000000-0000-4000-8000-000000000003",
+    "locationId": "store",
+    "payload": {
+      "lines": [
+        {
+          "itemId": "cheese",
+          "quantity": 1
+        }
+      ]
+    }
+  },
+  "response": {
+    "requestId": "00000000-0000-4000-8000-000000000003",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-15T12:00:00.000Z",
+    "replayed": false,
+    "data": {
+      "receivedIds": [
+        "00000000-0000-4000-8000-000000000003-1"
+      ]
+    }
+  },
+  "mobileResponse": {
+    "apiVersion": "2026-09-30",
+    "serverTime": "2026-10-15T12:00:00.000Z",
+    "data": {
+      "receivedIds": [
+        "00000000-0000-4000-8000-000000000003-1"
+      ]
+    }
+  }
+}

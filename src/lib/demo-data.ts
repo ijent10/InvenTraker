@@ -110,6 +110,7 @@ export type OrderLine = {
   finalQuantity?: number
   overrideReason?: string | null
   receivedQuantity?: number
+  receivedStockQuantity?: number
   calculation?: string
   sourceRefs?: string[]
   dataFreshness?: string | null

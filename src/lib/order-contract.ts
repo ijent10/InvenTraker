@@ -1,4 +1,5 @@
 import type { OrderLine } from "./demo-data.ts"
+import { normalizeStockQuantity } from "./stock-quantities.ts"
 
 export const ORDER_STATUSES = ["Draft", "Needs review", "Approved", "Submitted", "Partially received", "Received", "Reconciled", "Cancelled"] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]
@@ -50,14 +51,37 @@ export function applyOrderReceipt(
   itemId: string,
   receivedOrderQuantity: number
 ) {
-  const nextLines = lines.map((line) => ({ ...line }))
-  const line = nextLines.find((candidate) => candidate.id === orderLineId)
+  const line = lines.find((entry) => entry.id === orderLineId)
   if (!line || String(line.itemId ?? "") !== itemId) throw new Error("The selected order line does not match this inventory item.")
-  const ordered = Number(line.finalQuantity ?? line.quantity ?? 0)
-  const previouslyReceived = Number(line.receivedQuantity ?? 0)
   if (!Number.isFinite(receivedOrderQuantity) || receivedOrderQuantity <= 0) throw new Error("Received order quantity must be positive.")
-  if (previouslyReceived + receivedOrderQuantity > ordered + 0.0001) throw new Error("Received quantity is greater than the order line's outstanding quantity.")
-  line.receivedQuantity = Math.round((previouslyReceived + receivedOrderQuantity) * 1000) / 1000
-  const complete = nextLines.every((candidate) => Number(candidate.receivedQuantity ?? 0) >= Number(candidate.finalQuantity ?? candidate.quantity ?? 0))
-  return { lines: nextLines, status: complete ? "Received" as const : "Partially received" as const }
+  const pack = Number(line.stockUnitsPerOrderUnit ?? 1)
+  if (!Number.isFinite(pack) || pack < 1) throw new Error("The order has invalid quantities or pack sizes.")
+  return applyStockOrderReceipt(lines, orderLineId, itemId, normalizeStockQuantity(receivedOrderQuantity * pack), receivedOrderQuantity)
+}
+
+/** Receive canonical stock units without rounding fractional cases on every delivery. */
+export function applyStockOrderReceipt(lines: Array<Record<string, unknown>>, orderLineId: string, itemId: string, stockQuantity: number, explicitOrderQuantity?: number) {
+  const nextLines = lines.map((line) => ({ ...line }))
+  const matches = nextLines.filter((line) => line.id === orderLineId)
+  if (matches.length !== 1 || String(matches[0].itemId ?? "") !== itemId) throw new Error("The selected order line does not match this inventory item.")
+  const amounts = (line: Record<string, unknown>) => {
+    const pack = Number(line.stockUnitsPerOrderUnit ?? 1)
+    const ordered = Number(line.finalQuantity ?? line.quantity ?? 0)
+    const received = Number(line.receivedQuantity ?? 0)
+    const previousStock = line.receivedStockQuantity == null ? received * pack : Number(line.receivedStockQuantity)
+    if (![pack, ordered, received, previousStock, ordered * pack].every(Number.isFinite) || pack < 1 || ordered < 0 || received < 0 || previousStock < 0) throw new Error("The order has invalid quantities or pack sizes.")
+    if (line.receivedStockQuantity != null && normalizeStockQuantity(received * pack) !== normalizeStockQuantity(previousStock)) throw new Error("The order has inconsistent received quantities.")
+    return { pack, orderedStock: normalizeStockQuantity(ordered * pack), receivedStock: normalizeStockQuantity(previousStock) }
+  }
+  if (!Number.isFinite(stockQuantity) || stockQuantity <= 0) throw new Error("Received stock quantity must be positive.")
+  if (normalizeStockQuantity(stockQuantity) === 0 || Math.abs(normalizeStockQuantity(stockQuantity) - stockQuantity) > 0.000000001) throw new Error("Received stock quantity must use three decimal places.")
+  const line = matches[0]
+  const before = amounts(line)
+  if (explicitOrderQuantity !== undefined && (!Number.isFinite(explicitOrderQuantity) || explicitOrderQuantity <= 0 || normalizeStockQuantity(explicitOrderQuantity * before.pack) !== stockQuantity)) throw new Error("Order units do not match the received stock quantity.")
+  const receivedStock = normalizeStockQuantity(before.receivedStock + stockQuantity)
+  if (receivedStock > before.orderedStock) throw new Error("Received quantity is greater than the order line's outstanding quantity.")
+  line.receivedStockQuantity = receivedStock
+  line.receivedQuantity = receivedStock / before.pack
+  const complete = nextLines.every((entry) => { const value = amounts(entry); return value.receivedStock >= value.orderedStock })
+  return { lines: nextLines, status: complete ? "Received" as const : "Partially received" as const, receivedOrderQuantity: stockQuantity / before.pack }
 }

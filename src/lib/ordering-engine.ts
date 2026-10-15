@@ -1,6 +1,6 @@
 import { summarizeBatchAvailability, type AllocatableBatch } from "./batch-allocation.ts"
 
-export const ORDER_ENGINE_VERSION = "2026-10-01.1"
+export const ORDER_ENGINE_VERSION = "2026-10-15.1"
 export const ORDER_SCHEMA_VERSION = 1
 
 export type OrderingInventoryItem = {
@@ -137,9 +137,9 @@ export function recommendOrder({
         ? Math.max(0, availability.usableDated - availability.expiringBeforeDelivery)
         : batchCoverageKnown ? availability.totalPhysical : Math.max(0, item.onHand)
       const matchingConfirmedOrders = confirmedOrders.filter((order) => order.lines.some((line) => line.sku === item.sku))
-      const confirmedIncoming = matchingConfirmedOrders.reduce((total, order) => total + order.lines
+      const confirmedIncoming = round(matchingConfirmedOrders.reduce((total, order) => total + order.lines
         .filter((line) => line.sku === item.sku)
-        .reduce((lineTotal, line) => lineTotal + Math.max(0, line.quantity - (line.receivedQuantity ?? 0)) * (line.stockUnitsPerOrderUnit ?? 1), 0), 0)
+        .reduce((lineTotal, line) => lineTotal + Math.max(0, line.quantity - (line.receivedQuantity ?? 0)) * (line.stockUnitsPerOrderUnit ?? 1), 0), 0))
       const targetEndingStock = Math.max(0, item.par)
       const projectedDemand = 0
       const requiredStockUnits = Math.max(0, targetEndingStock + projectedDemand - usableOnHand - confirmedIncoming)

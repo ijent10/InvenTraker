@@ -81,6 +81,15 @@ try {
 
   const spot = await mobile("spot-check", { lines: [{ itemId, expectedRevision: 1, frontStock: 7, backStock: 13 }] })
   await checkCommitted(spot.id, "spot_check")
+  const spotVersioned = { commandId: spot.id, locationId: storeId, payload: { lines: spot.payload.lines } }
+  const spotReplay = await post("/api/v1/inventory/spot-checks", spotVersioned)
+  assert.equal(spotReplay.status, 200)
+  assert.equal(spotReplay.body.replayed, true)
+  assert.deepEqual(spotReplay.body.data, spot.result.body.data)
+  assert.equal((await post("/api/v1/inventory/spot-checks", { ...spotVersioned, payload: { lines: [{ ...spot.payload.lines[0], frontStock: 8 }] } })).status, 409)
+  const countBatches = await org.collection("inventoryBatches").where("itemId", "==", itemId).get()
+  for (const [area, expected] of [["front", 7], ["back", 13]]) assert.equal(countBatches.docs.filter((doc) => doc.data().area === area).reduce((sum, doc) => sum + doc.data().remainingQuantity, 0), expected)
+  assert.equal(countBatches.docs.filter((doc) => doc.data().source === "count_reconciliation")[0].data().expirationKnown, false)
   const receive = await mobile("receive", { lines: [{ itemId, quantity: 5, orderId, orderLineId: "line", receivedOrderQuantity: 5 }] })
   await checkCommitted(receive.id, "receive")
   assert.equal((await org.collection("orders").doc(orderId).get()).data().status, "Received")
@@ -101,6 +110,28 @@ try {
   const raced = (await org.collection("inventory").doc(raceId).get()).data()
   assert.equal(raced.frontStock, 4); assert.equal(raced.backStock, 1); assert.equal(raced.revision, 1)
 
+  const countRaceIds = [op(), op()]
+  const countRaces = await Promise.all(countRaceIds.map((commandId, index) => post("/api/v1/inventory/spot-checks", { commandId, locationId: storeId, payload: { lines: [{ itemId: raceId, expectedRevision: 1, frontStock: 3 + index, backStock: 2 - index }] } })))
+  assert.deepEqual(countRaces.map((result) => result.status).sort(), [200, 409])
+  assert.equal((await org.collection("inventory").doc(raceId).get()).data().revision, 2)
+  assert.equal(countRaces.find((result) => result.status === 409).body.error.code, "stale_count")
+
+  const countBefore = (await inventoryRef.get()).data()
+  const partial = await post("/api/v1/inventory/spot-checks", { commandId: op(), locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 6, frontStock: 11, backStock: 13 }, { itemId: raceId, expectedRevision: 0, frontStock: 1, backStock: 4 }] } })
+  assert.equal(partial.status, 409)
+  assert.deepEqual((await inventoryRef.get()).data(), countBefore, "one stale line must reject the whole count")
+
+  const countRollbackId = op()
+  await outboxRef(countRollbackId).create({ isolatedTestCollision: prefix })
+  const batchesBefore = await org.collection("inventoryBatches").where("itemId", "==", itemId).get()
+  const countFailed = await post("/api/v1/inventory/spot-checks", { commandId: countRollbackId, locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 6, frontStock: 0, backStock: 0 }] } })
+  assert.equal(countFailed.status, 500)
+  assert.deepEqual((await inventoryRef.get()).data(), countBefore)
+  const batchesAfter = await org.collection("inventoryBatches").where("itemId", "==", itemId).get()
+  assert.deepEqual(batchesAfter.docs.map((doc) => doc.data()), batchesBefore.docs.map((doc) => doc.data()), "count failure must roll back batch changes")
+  assert.equal((await org.collection("stockOperations").doc(countRollbackId).get()).exists, false)
+  assert.equal((await org.collection("history").doc(countRollbackId).get()).exists, false)
+
   const rollbackId = op()
   await outboxRef(rollbackId).create({ isolatedTestCollision: prefix })
   const before = (await inventoryRef.get()).data()
@@ -120,7 +151,7 @@ try {
   assert.equal((await fetch(`${origin}/api/v1/inventory/transfers`, { method: "POST" })).status, 401)
   const outboxRead = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/engineOutbox/${outboxRef(transferId).id}`, { headers: { authorization: `Bearer ${login.idToken}` } })
   assert.equal(outboxRead.status, 403, "client SDK credentials must not read the internal outbox")
-  console.log("Firestore engine integration passed: seven atomic ledger/outbox writes, receiving once, version parity, retry conflict, concurrent stock protection, outbox-failure rollback, store isolation, validation and private outbox.")
+  console.log("Firestore engine integration passed: seven stock actions, receiving once, transfer/count API parity, conflicting retries, concurrent transfers/counts, stale multi-line rejection, stock/batch rollback, store isolation and private outbox.")
 } finally {
   if (created) {
     const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId)]

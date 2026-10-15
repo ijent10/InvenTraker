@@ -6,6 +6,8 @@ struct CheckTransferContract {
         let response: EngineResult<TransferResult>
         let mobileResponse: APIEnvelope<TransferResult>
     }
+    struct CountResult: Decodable { let updated: [InventoryItem]; let historyId: String }
+    struct CountFixture: Decodable { let response: EngineResult<CountResult>; let mobileResponse: APIEnvelope<CountResult> }
     static func main() throws {
         let path = CommandLine.arguments.dropFirst().first ?? "fixtures/engine-contracts/transfer-v1.json"
         let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
@@ -13,6 +15,10 @@ struct CheckTransferContract {
         precondition(fixture.response.data.itemId == fixture.mobileResponse.data.itemId)
         precondition(fixture.response.data.onHand == fixture.mobileResponse.data.onHand)
         precondition(fixture.response.data.frontStock + fixture.response.data.backStock == fixture.response.data.onHand)
-        print("Swift transfer contracts decoded both API versions using the app's actual models.")
+        let countData = try Data(contentsOf: URL(fileURLWithPath: "fixtures/engine-contracts/spot-check-v1.json"))
+        let count = try JSONDecoder().decode(CountFixture.self, from: countData)
+        precondition(count.response.data.updated[0].id == count.mobileResponse.data.updated[0].id)
+        precondition(count.response.data.updated[0].onHand == 12)
+        print("Swift transfer and count contracts decoded both API versions using the app's actual models.")
     }
 }

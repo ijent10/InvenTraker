@@ -1,0 +1,62 @@
+{
+  "request": {
+    "commandId": "00000000-0000-4000-8000-000000000002",
+    "locationId": "store",
+    "payload": {
+      "lines": [
+        {
+          "itemId": "cheese",
+          "expectedRevision": 2,
+          "frontStock": 2,
+          "backStock": 10
+        }
+      ]
+    }
+  },
+  "response": {
+    "requestId": "00000000-0000-4000-8000-000000000002",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-15T02:30:00.000Z",
+    "replayed": false,
+    "data": {
+      "historyId": "00000000-0000-4000-8000-000000000002",
+      "updated": [
+        {
+          "id": "cheese",
+          "storeId": "store",
+          "name": "Cheese",
+          "unit": "pounds",
+          "frontStock": 2,
+          "backStock": 10,
+          "onHand": 12,
+          "revision": 3,
+          "lastCountedAt": "2026-10-15T02:30:00.000Z",
+          "updatedAt": "2026-10-15T02:30:00.000Z",
+          "status": "Active"
+        }
+      ]
+    }
+  },
+  "mobileResponse": {
+    "apiVersion": "2026-09-30",
+    "serverTime": "2026-10-15T02:30:00.000Z",
+    "data": {
+      "historyId": "00000000-0000-4000-8000-000000000002",
+      "updated": [
+        {
+          "id": "cheese",
+          "storeId": "store",
+          "name": "Cheese",
+          "unit": "pounds",
+          "frontStock": 2,
+          "backStock": 10,
+          "onHand": 12,
+          "revision": 3,
+          "lastCountedAt": "2026-10-15T02:30:00.000Z",
+          "updatedAt": "2026-10-15T02:30:00.000Z",
+          "status": "Active"
+        }
+      ]
+    }
+  }
+}

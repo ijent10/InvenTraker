@@ -102,7 +102,7 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
-| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving and restock application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
+| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving, restock and discard application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -146,3 +146,12 @@ Moved Restock preview/commit behind the Inventory application/repository boundar
 Retained the pull rule and floor-count reconciliation. Explicit undated batches cover found floor stock, pulled stock without batch details and remaining untracked backstock. Invalid over-covered backstock and malformed batch data fail before writes. Native source carries preview revisions, invalidates edited previews and requires recount after a conflict.
 
 Domain, Swift fixture/syntax, build and isolated Firestore checks verify previews are read-only, API parity, retry safety, revision conflicts, quantity conservation after count variance, complete batch coverage and rollback. The full Xcode toolchain is still unavailable; native build/device validation, restock request/assignment workflows, remaining commands and event delivery are pending.
+
+
+## Discard command milestone
+
+Moved waste recording behind the Inventory application service/repository, preserving the mobile waste response and adding a versioned discard endpoint. Commands now check payload details on retry, including reasons and preferred batch selection; historical results are checked against their original waste entries. Two-area changes advance each item once, and a failed line prevents the entire operation.
+
+Retained earliest-expiring and preferred-batch-first behavior. Affected stock areas preserve remaining untracked quantities as explicit undated batches. Invalid batch balances, excess stock removal, noncanonical precision, duplicate item/area lines and oversized transactions are rejected before writes. Stock, batch allocation, waste entries, history and staged events share the transaction.
+
+Validation includes domain checks, Swift request/response fixtures, production build and isolated Firestore integration for API parity, retry conflicts, preferred allocation, competing discards, two-area changes, missing batch coverage and rollback. Native app code did not change in this milestone; device validation remains pending. Production/portion and threshold extraction, standalone Discards review workflows and event delivery remain pending; AI integration stays deferred.

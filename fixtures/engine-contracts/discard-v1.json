@@ -1,0 +1,38 @@
+{
+  "request": {
+    "commandId": "c201ab28-9113-4b10-b70b-07ea44cb9901",
+    "locationId": "store",
+    "payload": {
+      "lines": [
+        {
+          "itemId": "cheese",
+          "quantity": 1.25,
+          "area": "front",
+          "reason": "Damaged"
+        }
+      ]
+    }
+  },
+  "response": {
+    "requestId": "c201ab28-9113-4b10-b70b-07ea44cb9901",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-15T12:00:00.000Z",
+    "replayed": false,
+    "data": {
+      "wasteIds": [
+        "c201ab28-9113-4b10-b70b-07ea44cb9901-1"
+      ],
+      "humanOverrideCount": 0
+    }
+  },
+  "mobileResponse": {
+    "data": {
+      "wasteIds": [
+        "c201ab28-9113-4b10-b70b-07ea44cb9901-1"
+      ],
+      "humanOverrideCount": 0
+    },
+    "serverTime": "2026-10-15T12:00:00.000Z",
+    "apiVersion": "2026-09-30"
+  }
+}

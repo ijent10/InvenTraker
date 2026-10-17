@@ -128,3 +128,8 @@ Eight supported source collections cover the 11 domain summaries. Activity count
 The client polls visible pages at 60 seconds and refreshes on reconnect/visibility return; fetches time out after 20 seconds. Requests are aborted and prior context is hidden on organization/store/widget-set changes. Source failures are independent. Cached data is labeled stale after failure or two minutes; stale candidates are hidden. This is refresh-based invalidation; transactional event/outbox invalidation remains pending.
 
 Large and extra-large rectangular widgets render bounded priority lists. Summary, automatic, and pinned modes persist in the existing versioned layout. Missing/expired pins fall back to the summary. Selection is engine- and size-filtered, critical-first, deterministically scored, then ID-tiebroken. `workspace:providers` checks filtering, privacy boundaries, source selection, expiry, modes and failure isolation.
+
+
+## Stock-event invalidation follow-up
+
+The server now captures `stockRevision` before loading authorized widget facts. The web hook probes a dedicated scoped invalidation endpoint every 15 seconds while visible and refreshes facts when that arrival revision changes. Source loading stays independent of cursor availability; the existing one-minute refresh remains a fallback. Both request types abort on context changes, and nonready sessions do not render their cached snapshot. The authenticated scheduled consumer, receipts, retries, limits and rollback are documented in `engine-contracts.md`. Deployed API and consumer checks passed; browser visibility/context interaction checks and native subscriptions are still pending.

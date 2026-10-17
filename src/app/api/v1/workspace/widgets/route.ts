@@ -1,5 +1,7 @@
-import { assertStoreAccess, canAccessMobileStore, canMobile, mobileAssignedStores, mobileError, mobileRecord, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
+import { assertStoreAccess, canAccessMobileStore, canMobile, mobileAssignedStores, mobileError, mobileRecord, MobileApiError, orgCollection, requireMobilePrincipal } from "@/lib/mobile-api"
 import { buildWorkspaceSummaries, requiredWorkspaceSources, type SourceResult, type WorkspaceSource, workspaceProviders } from "@/lib/workspace-providers"
+
+import { readWorkspaceStockRevision } from "@/lib/engines/events/workspace-revision"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,6 +19,7 @@ const fields: Record<WorkspaceSource, string[]> = {
 export async function GET(request: Request) {
   try {
     const principal = await requireMobilePrincipal(request)
+    if (String(principal.member.status ?? "active").toLowerCase() !== "active") throw new MobileApiError("An active membership is required.", 403, "account_inactive")
     const query = new URL(request.url).searchParams
     const ids = query.has("widgets") ? [...new Set((query.get("widgets") || "").split(",").filter((id) => Object.hasOwn(workspaceProviders, id)))] : Object.keys(workspaceProviders)
     const directory = await orgCollection(principal, "stores").select("name", "code", "address", "location").limit(2001).get()
@@ -26,6 +29,8 @@ export async function GET(request: Request) {
     const storeId = query.get("storeId")?.trim() || stores[0]?.id || ""
     if (!storeId) return Response.json({ storeId: "", stores, generatedAt: new Date().toISOString(), widgets: {} }, { headers: { "Cache-Control": "private, no-store" } })
     await assertStoreAccess(principal, storeId)
+    // Capture before loading facts, so a concurrent delivery is detected by the next probe.
+    const stockRevision = await readWorkspaceStockRevision(principal, storeId).catch(() => undefined)
     const can = (permission: Parameters<typeof canMobile>[1]) => canMobile(principal, permission)
     const names = requiredWorkspaceSources(can, ids)
     const loaded = await Promise.allSettled(names.map(async (name) => {
@@ -34,6 +39,6 @@ export async function GET(request: Request) {
     }))
     const sources = Object.fromEntries(loaded.map((entry, index) => [names[index], entry.status === "fulfilled" ? entry.value : { records: [], partial: false, failed: true }]))
     const generatedAt = new Date().toISOString()
-    return Response.json({ storeId, stores, generatedAt, widgets: Object.fromEntries(Object.entries(buildWorkspaceSummaries(sources, can, generatedAt)).filter(([id]) => ids.includes(id))) }, { headers: { "Cache-Control": "private, no-store" } })
+    return Response.json({ storeId, stores, generatedAt, stockRevision, widgets: Object.fromEntries(Object.entries(buildWorkspaceSummaries(sources, can, generatedAt)).filter(([id]) => ids.includes(id))) }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) { const response = mobileError(error); response.headers.set("Cache-Control", "private, no-store"); return response }
 }

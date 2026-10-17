@@ -40,7 +40,7 @@ async function checkCommitted(id, expectedType) {
   const [ledger, history, outbox] = await Promise.all([org.collection("stockOperations").doc(id).get(), org.collection("history").doc(id).get(), outboxRef(id).get()])
   assert.equal(ledger.data()?.operationType, expectedType)
   assert.equal(history.exists, true)
-  assert.equal(outbox.data()?.status, "pending")
+  assert.ok(["pending", "delivered"].includes(outbox.data()?.status), "Committed events are staged or consumed")
   assert.equal(outbox.data()?.event.organizationId, orgId)
   assert.equal(outbox.data()?.event.locationId, storeId)
   assert.ok(!JSON.stringify(outbox.data()).includes(login.email || "market.owner@inventraker.app"), "outbox must reference the audit record instead of copying personal details")
@@ -369,7 +369,7 @@ try {
 } finally {
   if (created) {
     const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId), org.collection("orders").doc(caseOrderId), org.collection("inventory").doc(receiptItemId), org.collection("inventory").doc(restockItemId), org.collection("inventory").doc(discardItemId), org.collection("inventory").doc(portionItemId), org.collection("inventory").doc(thresholdItemId), thresholdDetail]
-    for (const id of operationIds) refs.push(org.collection("stockOperations").doc(id), org.collection("history").doc(id), outboxRef(id))
+    for (const id of operationIds) refs.push(org.collection("stockOperations").doc(id), org.collection("history").doc(id), outboxRef(id), db.collection("engineConsumerReceipts").doc(Buffer.from(JSON.stringify(["workspace-stock-v1", orgId, `${id}:inventory.stock-committed.v1`])).toString("base64url")))
     for (const collection of ["inventoryBatches", "receiving", "waste", "portions"]) for (const id of [itemId, raceId, wrongId, receiptItemId, restockItemId, discardItemId, portionItemId, thresholdItemId]) {
       const records = await org.collection(collection).where("itemId", "==", id).get()
       refs.push(...records.docs.map((doc) => doc.ref))

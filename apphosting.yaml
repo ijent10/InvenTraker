@@ -1,4 +1,13 @@
 env:
+  - variable: ENGINE_EVENT_DISPATCH_ENABLED
+    value: "true"
+    availability: [RUNTIME]
+  - variable: ENGINE_EVENT_DISPATCH_AUDIENCE
+    value: https://intrakbckend--inventracker-f1229.us-east4.hosted.app/api/internal/engine-events
+    availability: [RUNTIME]
+  - variable: ENGINE_EVENT_DISPATCH_SERVICE_ACCOUNT
+    value: inventraker-engine-events@inventracker-f1229.iam.gserviceaccount.com
+    availability: [RUNTIME]
   - variable: STRIPE_SANDBOX_RESTRICTED_KEY
     secret: inventraker-stripe-sandbox-key
     availability: [RUNTIME]

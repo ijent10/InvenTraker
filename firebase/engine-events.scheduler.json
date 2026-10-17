@@ -1,0 +1,18 @@
+{
+  "name": "projects/inventracker-f1229/locations/us-east4/jobs/inventraker-stock-events",
+  "description": "Deliver committed inventory events to the workspace invalidation consumer. Pause this job before rolling back the dispatcher.",
+  "schedule": "* * * * *",
+  "timeZone": "Etc/UTC",
+  "attemptDeadline": "60s",
+  "retryConfig": { "retryCount": 3, "minBackoffDuration": "10s", "maxBackoffDuration": "60s", "maxDoublings": 3, "maxRetryDuration": "180s" },
+  "httpTarget": {
+    "uri": "https://intrakbckend--inventracker-f1229.us-east4.hosted.app/api/internal/engine-events",
+    "httpMethod": "POST",
+    "headers": { "Content-Type": "application/json" },
+    "body": "e30=",
+    "oidcToken": {
+      "serviceAccountEmail": "inventraker-engine-events@inventracker-f1229.iam.gserviceaccount.com",
+      "audience": "https://intrakbckend--inventracker-f1229.us-east4.hosted.app/api/internal/engine-events"
+    }
+  }
+}

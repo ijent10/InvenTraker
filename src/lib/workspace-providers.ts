@@ -6,7 +6,7 @@ export const workspaceEngines = engineIdSchema.options
 export type WorkspaceSource = "inventory" | "inventoryBatches" | "stockOperations" | "orders" | "healthChecks" | "waste" | "receiving" | "portions"
 export type SourceResult = { records: Record<string, unknown>[]; partial: boolean; failed?: boolean }
 export type WidgetSummary = { state: "loaded" | "empty" | "permission-denied" | "engine-unavailable"; value: string; detail: string; partial?: boolean; candidates: WidgetCandidate[] }
-export type WorkspaceData = { storeId: string; stores: { id: string; name: string }[]; generatedAt: string; widgets: Record<string, WidgetSummary> }
+export type WorkspaceData = { stockRevision?: number; storeId: string; stores: { id: string; name: string }[]; generatedAt: string; widgets: Record<string, WidgetSummary> }
 
 type Provider = { permissions: PermissionKey[]; sources: WorkspaceSource[] }
 export const workspaceProviders: Record<string, Provider> = {

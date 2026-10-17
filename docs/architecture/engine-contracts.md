@@ -125,7 +125,7 @@ All seven existing stock action types now call `postStockOperation` on their exi
 
 Outbox records contain a validated event, `status: pending`, `attempts: 0`, `nextAttemptAt`, and `createdAt`. Events carry tenant/store scope, unique affected item IDs, correlation/causation IDs, and an audit reference; they do not copy employee identities or operation result payloads. The root collection is denied to client SDKs under existing default-deny rules and is outside organization collection enumeration. No rules change is required.
 
-**Not delivered:** a dispatcher, consumer receipts, retry execution, ordering guarantees, or event-driven workspace invalidation. Pending events are durable records, not proof of downstream delivery. No AI integration was added.
+**Initial staging limitation:** these records originally remained pending. The workspace consumer milestone below adds delivery for that one consumer; other consumers remain unimplemented. No AI integration is added.
 
 ## Verification and rollback
 
@@ -219,3 +219,18 @@ The adapter projects inventory balances/targets, batch quantities/areas/status a
 The pure query checks saved totals, canonical quantities, batch coverage, orphaned references, movement delta integrity, duplicate revisions, reviewed-history gaps, physical continuity across policy-only revisions, and current balance/target drift. Missing legacy baselines are review findings rather than invented opening balances. Findings are observational; use an authorized spot count to resolve a physical discrepancy. Bounded history cannot prove an item's complete lifetime history, and this query does not deliver queued events or replace ledger retention/repair tooling.
 
 Web entry: Inventory → Review stock (`/inventory/reconciliation`), with store selection, manual refresh, contextual item links, explicit unknown/partial/error states and findings paginated at 50 per page. No AI integration is involved. Remove the link/route to roll back; no data migration is necessary.
+
+
+## Workspace stock-event consumer
+
+`POST /api/internal/engine-events` verifies a Google OIDC ID token with the configured audience and exact verified service-account email. Firebase user tokens and unauthenticated requests cannot invoke it. The job definition is `firebase/engine-events.scheduler.json`; it runs once per minute with a 60-second deadline and bounded Scheduler retries. Its identity has no project data roles: the app runtime performs authorized server reads/writes. Runtime flag `ENGINE_EVENT_DISPATCH_ENABLED=false` pauses dispatch independently of stock commands.
+
+A composite `engineOutbox(status, nextAttemptAt)` index supports a due-time-ordered batch of at most 25 events per invocation, with a 40-second processing budget. Each event is validated against its deterministic ID, scope, type and authoritative movement record. For this Firestore-only consumer, receipt creation, workspace revision advancement and delivered status share one transaction. There are no external side effects or leases to expire. Competing workers re-read the committed status/receipt; retries cannot advance the same cursor twice. Older events advance the arrival revision without replacing current stock facts.
+
+Transient failures retain `pending`, increment attempts and back off from 30 seconds up to one hour; the sixth failed attempt becomes `dead_letter`. Invalid or mismatched event scopes are quarantined immediately. Generic error codes avoid storing payloads or exception details. Dead letters are retained for administrator review; no automatic repair/requeue tool or alerting channel is claimed. Stock/ledger records are never changed by delivery.
+
+`engineConsumerReceipts` and `workspaceInvalidations` are root Admin-only collections. `GET /api/v1/workspace/invalidation?storeId=…` rechecks membership, activity and store access, returning only a scoped revision. Users without inventory-view permission receive revision zero. Widgets capture a cursor before loading facts, so an event arriving during that read remains detectable. Active tabs check the revision every 15 seconds and refresh authorized summaries when it changes. Hidden tabs stop requests; context changes abort both request types. The existing one-minute full refresh and online/visibility/manual refresh remain independent fallbacks. This is scheduled delivery with bounded polling, not an instantaneous push stream. Failure of cursor reading does not block ordinary widget facts.
+
+Rollback: pause `inventraker-stock-events` in Cloud Scheduler and redeploy the previous application revision or set the dispatch flag false. Retain pending events, delivered receipts and cursors. Do not delete movements. Only this workspace consumer is implemented; native event subscriptions, other consumers and operational dead-letter monitoring remain pending.
+
+Authentication follows [Google Cloud Scheduler HTTP target authentication](https://docs.cloud.google.com/scheduler/docs/http-target-auth).

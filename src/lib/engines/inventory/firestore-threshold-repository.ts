@@ -1,3 +1,4 @@
+import { firestoreCollections } from "@/lib/firestore-schema"
 import { adminFieldValue } from "@/lib/firebase-admin"
 import { mobileRecord, orgCollection, type MobilePrincipal } from "@/lib/mobile-api"
 import { stockOperationSource } from "@/lib/stock-operations"
@@ -17,7 +18,7 @@ export async function firestoreThresholdRepository(principal: MobilePrincipal, r
         const timestamp = FieldValue.serverTimestamp()
         const update = { ...plan.change.after, updatedAt: timestamp, updatedBy: principal.uid, updatedByOperationId: command.commandId }
         transaction.update(inventory.doc(command.payload.itemId), { ...update, status: plan.status })
-        if (plan.orgProductId) transaction.set(principal.db.collection("orgs").doc(principal.orgId).collection("stores").doc(command.locationId).collection("storeProductDetails").doc(plan.orgProductId), { par: command.payload.par, reorderPoint: command.payload.reorderPoint, updatedAt: timestamp, updatedBy: principal.uid, updatedByOperationId: command.commandId }, { merge: true })
+        if (plan.orgProductId) transaction.set(principal.db.collection("orgs").doc(principal.orgId).collection("stores").doc(command.locationId).collection(firestoreCollections.storeProductDetails).doc(plan.orgProductId), { par: command.payload.par, reorderPoint: command.payload.reorderPoint, updatedAt: timestamp, updatedBy: principal.uid, updatedByOperationId: command.commandId }, { merge: true })
         transaction.create(history.doc(command.commandId), { id: command.commandId, operationId: command.commandId, type: "par-changes", label: "Par changed", storeId: command.locationId, userId: principal.uid, userName: String(principal.member.name ?? principal.email), employeeId: String(principal.member.employeeId ?? ""), department: String(principal.member.department ?? ""), title: String(principal.member.jobTitle ?? principal.member.role ?? ""), summary: `${plan.change.itemName}: par ${plan.change.before.par} → ${plan.change.after.par}, reorder point ${plan.change.before.reorderPoint} → ${plan.change.after.reorderPoint}`, reason: command.payload.reason, createdAt: timestamp })
         const { data: _data, ...metadata } = response
         postStockOperation(transaction, operations.doc(command.commandId), { principal, operationId: command.commandId, operationType: "par_change", storeId: command.locationId, changes: [plan.change], result: response.data, timestamp, source: stockOperationSource(request) }, { commandFingerprint: fingerprint, engineResult: metadata, occurredAt: response.committedAt })

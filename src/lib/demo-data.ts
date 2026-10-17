@@ -490,7 +490,7 @@ export type PlatformFaq = {
 export type PlatformSubscription = {
   id: string
   organization: string
-  plan: "Trial" | "Starter" | "Growth" | "Enterprise"
+  plan: "Trial" | "Starter" | "Growth" | "Enterprise" | "Builder" | "Basic" | "Pro"
   status: "Active" | "Trialing" | "Past due" | "Paused"
   renewal: string
   seats: number

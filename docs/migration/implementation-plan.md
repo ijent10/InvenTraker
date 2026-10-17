@@ -173,3 +173,10 @@ Extracted inventory par/reorder changes behind the shared Inventory application 
 Linked store-product targets, inventory revision/status, history, policy ledger and staged event save atomically, preserving unrelated product fields. Domain/Swift fixtures, production compilation and isolated Firestore checks cover status boundaries, changed-reason conflicts, competing revisions, API parity and rollback across both target records. All seven existing stock command extractions are now delivered. Full Phase 4, remaining engine workflows, broader reconciliation, event delivery and native/device validation are still pending.
 
 Stripe readiness review is recorded separately in `docs/architecture/billing-readiness.md`; no live billing configuration is activated by this milestone.
+
+
+## Sandbox billing foundation
+
+Recorded the confirmed Builder/Basic/Pro base and per-store/per-employee prices. Created and verified nine sandbox prices, configured the Customer Portal, installed the webhook signing secret in Secret Manager and registered the sandbox webhook endpoint. Added an owner-only monthly quote/checkout page, authoritative primary-store quantities, verified customer mapping, quote fingerprints, idempotent checkout leases and canonical webhook state with durable receipts. Removed arbitrary-email portal sessions and redirect-based activation. Existing-email signup cannot reset passwords.
+
+The restricted app key requires secure entry; full sandbox checkout/webhook validation follows that step. Automatic quantity reconciliation, plan-change/proration policy, feature enforcement and live tax/billing launch remain pending. No live billing is enabled. Also corrected threshold mirroring to the existing `productDetails` collection and updated the integration fixture to exercise the actual collection.

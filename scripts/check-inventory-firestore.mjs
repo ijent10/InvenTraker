@@ -26,7 +26,7 @@ const discardItemId = `${prefix}-discard`
 const portionItemId = `${prefix}-portion`
 const thresholdItemId = `${prefix}-threshold`
 const thresholdProductId = `${prefix}-product`
-const thresholdDetail = org.collection("stores").doc(storeId).collection("storeProductDetails").doc(thresholdProductId)
+const thresholdDetail = org.collection("stores").doc(storeId).collection("productDetails").doc(thresholdProductId)
 let created = false
 const operationIds = []
 const op = () => { const id = randomUUID(); operationIds.push(id); return id }

@@ -1,0 +1,24 @@
+{
+  "accountId": "acct_1T3WpWHsUcqxCaTs",
+  "livemode": false,
+  "version": 1,
+  "webhookEndpointId": "we_1URPRVHsUcqxCaTsmjLPWpmd",
+  "portalConfigurationId": "bpc_1URPKpHsUcqxCaTsXsKgHXGZ",
+  "prices": {
+    "builder": {
+      "base": "price_1URPIqHsUcqxCaTssIwZgKZX",
+      "store": "price_1URPJPHsUcqxCaTskpNfDz9A",
+      "employee": "price_1URPJQHsUcqxCaTsTrkREUyQ"
+    },
+    "basic": {
+      "store": "price_1URPJRHsUcqxCaTsKUKImPyI",
+      "employee": "price_1URPJSHsUcqxCaTsg4SXoWaN",
+      "base": "price_1URPJVHsUcqxCaTsz418JFAj"
+    },
+    "pro": {
+      "base": "price_1URPJOHsUcqxCaTsjGK2RJ1Z",
+      "store": "price_1URPJTHsUcqxCaTss39mMes3",
+      "employee": "price_1URPJUHsUcqxCaTs6uD9SGb7"
+    }
+  }
+}

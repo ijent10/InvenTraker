@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { ArrowRight, Gauge, Info, KeyRound, Palette, Settings, UserCircle } from "lucide-react"
+import { ArrowRight, CreditCard, Gauge, Info, KeyRound, Palette, Settings, UserCircle } from "lucide-react"
 
 import { PageHeader } from "@/components/page-header"
 import { PersonalAccountIdentity } from "@/components/personal-account-identity"
 
 const accountSections = [
+  { title: "Organization billing", description: "Review your plan, included stores and employees, and manage invoices.", href: "/account/billing", icon: CreditCard, tone: "from-indigo-500 to-sky-400" },
   {
     title: "Employee profile",
     description: "View your employee ID, title, department, location, status, and personal record.",

@@ -1,40 +1,17 @@
-import { NextResponse } from "next/server"
-import Stripe from "stripe"
-import { z } from "zod"
-
+import { billingError, billingOrigin, billingPrincipal, sandboxStripe } from "@/lib/billing/server"
+import { MobileApiError } from "@/lib/mobile-api"
+import catalog from "@/lib/billing/stripe-sandbox-catalog.json"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-const requestSchema = z.object({
-  ownerEmail: z.string().email()
-})
-
-function stripeClient() {
-  if (!process.env.STRIPE_SECRET_KEY) return null
-  return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    typescript: true,
-    maxNetworkRetries: 2
-  })
-}
-
 export async function POST(request: Request) {
-  const stripe = stripeClient()
-  if (!stripe) {
-    return NextResponse.json({ error: "Stripe is not configured. Add STRIPE_SECRET_KEY." }, { status: 501 })
-  }
-
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return NextResponse.json({ error: "A valid owner email is required." }, { status: 400 })
-  }
-
-  const customers = await stripe.customers.list({ email: parsed.data.ownerEmail, limit: 1 })
-  const customer = customers.data[0] ?? (await stripe.customers.create({ email: parsed.data.ownerEmail }))
-  const origin = request.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  const session = await stripe.billingPortal.sessions.create({
-    customer: customer.id,
-    return_url: `${origin}/administrator`
-  })
-
-  return NextResponse.json({ url: session.url })
+  try {
+    const principal = await billingPrincipal(request)
+    const account = (await principal.db.collection("billingAccounts").doc(principal.orgId).get()).data()
+    if (!account?.customerId || account.stripeAccountId !== catalog.accountId || account.livemode !== false) throw new MobileApiError("This organization has no verified sandbox billing account.", 409, "billing_account_missing")
+    const stripe = sandboxStripe()
+    const customer = await stripe.customers.retrieve(account.customerId)
+    if (customer.deleted || customer.livemode) throw new Error("A valid sandbox customer is required.")
+    const session = await stripe.billingPortal.sessions.create({ customer: account.customerId, configuration: catalog.portalConfigurationId, return_url: `${billingOrigin()}/account/billing` })
+    return Response.json({ url: session.url }, { headers: { "Cache-Control": "private, no-store" } })
+  } catch (error) { return billingError(error) }
 }

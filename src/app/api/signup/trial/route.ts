@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
-import Stripe from "stripe"
 import { z } from "zod"
 
-import { adminDb } from "@/lib/firebase-admin"
+import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { activateSignupWorkspace } from "@/lib/signup-activation"
 import { recommendSignupPlan, slugifySignupId } from "@/lib/signup"
 
@@ -44,33 +43,6 @@ function trialEndDate() {
   return date.toISOString()
 }
 
-function stripeClient() {
-  if (!process.env.STRIPE_SECRET_KEY) return null
-  return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    typescript: true,
-    maxNetworkRetries: 2
-  })
-}
-
-async function createPendingStripeCustomer(signup: z.infer<typeof signupSchema>, orgSlug: string, signupIntakeId: string) {
-  const stripe = stripeClient()
-  if (!stripe) return null
-
-  try {
-    return await stripe.customers.create({
-      email: signup.ownerEmail,
-      name: `${signup.ownerFirstName} ${signup.ownerLastName}`.trim(),
-      metadata: {
-        signupIntakeId,
-        organizationSlug: orgSlug,
-        organization: signup.organizationName,
-        billingStatus: "plans_pending"
-      }
-    })
-  } catch {
-    return null
-  }
-}
 
 export async function POST(request: Request) {
   if (process.env.SIGNUP_TRIAL_ENABLED === "false") {
@@ -87,11 +59,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Firebase Admin must be configured before account activation." }, { status: 501 })
   }
 
+  const auth = await adminAuth()
+  if (!auth) return NextResponse.json({ error: "Account service is unavailable." }, { status: 503 })
+  try {
+    const existing = await auth.getUserByEmail(parsed.data.signup.ownerEmail)
+    if (existing) return NextResponse.json({ error: "An account already exists for this email. Sign in instead; signup cannot change an existing password." }, { status: 409 })
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "auth/user-not-found") return NextResponse.json({ error: "Account lookup is temporarily unavailable." }, { status: 503 })
+  }
   const signupIntakeId = randomUUID()
   const organizationSlug = slugifySignupId(parsed.data.signup.organizationName) || `org-${signupIntakeId.slice(0, 8)}`
   const recommendation = recommendSignupPlan(parsed.data.signup)
   const now = new Date().toISOString()
-  const stripeCustomer = await createPendingStripeCustomer(parsed.data.signup, organizationSlug, signupIntakeId)
 
   await db.collection("signupIntakes").doc(signupIntakeId).set({
     id: signupIntakeId,
@@ -101,8 +80,8 @@ export async function POST(request: Request) {
     organizationSlug,
     signup: parsed.data.signup,
     billingMode: "trial",
-    stripeLinkStatus: stripeCustomer ? "customer_created_prices_pending" : "pending_configuration",
-    stripeCustomerId: stripeCustomer?.id ?? "",
+    stripeLinkStatus: "pending_configuration",
+    stripeCustomerId: "",
     createdAt: now,
     updatedAt: now
   })
@@ -117,7 +96,7 @@ export async function POST(request: Request) {
       activationId: signupIntakeId,
       signupIntakeId,
       subscriptionStatus: "pending_stripe",
-      stripeCustomerId: stripeCustomer?.id ?? "",
+      stripeCustomerId: "",
       trialEndsAt: trialEndDate()
     }
   })

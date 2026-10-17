@@ -49,11 +49,7 @@ export async function activateSignupWorkspace({ signup, password, billing }: Sig
 
   try {
     ownerUser = await auth.getUserByEmail(signup.ownerEmail)
-    ownerUser = await auth.updateUser(ownerUser.uid, {
-      displayName: ownerName,
-      password,
-      disabled: false
-    })
+    throw new Error("An account already exists for this email. Sign in to manage its workspace; signup cannot reset an existing password.")
   } catch (error) {
     if ((error as { code?: string })?.code !== "auth/user-not-found") throw error
     ownerUser = await auth.createUser({

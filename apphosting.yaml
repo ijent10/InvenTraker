@@ -1,0 +1,10 @@
+env:
+  - variable: STRIPE_BILLING_MODE
+    value: sandbox
+    availability: [RUNTIME]
+  - variable: BILLING_APP_URL
+    value: https://intrakbckend--inventracker-f1229.us-east4.hosted.app
+    availability: [RUNTIME]
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: inventraker-stripe-sandbox-webhook-secret
+    availability: [RUNTIME]

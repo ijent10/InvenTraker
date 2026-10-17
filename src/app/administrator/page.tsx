@@ -43,7 +43,7 @@ export default async function AdministratorPage() {
       <PageHeader
         title="Administrator"
         description="Global InvenTraker controls for legal content, support, organizations, stores, users, subscriptions, and assistant data boundaries."
-        actions={<ActionButton icon={<Save className="h-4 w-4" />}>Save administrator changes</ActionButton>}
+        actions={<><ButtonLink href="/administrator/event-delivery" variant="secondary">Delivery status</ButtonLink><ActionButton icon={<Save className="h-4 w-4" />}>Save administrator changes</ActionButton></>}
       />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">

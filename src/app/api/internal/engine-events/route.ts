@@ -1,3 +1,4 @@
+import { Timestamp } from "firebase-admin/firestore"
 import { OAuth2Client } from "google-auth-library"
 import { adminDb } from "@/lib/firebase-admin"
 import { dispatchStockEvents } from "@/lib/engines/events/firestore-dispatcher"
@@ -17,9 +18,18 @@ export async function POST(request: Request) {
     if (claims?.email !== email || claims.email_verified !== true) return Response.json({ error: "Service identity denied." }, { status: 403 })
   } catch { return Response.json({ error: "Service identity denied." }, { status: 403 }) }
   if (process.env.ENGINE_EVENT_DISPATCH_ENABLED !== "true") return Response.json({ error: "Event dispatch is paused." }, { status: 503 })
+  const startedAt = Date.now()
+  let db: Awaited<ReturnType<typeof adminDb>> = null
   try {
-    const db = await adminDb()
+    db = await adminDb()
     if (!db) throw new Error("unavailable")
-    return Response.json(await dispatchStockEvents(db), { headers: { "Cache-Control": "private, no-store" } })
-  } catch { console.error("[engine-events] Dispatch requires retry"); return Response.json({ error: "Dispatch requires retry." }, { status: 503 }) }
+    const counts = await dispatchStockEvents(db)
+    await db.collection("engineDispatchHealth").doc("workspace-stock-v1").set({ schemaVersion: 1, lastSuccessAt: Timestamp.now(), durationMs: Date.now() - startedAt, counts }, { merge: true }).catch(() => console.error("[engine-events] Health recording failed"))
+    console.info(JSON.stringify({ severity: counts.deadLettered ? "WARNING" : "INFO", event: "engine_dispatch_completed", durationMs: Date.now() - startedAt, ...counts }))
+    return Response.json(counts, { headers: { "Cache-Control": "private, no-store" } })
+  } catch {
+    await db?.collection("engineDispatchHealth").doc("workspace-stock-v1").set({ schemaVersion: 1, lastFailureAt: Timestamp.now(), lastErrorCode: "dispatch_failed" }, { merge: true }).catch(() => undefined)
+    console.error(JSON.stringify({ severity: "ERROR", event: "engine_dispatch_failed", durationMs: Date.now() - startedAt }))
+    return Response.json({ error: "Dispatch requires retry." }, { status: 503 })
+  }
 }

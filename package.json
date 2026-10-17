@@ -33,7 +33,8 @@
     "firebase:seed-demo-store": "node scripts/seed-demo-store.mjs",
     "firebase:provision-test-org": "node scripts/provision-test-organization.mjs",
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs",
-    "engines:delivery": "node --experimental-strip-types scripts/check-engine-delivery.mts"
+    "engines:delivery": "node --experimental-strip-types scripts/check-engine-delivery.mts",
+    "engines:health": "node --experimental-strip-types scripts/check-delivery-health.mts"
   },
   "dependencies": {
     "@emnapi/runtime": "1.11.3",

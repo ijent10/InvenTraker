@@ -20,7 +20,7 @@ The user selected `InvenTracker sandbox` (`acct_1T3WpWHsUcqxCaTs`). Live mode is
 - The existing Basic Product was reused. Its new default price is $99.99; the former $99 sandbox price was archived, not deleted.
 - Customer Portal configuration allows invoice history, payment method/customer details and cancellation at period end. Subscription/quantity editing is disabled so customers cannot bypass the app's allowances.
 - A sandbox webhook endpoint targets `/api/stripe/webhook` on the Firebase hosted domain, using API version `2026-09-30.endive`. Its signing secret was sent directly to Google Secret Manager without printing it. An initial setup attempt that did not install its secret was disabled.
-- Secret containers: `inventraker-stripe-sandbox-key` and `inventraker-stripe-sandbox-webhook-secret`. Runtime and Firebase App Hosting service accounts have secret access. The app key still requires secure entry by the user; no Stripe key belongs in chat, source files or public environment variables.
+- Secret containers: `inventraker-stripe-sandbox-key` and `inventraker-stripe-sandbox-webhook-secret`. Runtime and Firebase App Hosting service accounts have secret access. The user stored sandbox server key version 1; its sandbox account identity was verified without printing the key. Both secrets are attached at runtime. No Stripe key belongs in chat, source files or public environment variables. The currently supplied sandbox key is an unrestricted test secret; replace it with a least-privilege restricted key before a live launch.
 
 ## Implemented application boundary
 
@@ -36,9 +36,19 @@ Unauthenticated paid signup/finalize paths were retired in favor of an authentic
 
 ## Configuration and remaining release work
 
-`apphosting.yaml` configures sandbox mode, a trusted hosted return address, and the webhook signing secret at runtime. Until the restricted sandbox server key is entered and attached to the backend, quote review works but checkout remains disabled. The key needs Account, Product, Price, Subscription and Invoice reads, plus Customer, Checkout Session and Customer Portal writes. Store it through the Google Secret Manager page; never paste it into chat.
+`apphosting.yaml` configures sandbox mode, a trusted hosted return address, and both server/signing secrets at runtime. Runtime deployment `build-2026-10-17-008` / `rollout-2026-10-17-008` succeeded for commit `ccb4438`. Checkout creation and the Customer Portal are enabled in the sandbox. A restricted replacement key needs Account, Product, Price, Subscription and Invoice reads, plus Customer, Checkout Session and Customer Portal writes. Store replacements through Google Secret Manager; never paste keys into chat.
 
-Next required checks: complete a real sandbox checkout and confirm the signed webhook, retries, cancellation, failed payment and portal ownership using the deployed backend. The pricing calculator and canonical-state tests are not a substitute for these end-to-end checks.
+Deployed integration checks passed on October 17, using a temporary isolated organization with three stores and eleven employees assigned primarily to one store:
+
+- Builder $119.99, Basic $112.99 and Pro $199.99 quotes matched the approved allowances. Employees also assigned to a second store were counted only at their primary store.
+- The app created a sandbox subscription Checkout Session with three correct line items: Builder base $49.99, two extra stores at $20, and six extra employees at $5. Retrying the command returned the same session; a concurrent new command was rejected. The unused session was expired after validation.
+- The organization owner could create a portal session; an employee could not. Invalid webhook signatures were rejected.
+- A separate API-created subscription on that verified test customer used Stripe's `pm_card_visa` test method. Its $119.99 paid invoice and actual Stripe-originated signed webhooks updated the deployed app's paid state and quantities. Signed replays of the already processed event were idempotent.
+- A test payment failure during a prorated quantity update produced `past_due` and removed the recorded paid-access flag. Paying that invoice with the successful test method restored `active` and the flag through webhooks.
+- Period-end cancellation retained the recorded paid-access flag; final cancellation removed it through webhooks.
+- The test subscription was canceled, its test customer deleted, and the isolated organization, stores, members, mappings, leases, requests, receipts and subscription summary were removed. Real organizations and inventory were not modified.
+
+The hosted Checkout form itself has not been completed in a browser: the browser connection was unavailable. Payment lifecycle testing used Stripe's public sandbox APIs and actual delivery to the deployed webhook, rather than claiming a hosted-form completion. That browser check remains required before calling the whole checkout experience verified.
 
 This is the initial sandbox billing flow, not production launch approval. Automatic store/employee quantity synchronization, plan-change/proration workflow and full feature entitlement enforcement across web/native/API/Firestore remain pending. `usageSyncRequired` marks account state needing reconciliation; it is not an active background worker. Configure tax registrations and tax behavior before enabling collection. No live checkout or production charges are enabled.
 

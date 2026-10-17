@@ -2,7 +2,15 @@
 
 ## Approved pricing structure
 
-Each subscription tier includes a defined number of stores and a defined employee allowance **per store**. Extra stores and employees above a store's allowance add recurring charges. Unused employee allowances do not pool between stores. Prices and allowance counts have not been selected.
+Each subscription tier includes a defined number of stores and a defined employee allowance **per store**. Extra stores and employees above a store's allowance add recurring charges. Unused employee allowances do not pool between stores. The user has proposed the following tier terms; this draft is not connected to Checkout or entitlements yet:
+
+| Tier | Monthly base price (USD) | Included stores | Included employees per store | Assistant | Health checks | Files | Brand customization |
+| --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| Builder | $50 | 1 | 5 | No | No | No | No |
+| Basic | Undecided | 2 | 10 | No | Yes | Yes | Undecided |
+| Pro | $200 | 5 | 30 | Yes | Yes* | Yes* | Undecided |
+
+`*` Pro inheriting Basic's health checks/files is the working interpretation of tier progression, not a separately confirmed feature list. Store and employee add-on prices for every tier are undecided. Employee allowances above use the previously confirmed per-store rule. An employee counts only at their primary store. The existing $99/month Basic sandbox price is not automatically adopted. Legacy signup names Starter/Growth/Scale have not been changed until the full catalog, feature rules and migration mapping are finalized.
 
 Proposed calculation:
 

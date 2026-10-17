@@ -1,4 +1,7 @@
 env:
+  - variable: STRIPE_SANDBOX_RESTRICTED_KEY
+    secret: inventraker-stripe-sandbox-key
+    availability: [RUNTIME]
   - variable: STRIPE_BILLING_MODE
     value: sandbox
     availability: [RUNTIME]

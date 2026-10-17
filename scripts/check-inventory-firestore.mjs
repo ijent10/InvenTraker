@@ -23,6 +23,7 @@ const receiptItemId = `${prefix}-receipt`
 const caseOrderId = `${prefix}-case-order`
 const restockItemId = `${prefix}-restock`
 const discardItemId = `${prefix}-discard`
+const portionItemId = `${prefix}-portion`
 let created = false
 const operationIds = []
 const op = () => { const id = randomUUID(); operationIds.push(id); return id }
@@ -68,6 +69,8 @@ try {
   setup.create(org.collection("inventory").doc(restockItemId), { ...base, id: restockItemId, frontStock: 0, backStock: 5, onHand: 5, par: 3 })
   setup.create(org.collection("inventory").doc(discardItemId), { ...base, id: discardItemId, frontStock: 6, backStock: 5, onHand: 11 })
   for (const [suffix, area, quantity, expiry] of [["front", "front", 2, "2027-01-01"], ["early", "back", 2, "2027-01-01"], ["late", "back", 3, "2027-02-01"]]) setup.create(org.collection("inventoryBatches").doc(`${discardItemId}-${suffix}`), { id: `${discardItemId}-${suffix}`, itemId: discardItemId, storeId, area, remainingQuantity: quantity, originalQuantity: quantity, unit: "pounds", expirationDate: expiry, status: "available" })
+  setup.create(org.collection("inventory").doc(portionItemId), { ...base, id: portionItemId, frontStock: 0, backStock: 5, onHand: 5 })
+  setup.create(org.collection("inventoryBatches").doc(`${portionItemId}-source`), { id: `${portionItemId}-source`, itemId: portionItemId, storeId, area: "back", remainingQuantity: 3, originalQuantity: 3, unit: "pounds", expirationDate: "2027-01-15", receivedAt: "2026-10-01T12:00:00.000Z", status: "available" })
   await setup.commit()
   created = true
 
@@ -120,10 +123,14 @@ try {
   assert.equal((await post("/api/v1/inventory/discards", { commandId: waste.id, locationId: storeId, payload: { lines: [{ ...waste.payload.lines[0], reason: "Changed reason" }] } })).status, 409)
   const portion = await mobile("portion", { itemId, sourceArea: "back", portionWeight: 0.5, portionCount: 2 })
   await checkCommitted(portion.id, "portion")
-  const par = await mobile("par-change", { itemId, expectedRevision: 5, par: 12, reorderPoint: 3, reason: "Isolated integration fixture" })
+  const portionReplay = await post("/api/v1/inventory/portions", { commandId: portion.id, locationId: storeId, payload: { itemId, sourceArea: "back", portionWeight: 0.5, portionCount: 2 } })
+  assert.equal(portionReplay.status, 200); assert.equal(portionReplay.body.replayed, true); assert.deepEqual(portionReplay.body.data, portion.result.body.data)
+  assert.equal((await post("/api/v1/inventory/portions", { commandId: portion.id, locationId: storeId, payload: { itemId, sourceArea: "back", portionWeight: 0.25, portionCount: 4 } })).status, 409)
+  assert.equal((await inventoryRef.get()).data().revision, 6)
+  const par = await mobile("par-change", { itemId, expectedRevision: 6, par: 12, reorderPoint: 3, reason: "Isolated integration fixture" })
   await checkCommitted(par.id, "par_change")
   assert.equal((await inventoryRef.get()).data().onHand, 24)
-  assert.equal((await inventoryRef.get()).data().revision, 6)
+  assert.equal((await inventoryRef.get()).data().revision, 7)
 
   const caseFirstId = op()
   const caseLine = { itemId: receiptItemId, quantity: 1, orderId: caseOrderId, orderLineId: "case-line", expirationDate: "2027-02-01T00:00:00.000Z" }
@@ -167,6 +174,43 @@ try {
   assert.equal(caseOrder.lines[0].receivedStockQuantity, 6)
   assert.equal(caseOrder.lines[0].receivedQuantity, 1)
   assert.equal((await org.collection("inventory").doc(receiptItemId).get()).data().onHand, 6)
+
+  const cutId = op()
+  const cutPayload = { itemId: portionItemId, sourceArea: "back", sourceBatchId: `${portionItemId}-source`, portionWeight: 0.5, portionCount: 4, packageBarcodePrefix: "CUT" }
+  const cut = await post("/api/v1/inventory/portions", { commandId: cutId, locationId: storeId, payload: cutPayload })
+  assert.equal(cut.status, 200)
+  await checkCommitted(cutId, "portion")
+  const cutStock = (await org.collection("inventory").doc(portionItemId).get()).data()
+  assert.equal(cutStock.onHand, 5); assert.equal(cutStock.backStock, 5); assert.equal(cutStock.revision, 1)
+  const cutBatches = (await org.collection("inventoryBatches").where("itemId", "==", portionItemId).get()).docs.map((doc) => doc.data())
+  assert.equal(cutBatches.reduce((sum, batch) => sum + batch.remainingQuantity, 0), 5)
+  const packages = cutBatches.filter((batch) => batch.portionIndex)
+  assert.equal(packages.length, 4)
+  assert.ok(packages.every((batch) => batch.expirationDate === "2027-01-15" && batch.expirationSource === "inherited" && batch.receivedAt === "2026-10-01T12:00:00.000Z"))
+  assert.ok(packages.every((batch) => batch.sourceAllocations.length === 1 && batch.sourceAllocations[0].quantity === 0.5 && batch.parentBatchIds[0] === `${portionItemId}-source`))
+  assert.equal(new Set(packages.map((batch) => batch.packageBarcode)).size, 4)
+  const unknownCut = cutBatches.find((batch) => batch.source === "portion_untracked_balance")
+  assert.equal(unknownCut.remainingQuantity, 2); assert.equal(unknownCut.expirationDate, null)
+  const cutReplay = await post("/api/mobile/v1/actions/portion", { operationId: cutId, storeId, ...cutPayload })
+  assert.equal(cutReplay.status, 200); assert.deepEqual(cutReplay.body.data, cut.body.data)
+  const staleAfterCut = await post("/api/v1/inventory/spot-checks", { commandId: op(), locationId: storeId, payload: { lines: [{ itemId: portionItemId, expectedRevision: 0, frontStock: 0, backStock: 5 }] } })
+  assert.equal(staleAfterCut.status, 409)
+  const extendedCut = await post("/api/v1/inventory/portions", { commandId: op(), locationId: storeId, payload: { ...cutPayload, portionCount: 1, expirationDate: "2027-02-01" } })
+  assert.equal(extendedCut.status, 400); assert.equal(extendedCut.body.error.code, "expiration_exceeds_source")
+  const cutRollbackId = op()
+  await outboxRef(cutRollbackId).create({ isolatedTestCollision: prefix })
+  const cutFailure = await post("/api/v1/inventory/portions", { commandId: cutRollbackId, locationId: storeId, payload: { ...cutPayload, portionCount: 1 } })
+  assert.equal(cutFailure.status, 500)
+  assert.deepEqual((await org.collection("inventory").doc(portionItemId).get()).data(), cutStock)
+  assert.deepEqual((await org.collection("inventoryBatches").where("itemId", "==", portionItemId).get()).docs.map((doc) => doc.data()), cutBatches)
+  for (const collection of ["stockOperations", "history", "portions"]) assert.equal((await org.collection(collection).doc(cutRollbackId).get()).exists, false)
+  assert.equal((await org.collection("inventoryBatches").doc(`${cutRollbackId}-1`).get()).exists, false)
+  const cutRace = await Promise.all([op(), op()].map((commandId) => post("/api/v1/inventory/portions", { commandId, locationId: storeId, payload: { ...cutPayload, portionCount: 2 } })))
+  assert.deepEqual(cutRace.map((result) => result.status).sort(), [200, 409])
+  assert.equal((await org.collection("inventoryBatches").doc(`${portionItemId}-source`).get()).data().remainingQuantity, 0)
+  assert.equal((await org.collection("inventory").doc(portionItemId).get()).data().onHand, 5)
+  assert.equal((await post("/api/v1/inventory/portions", { commandId: op(), locationId: storeId, payload: { ...cutPayload, itemId: wrongId } })).status, 403)
+  assert.equal((await post("/api/v1/inventory/portions", { commandId: op(), locationId: storeId, payload: { ...cutPayload, portionWeight: 0.0004 } })).status, 400)
 
   const discardId = op()
   const discardLines = [{ itemId: discardItemId, quantity: 2, area: "front", reason: "Damaged" }, { itemId: discardItemId, quantity: 1, area: "back", reason: "Expired", batchId: `${discardItemId}-late` }]
@@ -250,14 +294,14 @@ try {
   assert.equal(countRaces.find((result) => result.status === 409).body.error.code, "stale_count")
 
   const countBefore = (await inventoryRef.get()).data()
-  const partial = await post("/api/v1/inventory/spot-checks", { commandId: op(), locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 6, frontStock: 11, backStock: 13 }, { itemId: raceId, expectedRevision: 0, frontStock: 1, backStock: 4 }] } })
+  const partial = await post("/api/v1/inventory/spot-checks", { commandId: op(), locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 7, frontStock: 11, backStock: 13 }, { itemId: raceId, expectedRevision: 0, frontStock: 1, backStock: 4 }] } })
   assert.equal(partial.status, 409)
   assert.deepEqual((await inventoryRef.get()).data(), countBefore, "one stale line must reject the whole count")
 
   const countRollbackId = op()
   await outboxRef(countRollbackId).create({ isolatedTestCollision: prefix })
   const batchesBefore = await org.collection("inventoryBatches").where("itemId", "==", itemId).get()
-  const countFailed = await post("/api/v1/inventory/spot-checks", { commandId: countRollbackId, locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 6, frontStock: 0, backStock: 0 }] } })
+  const countFailed = await post("/api/v1/inventory/spot-checks", { commandId: countRollbackId, locationId: storeId, payload: { lines: [{ itemId, expectedRevision: 7, frontStock: 0, backStock: 0 }] } })
   assert.equal(countFailed.status, 500)
   assert.deepEqual((await inventoryRef.get()).data(), countBefore)
   const batchesAfter = await org.collection("inventoryBatches").where("itemId", "==", itemId).get()
@@ -284,12 +328,12 @@ try {
   assert.equal((await fetch(`${origin}/api/v1/inventory/transfers`, { method: "POST" })).status, 401)
   const outboxRead = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/engineOutbox/${outboxRef(transferId).id}`, { headers: { authorization: `Bearer ${login.idToken}` } })
   assert.equal(outboxRead.status, 403, "client SDK credentials must not read the internal outbox")
-  console.log("Firestore engine integration passed: seven stock actions; transfer/count/receipt/restock/discard API parity; read-only restock previews; revision conflicts; undated batch coverage; partial-case precision; receive-once; competing receipts/counts/transfers/discards; order/stock/batch/waste rollback; store isolation.")
+  console.log("Firestore engine integration passed: seven stock actions; transfer/count/receipt/restock/discard/portion API parity; read-only restock previews; revision conflicts; undated batch coverage; partial-case precision; receive-once; competing receipts/counts/transfers/discards/cuts; order/stock/batch/waste/portion rollback; store isolation.")
 } finally {
   if (created) {
-    const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId), org.collection("orders").doc(caseOrderId), org.collection("inventory").doc(receiptItemId), org.collection("inventory").doc(restockItemId), org.collection("inventory").doc(discardItemId)]
+    const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId), org.collection("orders").doc(caseOrderId), org.collection("inventory").doc(receiptItemId), org.collection("inventory").doc(restockItemId), org.collection("inventory").doc(discardItemId), org.collection("inventory").doc(portionItemId)]
     for (const id of operationIds) refs.push(org.collection("stockOperations").doc(id), org.collection("history").doc(id), outboxRef(id))
-    for (const collection of ["inventoryBatches", "receiving", "waste", "portions"]) for (const id of [itemId, raceId, wrongId, receiptItemId, restockItemId, discardItemId]) {
+    for (const collection of ["inventoryBatches", "receiving", "waste", "portions"]) for (const id of [itemId, raceId, wrongId, receiptItemId, restockItemId, discardItemId, portionItemId]) {
       const records = await org.collection(collection).where("itemId", "==", id).get()
       refs.push(...records.docs.map((doc) => doc.ref))
     }

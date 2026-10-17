@@ -102,7 +102,7 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
-| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving, restock and discard application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
+| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving, restock, discard and cut/portion application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -155,3 +155,12 @@ Moved waste recording behind the Inventory application service/repository, prese
 Retained earliest-expiring and preferred-batch-first behavior. Affected stock areas preserve remaining untracked quantities as explicit undated batches. Invalid batch balances, excess stock removal, noncanonical precision, duplicate item/area lines and oversized transactions are rejected before writes. Stock, batch allocation, waste entries, history and staged events share the transaction.
 
 Validation includes domain checks, Swift request/response fixtures, production build and isolated Firestore integration for API parity, retry conflicts, preferred allocation, competing discards, two-area changes, missing batch coverage and rollback. Native app code did not change in this milestone; device validation remains pending. Production/portion and threshold extraction, standalone Discards review workflows and event delivery remain pending; AI integration stays deferred.
+
+
+## Cut & Portion command milestone
+
+Moved the mobile portion action behind the Inventory application service/repository and added the versioned portions endpoint. Canonical weights prevent rounding a total differently from package weights. Per-package allocations preserve actual source lineage and unknown weight, while affected-area undated remainder batches preserve aggregate coverage. A selected source must cover the full cut.
+
+Physical stock stays unchanged and the item revision advances once. Outputs preserve source expiration limits and received age conservatively, record separate portioning time and manual date provenance, and use operation-specific package barcodes. Payload-aware retries validate all cut details; historical retries verify original records without rewriting them.
+
+Validation covers domain conservation/precision, expiry rules, lineage, selected batch limits, authorization, retries and transaction bounds, plus actual Swift models, production build and isolated Firestore tests for API parity, stale count rejection after cutting, competing cuts and complete rollback. This completes the existing cut command extraction, not the full Production engine: recipes, yields/loss, printing, event delivery, threshold extraction and device validation remain pending. AI integration remains deferred.

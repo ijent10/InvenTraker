@@ -1,0 +1,50 @@
+{
+  "request": {
+    "commandId": "05238c2b-0104-4d8e-8bb1-faa686c7e1a0",
+    "locationId": "store",
+    "payload": {
+      "itemId": "cheese",
+      "sourceArea": "back",
+      "portionWeight": 0.75,
+      "portionCount": 4
+    }
+  },
+  "response": {
+    "requestId": "05238c2b-0104-4d8e-8bb1-faa686c7e1a0",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-16T12:00:00.000Z",
+    "replayed": false,
+    "data": {
+      "itemId": "cheese",
+      "itemName": "Cheese",
+      "portionWeight": 0.75,
+      "portionCount": 4,
+      "totalWeight": 3,
+      "unit": "pounds",
+      "portionIds": [
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-1",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-2",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-3",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-4"
+      ]
+    }
+  },
+  "mobileResponse": {
+    "apiVersion": "2026-09-30",
+    "serverTime": "2026-10-16T12:00:00.000Z",
+    "data": {
+      "itemId": "cheese",
+      "itemName": "Cheese",
+      "portionWeight": 0.75,
+      "portionCount": 4,
+      "totalWeight": 3,
+      "unit": "pounds",
+      "portionIds": [
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-1",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-2",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-3",
+        "05238c2b-0104-4d8e-8bb1-faa686c7e1a0-4"
+      ]
+    }
+  }
+}

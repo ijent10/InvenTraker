@@ -32,16 +32,16 @@ export type SignupPlanRecommendation = {
 
 export const signupPlans: Record<SignupPlanId, { name: string; summary: string }> = {
   starter: {
-    name: "Starter",
-    summary: "Best for one location getting inventory, ordering, and basic team permissions online."
+    name: "Builder",
+    summary: "1 store and 5 employees per store included. Inventory operations; no Assistant, branding, health checks or files."
   },
   growth: {
-    name: "Growth",
-    summary: "Best for multi-department or multi-location teams that need stronger permissions and operating history."
+    name: "Basic",
+    summary: "2 stores and 10 employees per store included, with health checks and files."
   },
   scale: {
-    name: "Scale",
-    summary: "Best for larger organizations with many employees, complex stores, and heavier support needs."
+    name: "Pro",
+    summary: "5 stores and 30 employees per store included, with Assistant, brand customization, health checks and files."
   }
 }
 

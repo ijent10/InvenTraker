@@ -36,7 +36,6 @@ export default function HomePage() {
             <a href="#product-tour" className="transition hover:text-white">Product</a>
             <a href="#workflow" className="transition hover:text-white">Workflow</a>
             <a href="#intelligence" className="transition hover:text-white">Intelligence</a>
-            <Link href="/signin" className="transition hover:text-white">Sign in</Link>
           </nav>
           <HomeAuthActions />
         </header>
@@ -122,7 +121,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28"><div className="landing-final-cta-new"><div className="relative z-[1] max-w-2xl"><p className="landing-section-label text-[#bfdbfe]">See InvenTraker in action</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.035em] sm:text-5xl">Give your team one clear place to run inventory.</h2><p className="mt-5 max-w-xl text-base leading-7 text-white/64">Explore the product flow, then create an organization or sign in to your existing workspace.</p><div className="mt-8 flex flex-wrap gap-3"><HomeAuthActions variant="final" /><Link href="/signin" className="landing-secondary-button">Sign in to your workspace</Link></div></div><div className="landing-cta-mark"><PackageCheck className="h-20 w-20" /></div></div></section>
+      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28"><div className="landing-final-cta-new"><div className="relative z-[1] max-w-2xl"><p className="landing-section-label text-[#bfdbfe]">See InvenTraker in action</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.035em] sm:text-5xl">Give your team one clear place to run inventory.</h2><p className="mt-5 max-w-xl text-base leading-7 text-white/64">Explore the product flow, then create an organization or sign in to your existing workspace.</p><div className="mt-8 flex flex-wrap gap-3"><HomeAuthActions variant="final" /></div></div><div className="landing-cta-mark"><PackageCheck className="h-20 w-20" /></div></div></section>
 
       <footer className="border-t border-white/10 px-5 py-8 text-sm text-white/42 sm:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><Image src="/inventracker-logo.png" alt="" width={28} height={28} /><span className="font-semibold text-white/70">InvenTraker</span></div><p>Inventory decisions, connected from floor to order.</p></div></footer>
     </main>

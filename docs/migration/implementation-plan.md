@@ -102,7 +102,7 @@ Store-scoped summary providers now cover all 11 operational domains. Large/XL wi
 | 1 Design foundation | IDS namespace and web control geometry/status semantics delivered; native semantic token namespace and motion support added; iOS SDK build verification pending |
 | 2 Application shells | Web sidebar collapse, compact navigation, skip link and focus semantics delivered; native shell and full engine navigation pending |
 | 3 Shared contracts | Workspace contracts plus validated command/event/result/error envelopes delivered; atomic stock outbox staging delivered; dispatcher/consumer receipts pending |
-| 4 Inventory reference | Front/back transfer, spot-check reconciliation, receiving, restock, discard and cut/portion application services/repositories extracted, both API versions share them, all seven stock actions stage atomic ledger/events; remaining command extraction and reconciliation pending |
+| 4 Inventory reference | All seven existing stock commands extracted behind shared application services/repositories and both API adapters; atomic ledger/events staged; broader reconciliation, workflows and native validation pending |
 | 5 Workspace Engine | Web editor, persistence, scoped summary providers and deterministic priority content delivered; native parity and full domain extraction pending |
 | 6 Remaining engines | Migration pending |
 | 7 AI intelligence | Deterministic workspace priorities delivered; optional AI reranking and provider integration deferred |
@@ -164,3 +164,12 @@ Moved the mobile portion action behind the Inventory application service/reposit
 Physical stock stays unchanged and the item revision advances once. Outputs preserve source expiration limits and received age conservatively, record separate portioning time and manual date provenance, and use operation-specific package barcodes. Payload-aware retries validate all cut details; historical retries verify original records without rewriting them.
 
 Validation covers domain conservation/precision, expiry rules, lineage, selected batch limits, authorization, retries and transaction bounds, plus actual Swift models, production build and isolated Firestore tests for API parity, stale count rejection after cutting, competing cuts and complete rollback. This completes the existing cut command extraction, not the full Production engine: recipes, yields/loss, printing, event delivery, threshold extraction and device validation remain pending. AI integration remains deferred.
+
+
+## Threshold command milestone
+
+Extracted inventory par/reorder changes behind the shared Inventory application service/repository, with a versioned thresholds endpoint and compatible mobile adapter. Canonical target validation, revision checks and payload-aware replay prevent invalid, stale or mismatched updates; historical retries verify the saved policy change. Target updates preserve physical stock and batches.
+
+Linked store-product targets, inventory revision/status, history, policy ledger and staged event save atomically, preserving unrelated product fields. Domain/Swift fixtures, production compilation and isolated Firestore checks cover status boundaries, changed-reason conflicts, competing revisions, API parity and rollback across both target records. All seven existing stock command extractions are now delivered. Full Phase 4, remaining engine workflows, broader reconciliation, event delivery and native/device validation are still pending.
+
+Stripe readiness review is recorded separately in `docs/architecture/billing-readiness.md`; no live billing configuration is activated by this milestone.

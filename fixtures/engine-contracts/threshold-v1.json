@@ -1,0 +1,29 @@
+{
+  "request": {
+    "commandId": "90fdd0d8-382e-4a88-90ed-426d392d8372",
+    "locationId": "store",
+    "payload": {
+      "itemId": "cheese",
+      "expectedRevision": 3,
+      "par": 10.125,
+      "reorderPoint": 5,
+      "reason": "Updated demand"
+    }
+  },
+  "response": {
+    "requestId": "90fdd0d8-382e-4a88-90ed-426d392d8372",
+    "schemaVersion": "1",
+    "committedAt": "2026-10-17T12:00:00.000Z",
+    "replayed": false,
+    "data": {
+      "revision": 4
+    }
+  },
+  "mobileResponse": {
+    "apiVersion": "2026-09-30",
+    "serverTime": "2026-10-17T12:00:00.000Z",
+    "data": {
+      "revision": 4
+    }
+  }
+}

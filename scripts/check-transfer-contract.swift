@@ -14,6 +14,8 @@ struct CheckTransferContract {
     struct DiscardResult: Decodable { let wasteIds: [String]; let humanOverrideCount: Int }
     struct DiscardFixture: Decodable { let response: EngineResult<DiscardResult>; let mobileResponse: APIEnvelope<DiscardResult> }
     struct PortionFixture: Decodable { let response: EngineResult<PortionResult>; let mobileResponse: APIEnvelope<PortionResult> }
+    struct ThresholdResult: Decodable { let revision: Int }
+    struct ThresholdFixture: Decodable { let response: EngineResult<ThresholdResult>; let mobileResponse: APIEnvelope<ThresholdResult> }
     static func main() throws {
         let path = CommandLine.arguments.dropFirst().first ?? "fixtures/engine-contracts/transfer-v1.json"
         let fixture = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
@@ -44,6 +46,9 @@ struct CheckTransferContract {
         precondition(portion.response.data.totalWeight == 3)
         let portionRequest = try JSONSerialization.jsonObject(with: JSONEncoder().encode(PortionRequest(itemId: "cheese", sourceArea: "back", sourceBatchId: nil, portionWeight: 0.75, portionCount: 4, expirationDate: nil, packageBarcodePrefix: nil))) as! [String: Any]
         precondition(portionRequest["portionWeight"] as? Double == 0.75)
-        print("Swift transfer, count, receiving, restock, discard and portion fixtures passed using the app's actual models.")
+        let threshold = try JSONDecoder().decode(ThresholdFixture.self, from: Data(contentsOf: URL(fileURLWithPath: "fixtures/engine-contracts/threshold-v1.json")))
+        precondition(threshold.response.data.revision == threshold.mobileResponse.data.revision)
+        precondition(threshold.response.data.revision == 4)
+        print("Swift transfer, count, receiving, restock, discard, portion and threshold fixtures passed using the app's actual models.")
     }
 }

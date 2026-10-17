@@ -24,6 +24,9 @@ const caseOrderId = `${prefix}-case-order`
 const restockItemId = `${prefix}-restock`
 const discardItemId = `${prefix}-discard`
 const portionItemId = `${prefix}-portion`
+const thresholdItemId = `${prefix}-threshold`
+const thresholdProductId = `${prefix}-product`
+const thresholdDetail = org.collection("stores").doc(storeId).collection("storeProductDetails").doc(thresholdProductId)
 let created = false
 const operationIds = []
 const op = () => { const id = randomUUID(); operationIds.push(id); return id }
@@ -71,6 +74,8 @@ try {
   for (const [suffix, area, quantity, expiry] of [["front", "front", 2, "2027-01-01"], ["early", "back", 2, "2027-01-01"], ["late", "back", 3, "2027-02-01"]]) setup.create(org.collection("inventoryBatches").doc(`${discardItemId}-${suffix}`), { id: `${discardItemId}-${suffix}`, itemId: discardItemId, storeId, area, remainingQuantity: quantity, originalQuantity: quantity, unit: "pounds", expirationDate: expiry, status: "available" })
   setup.create(org.collection("inventory").doc(portionItemId), { ...base, id: portionItemId, frontStock: 0, backStock: 5, onHand: 5 })
   setup.create(org.collection("inventoryBatches").doc(`${portionItemId}-source`), { id: `${portionItemId}-source`, itemId: portionItemId, storeId, area: "back", remainingQuantity: 3, originalQuantity: 3, unit: "pounds", expirationDate: "2027-01-15", receivedAt: "2026-10-01T12:00:00.000Z", status: "available" })
+  setup.create(org.collection("inventory").doc(thresholdItemId), { ...base, id: thresholdItemId, frontStock: 2, backStock: 3, onHand: 5, orgProductId: thresholdProductId })
+  setup.create(thresholdDetail, { par: 10, reorderPoint: 2, displayName: "INTERNAL TEST — preserve unrelated fields" })
   await setup.commit()
   created = true
 
@@ -129,6 +134,9 @@ try {
   assert.equal((await inventoryRef.get()).data().revision, 6)
   const par = await mobile("par-change", { itemId, expectedRevision: 6, par: 12, reorderPoint: 3, reason: "Isolated integration fixture" })
   await checkCommitted(par.id, "par_change")
+  const thresholdReplay = await post("/api/v1/inventory/thresholds", { commandId: par.id, locationId: storeId, payload: { itemId, expectedRevision: 6, par: 12, reorderPoint: 3, reason: "Isolated integration fixture" } })
+  assert.equal(thresholdReplay.status, 200); assert.equal(thresholdReplay.body.replayed, true); assert.deepEqual(thresholdReplay.body.data, par.result.body.data)
+  assert.equal((await post("/api/v1/inventory/thresholds", { commandId: par.id, locationId: storeId, payload: { itemId, expectedRevision: 6, par: 12, reorderPoint: 3, reason: "Changed reason" } })).status, 409)
   assert.equal((await inventoryRef.get()).data().onHand, 24)
   assert.equal((await inventoryRef.get()).data().revision, 7)
 
@@ -174,6 +182,35 @@ try {
   assert.equal(caseOrder.lines[0].receivedStockQuantity, 6)
   assert.equal(caseOrder.lines[0].receivedQuantity, 1)
   assert.equal((await org.collection("inventory").doc(receiptItemId).get()).data().onHand, 6)
+
+  const thresholdId = op()
+  const thresholdPayload = { itemId: thresholdItemId, expectedRevision: 0, par: 6.5, reorderPoint: 5, reason: "Updated demand" }
+  const thresholds = await post("/api/v1/inventory/thresholds", { commandId: thresholdId, locationId: storeId, payload: thresholdPayload })
+  assert.equal(thresholds.status, 200); assert.equal(thresholds.body.data.revision, 1)
+  await checkCommitted(thresholdId, "par_change")
+  const targetStock = (await org.collection("inventory").doc(thresholdItemId).get()).data()
+  assert.equal(targetStock.frontStock, 2); assert.equal(targetStock.backStock, 3); assert.equal(targetStock.onHand, 5); assert.equal(targetStock.status, "Low"); assert.equal(targetStock.par, 6.5)
+  const targetDetail = (await thresholdDetail.get()).data()
+  assert.equal(targetDetail.par, 6.5); assert.equal(targetDetail.reorderPoint, 5); assert.equal(targetDetail.displayName, "INTERNAL TEST — preserve unrelated fields")
+  const policyLedger = (await org.collection("stockOperations").doc(thresholdId).get()).data()
+  assert.equal(policyLedger.quantityBasis, "policy"); assert.equal(policyLedger.changes[0].before.par, 10); assert.equal(policyLedger.changes[0].after.par, 6.5)
+  assert.equal((await org.collection("inventoryBatches").where("itemId", "==", thresholdItemId).get()).size, 0)
+  const thresholdMobileReplay = await post("/api/mobile/v1/actions/par-change", { operationId: thresholdId, storeId, ...thresholdPayload })
+  assert.equal(thresholdMobileReplay.status, 200); assert.deepEqual(thresholdMobileReplay.body.data, thresholds.body.data)
+  const thresholdRollbackId = op()
+  await outboxRef(thresholdRollbackId).create({ isolatedTestCollision: prefix })
+  const thresholdFailure = await post("/api/v1/inventory/thresholds", { commandId: thresholdRollbackId, locationId: storeId, payload: { ...thresholdPayload, expectedRevision: 1, par: 9 } })
+  assert.equal(thresholdFailure.status, 500)
+  assert.deepEqual((await org.collection("inventory").doc(thresholdItemId).get()).data(), targetStock)
+  assert.deepEqual((await thresholdDetail.get()).data(), targetDetail)
+  for (const collection of ["stockOperations", "history"]) assert.equal((await org.collection(collection).doc(thresholdRollbackId).get()).exists, false)
+  const thresholdRace = await Promise.all([op(), op()].map((commandId, index) => post("/api/v1/inventory/thresholds", { commandId, locationId: storeId, payload: { ...thresholdPayload, expectedRevision: 1, par: 8 + index, reorderPoint: 1 } })))
+  assert.deepEqual(thresholdRace.map((result) => result.status).sort(), [200, 409])
+  const finalTarget = (await org.collection("inventory").doc(thresholdItemId).get()).data()
+  assert.equal(finalTarget.revision, 2); assert.equal(finalTarget.status, "Active"); assert.equal(finalTarget.onHand, 5)
+  assert.equal((await thresholdDetail.get()).data().par, finalTarget.par)
+  assert.equal((await post("/api/v1/inventory/thresholds", { commandId: op(), locationId: storeId, payload: { ...thresholdPayload, itemId: wrongId } })).status, 403)
+  assert.equal((await post("/api/v1/inventory/thresholds", { commandId: op(), locationId: storeId, payload: { ...thresholdPayload, par: 0.0001 } })).status, 400)
 
   const cutId = op()
   const cutPayload = { itemId: portionItemId, sourceArea: "back", sourceBatchId: `${portionItemId}-source`, portionWeight: 0.5, portionCount: 4, packageBarcodePrefix: "CUT" }
@@ -328,12 +365,12 @@ try {
   assert.equal((await fetch(`${origin}/api/v1/inventory/transfers`, { method: "POST" })).status, 401)
   const outboxRead = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/engineOutbox/${outboxRef(transferId).id}`, { headers: { authorization: `Bearer ${login.idToken}` } })
   assert.equal(outboxRead.status, 403, "client SDK credentials must not read the internal outbox")
-  console.log("Firestore engine integration passed: seven stock actions; transfer/count/receipt/restock/discard/portion API parity; read-only restock previews; revision conflicts; undated batch coverage; partial-case precision; receive-once; competing receipts/counts/transfers/discards/cuts; order/stock/batch/waste/portion rollback; store isolation.")
+  console.log("Firestore engine integration passed: seven stock actions; all seven stock API adapters; read-only restock previews; revision conflicts; undated batch coverage; partial-case precision; receive-once; competing receipts/counts/transfers/discards/cuts/targets; order/stock/batch/waste/portion/store-target rollback; store isolation.")
 } finally {
   if (created) {
-    const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId), org.collection("orders").doc(caseOrderId), org.collection("inventory").doc(receiptItemId), org.collection("inventory").doc(restockItemId), org.collection("inventory").doc(discardItemId), org.collection("inventory").doc(portionItemId)]
+    const refs = [inventoryRef, org.collection("inventory").doc(raceId), org.collection("inventory").doc(wrongId), org.collection("orders").doc(orderId), org.collection("orders").doc(caseOrderId), org.collection("inventory").doc(receiptItemId), org.collection("inventory").doc(restockItemId), org.collection("inventory").doc(discardItemId), org.collection("inventory").doc(portionItemId), org.collection("inventory").doc(thresholdItemId), thresholdDetail]
     for (const id of operationIds) refs.push(org.collection("stockOperations").doc(id), org.collection("history").doc(id), outboxRef(id))
-    for (const collection of ["inventoryBatches", "receiving", "waste", "portions"]) for (const id of [itemId, raceId, wrongId, receiptItemId, restockItemId, discardItemId, portionItemId]) {
+    for (const collection of ["inventoryBatches", "receiving", "waste", "portions"]) for (const id of [itemId, raceId, wrongId, receiptItemId, restockItemId, discardItemId, portionItemId, thresholdItemId]) {
       const records = await org.collection(collection).where("itemId", "==", id).get()
       refs.push(...records.docs.map((doc) => doc.ref))
     }

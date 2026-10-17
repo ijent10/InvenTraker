@@ -208,3 +208,14 @@ Payload fingerprints cover weights, counts, area, batch, date and barcode prefix
 Threshold changes leave stock and batches unchanged, advance the item revision once and update its derived low/active status (preserving Archived). The linked store-product detail targets merge atomically with inventory, history, policy ledger and staged event, preserving unrelated product fields. No batch queries or writes are involved. Fingerprinted retries reject changed values, reasons or prior revisions; historical retries verify the recorded policy change and result before replaying. The event retains the existing inventory event contract with operation type `par_change` and a ledger quantity basis of `policy`.
 
 All seven existing stock command adapters now share Inventory application/repository boundaries. This does not complete session/approval workflows, recipe production, reversal/compensation, inventory-wide reconciliation, event delivery or full native validation.
+
+
+## Inventory reconciliation query (v1)
+
+`GET /api/v1/inventory/reconciliation?storeId=…` requires an active organization membership, `inventory.edit` or manager authority, and assigned-store access. Omitting the store selects the first authorized store. Store IDs are validated and must exist in the organization directory. The response is private/noncacheable, with schema version 1, store ID, generation time, checked counts, coverage state, and a minimal list of item-level findings. Employee identities, movement actors, costs, command results and arbitrary document fields are not returned.
+
+The adapter projects inventory balances/targets, batch quantities/areas/status and movement changes within a Firestore read-only transaction. Each source is capped at 1,000 records; the additional sentinel record marks incomplete coverage. A partial source prevents a whole-store balanced result, and truncated batch coverage never implies untracked stock. Directory coverage is separately labeled. No endpoint creates adjustments, history records, outbox events or corrections.
+
+The pure query checks saved totals, canonical quantities, batch coverage, orphaned references, movement delta integrity, duplicate revisions, reviewed-history gaps, physical continuity across policy-only revisions, and current balance/target drift. Missing legacy baselines are review findings rather than invented opening balances. Findings are observational; use an authorized spot count to resolve a physical discrepancy. Bounded history cannot prove an item's complete lifetime history, and this query does not deliver queued events or replace ledger retention/repair tooling.
+
+Web entry: Inventory → Review stock (`/inventory/reconciliation`), with store selection, manual refresh, contextual item links, explicit unknown/partial/error states and findings paginated at 50 per page. No AI integration is involved. Remove the link/route to roll back; no data migration is necessary.

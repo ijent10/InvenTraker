@@ -52,6 +52,7 @@ export default async function InventoryPage() {
         description="One place for store stock, central product details, nutrition, display assignment, vendor, and reorder signals."
         actions={
           <>
+            <ButtonLink href="/inventory/reconciliation" variant="secondary">Review stock</ButtonLink>
             <ButtonLink href="/pending-review" variant="secondary" icon={<ShieldCheck className="h-4 w-4" />}>
               Pending Review ({demoPendingAutofillBatches.length})
             </ButtonLink>

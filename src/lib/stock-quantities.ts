@@ -22,14 +22,16 @@ export function canonicalStockQuantity(quantity: number, unitsPerContainer = 1) 
 }
 
 export function stockState(record: Record<string, unknown>): StockState {
-  const frontStock = normalizeStockQuantity(record.frontStock)
-  const backStock = normalizeStockQuantity(record.backStock)
-  return {
-    frontStock,
-    backStock,
-    onHand: normalizeStockQuantity(frontStock + backStock),
-    revision: Math.max(0, Math.trunc(normalizeStockQuantity(record.revision)))
+  function savedQuantity(value: unknown) {
+    const quantity = value ?? 0
+    if (typeof quantity !== "number" || !Number.isFinite(quantity) || quantity < 0 || Math.abs(quantity * 1000 - Math.round(quantity * 1000)) >= 0.000001) throw new RangeError("Saved stock must use canonical nonnegative quantities.")
+    return quantity
   }
+  const frontStock = savedQuantity(record.frontStock), backStock = savedQuantity(record.backStock)
+  const onHand = normalizeStockQuantity(frontStock + backStock), revision = record.revision ?? 0
+  if (record.onHand !== undefined && Math.abs(savedQuantity(record.onHand) - onHand) > 0.0000001) throw new RangeError("Saved stock total does not match its stock areas.")
+  if (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0 || revision >= Number.MAX_SAFE_INTEGER) throw new RangeError("Saved stock revision is invalid.")
+  return { frontStock, backStock, onHand, revision }
 }
 
 export function nextStockState(before: StockState, frontStock: number, backStock: number): StockState {

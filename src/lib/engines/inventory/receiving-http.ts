@@ -1,3 +1,4 @@
+import { assertInventoryWritesEnabled } from "./availability"
 import { z } from "zod"
 import { assertStoreAccess, mobileEnvelope, mobileError, requireMobilePrincipal } from "@/lib/mobile-api"
 import { engineDocumentIdSchema, engineErrorResponseSchema, EngineError } from "../contracts"
@@ -13,6 +14,7 @@ export async function handleReceiving(request: Request, format: "mobile" | "engi
     const parsed = (format === "mobile" ? legacyRequestSchema : receivingRequestSchema).safeParse(await request.json().catch(() => null))
     if (!parsed.success) throw new EngineError(parsed.error.issues[0]?.message ?? "Valid received quantities are required.", 400, "invalid_request")
     requestId = parsed.data.commandId
+    assertInventoryWritesEnabled()
     const result = await executeReceiving({ ...parsed.data, organizationId: principal.orgId, actorId: principal.uid }, { uid: principal.uid, organizationId: principal.orgId, permissions: principal.permissions, isManager: principal.isManager }, await firestoreReceivingRepository(principal, request), (storeId) => assertStoreAccess(principal, storeId))
     return Response.json(format === "mobile" ? mobileEnvelope(result.data) : result, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {

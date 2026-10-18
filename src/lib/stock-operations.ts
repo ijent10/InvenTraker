@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { movementTypeFor } from "@/lib/engines/inventory/movements"
 
 import type { MobilePrincipal } from "@/lib/mobile-api"
 import { MobileApiError } from "@/lib/mobile-api"
@@ -123,6 +124,7 @@ export function stockOperationRecord({
     id: operationId,
     operationId,
     operationType,
+    movementType: movementTypeFor(operationType),
     storeId,
     actor: {
       uid: principal.uid,

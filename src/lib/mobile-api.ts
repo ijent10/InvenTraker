@@ -83,8 +83,9 @@ export async function requireMobilePrincipal(request: Request, permission?: Perm
   }
 
   const member: DocumentData & { id: string } = { id: memberSnapshot.id, ...(memberSnapshot.data() ?? {}) }
-  if (String(member.status ?? "Active").toLowerCase() === "suspended") {
-    throw new MobileApiError("This account is suspended.", 403, "account_suspended")
+  const memberStatus = String(member.status ?? "Active").trim().toLowerCase()
+  if (memberStatus !== "active") {
+    throw new MobileApiError("This account is not active. Ask your administrator to restore access.", 403, memberStatus === "suspended" ? "account_suspended" : "account_inactive")
   }
 
   const permissions = Array.isArray(member.permissions) ? member.permissions.map(String) : []

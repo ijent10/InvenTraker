@@ -1,4 +1,7 @@
 env:
+  - variable: INVENTORY_WRITES_ENABLED
+    value: "true"
+    availability: [RUNTIME]
   - variable: ENGINE_EVENT_DISPATCH_ENABLED
     value: "true"
     availability: [RUNTIME]

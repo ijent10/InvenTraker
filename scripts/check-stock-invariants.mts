@@ -66,4 +66,10 @@ const availability = summarizeBatchAvailability([
 ], "2026-10-01T15:00:00.000Z", "Oct 3, 2026")
 assert.deepEqual(availability, { totalPhysical: 21, usableDated: 16, expired: 2, unknownExpiration: 3, expiringBeforeDelivery: 4 }, "availability must expose expired, usable, unknown, and delivery-risk quantities separately")
 
+for (const malformed of [
+  { frontStock: -1 }, { frontStock: "1" }, { frontStock: NaN },
+  { frontStock: 0.0001 }, { frontStock: 1, backStock: 2, onHand: 99 },
+  { revision: 0.5 }, { revision: "1" }, { revision: -1 }, { revision: Number.MAX_SAFE_INTEGER }
+]) assert.throws(() => stockState(malformed), RangeError, "Malformed saved stock must fail before a command can write")
+assert.deepEqual(stockState({}), { frontStock: 0, backStock: 0, onHand: 0, revision: 0 }, "Legacy missing fields keep the zero baseline")
 console.log("Stock invariants passed.")

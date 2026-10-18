@@ -49,6 +49,7 @@ export default async function EditInventoryItemPage({
             <ButtonLink href="/inventory" variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>
               Back to inventory
             </ButtonLink>
+            <PermissionGate permission="history.view"><ButtonLink href={`/inventory/movements?storeId=${encodeURIComponent(item.storeId || "")}&itemId=${encodeURIComponent(item.id)}`} variant="secondary">Movement history</ButtonLink></PermissionGate>
             {!editing ? (
               <PermissionGate permission="inventory.edit">
                 <ButtonLink href={`/inventory/${item.id}?edit=1`} icon={<Pencil className="h-4 w-4" />}>

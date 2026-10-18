@@ -201,6 +201,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -230,6 +231,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

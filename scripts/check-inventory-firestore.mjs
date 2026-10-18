@@ -39,6 +39,7 @@ async function post(path, body) {
 async function checkCommitted(id, expectedType) {
   const [ledger, history, outbox] = await Promise.all([org.collection("stockOperations").doc(id).get(), org.collection("history").doc(id).get(), outboxRef(id).get()])
   assert.equal(ledger.data()?.operationType, expectedType)
+  assert.equal(ledger.data()?.movementType, ({ receive: "receipt", transfer: "area_transfer", restock: "restock_reconciliation", waste: "discard", portion: "portion_reclassification", spot_check: "count_adjustment", par_change: "threshold_change" })[expectedType])
   assert.equal(history.exists, true)
   assert.ok(["pending", "delivered"].includes(outbox.data()?.status), "Committed events are staged or consumed")
   assert.equal(outbox.data()?.event.organizationId, orgId)

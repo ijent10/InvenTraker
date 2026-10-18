@@ -34,7 +34,8 @@
     "firebase:provision-test-org": "node scripts/provision-test-organization.mjs",
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs",
     "engines:delivery": "node --experimental-strip-types scripts/check-engine-delivery.mts",
-    "engines:health": "node --experimental-strip-types scripts/check-delivery-health.mts"
+    "engines:health": "node --experimental-strip-types scripts/check-delivery-health.mts",
+    "inventory:movements": "node --experimental-strip-types scripts/check-inventory-movements.mts"
   },
   "dependencies": {
     "@emnapi/runtime": "1.11.3",

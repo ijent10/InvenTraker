@@ -1,3 +1,4 @@
+import { assertInventoryWritesEnabled } from "./availability"
 import { z } from "zod"
 import { assertStoreAccess, mobileEnvelope, mobileError, requireMobilePrincipal } from "@/lib/mobile-api"
 import { engineDocumentIdSchema, engineErrorResponseSchema, EngineError } from "../contracts"
@@ -13,6 +14,7 @@ export async function handleThresholdChange(request: Request, format: "mobile" |
     const parsed = (format === "mobile" ? legacyRequestSchema : thresholdRequestSchema).safeParse(await request.json().catch(() => null))
     if (!parsed.success) throw new EngineError(parsed.error.issues[0]?.message ?? "Valid targets and a reason are required.", 400, "invalid_request")
     requestId = parsed.data.commandId
+    assertInventoryWritesEnabled()
     const result = await executeThresholdChange({ ...parsed.data, organizationId: principal.orgId, actorId: principal.uid }, { uid: principal.uid, organizationId: principal.orgId, permissions: principal.permissions, isManager: principal.isManager }, await firestoreThresholdRepository(principal, request), (storeId) => assertStoreAccess(principal, storeId))
     return Response.json(format === "mobile" ? mobileEnvelope(result.data) : result, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {

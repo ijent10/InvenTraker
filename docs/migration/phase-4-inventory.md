@@ -80,7 +80,7 @@ The pinned llama runtime now contains a genuine same-version arm64 Simulator sli
 
 No destructive migration or ledger backfill is required. Existing mobile URLs remain live; route paths distinguish compatible mobile calls from versioned engine traffic, with command IDs and schema versions linking transaction outcomes. Explicit movement types distinguish newly recorded operations from legacy records. Delivery aggregate logs and administrator health expose the consumer path independently of stock writes.
 
-If a release causes a stock concern, freeze writes first by setting `INVENTORY_WRITES_ENABLED` to `"false"` under runtime environment variables in `apphosting.yaml`, commit/push that configuration and wait for the App Hosting rollout to succeed. Reads and restock previews remain available; both API families reject writes. This is a deployed runtime setting, not an instantaneous remote kill switch. Do not remove ledgers, history, outbox records or consumer receipts.
+If a release causes a stock concern, freeze stock writes first by setting `INVENTORY_WRITES_ENABLED` to `"false"` under runtime environment variables in `apphosting.yaml`, commit/push that configuration and wait for the App Hosting rollout to succeed. Reads and restock previews remain available; both API families reject writes. This is a deployed runtime setting, not an instantaneous remote kill switch. Do not remove ledgers, history, outbox records or consumer receipts.
 
 Pause event delivery independently if necessary:
 
@@ -92,14 +92,14 @@ gcloud scheduler jobs pause inventraker-stock-events \
 Application rollback uses a known good Git revision, preserving its recorded transactions. Create a rollback commit on `main` without rewriting branch history:
 
 ```sh
-git fetch origin
+git fetch origin --tags
 git switch -c rollback/inventory-phase-4 origin/main
-git revert --no-commit PHASE_4_RELEASE_COMMIT
+git revert --no-commit c0bd707..inventory-phase4-2026-10-18
 git commit -m 'Roll back inventory phase 4 release'
 git push origin HEAD:main
 ```
 
-Replace `PHASE_4_RELEASE_COMMIT` with the release hash recorded below; inspect the resulting diff before pushing. This returns to the previous compatible handlers/services and removes the new read page/flag without deleting any ledger entries. For a concern inside an earlier extraction, select the last known good App Hosting build in Firebase's rollback interface; reverting only this final release does not undo older extracted commands. Never restore an old database snapshot over newer stock transactions. Inspect discrepancies through read-only review, then apply an authorized current count when appropriate.
+The tagged release includes the two application commits and their final verification documentation. Reverting the range newest-first avoids leaving the follow-up documentation against a removed read-page implementation. Inspect the resulting diff before pushing. This returns to the previous compatible handlers/services and removes the new read page/flag without deleting any ledger entries. For a concern inside an earlier extraction, select the last known good App Hosting build in Firebase's rollback interface; reverting this final release does not undo older extracted commands. Never restore an old database snapshot over newer stock transactions. Inspect discrepancies through read-only review, then apply an authorized current count when the saved balance itself is valid. Malformed saved balances need a controlled administrative repair; no automated ledger repair is claimed.
 
 After recovery, restore `INVENTORY_WRITES_ENABLED=true` through a verified rollout. Resume the retained queue:
 
@@ -110,4 +110,19 @@ gcloud scheduler jobs resume inventraker-stock-events \
 
 ## Release evidence
 
-Final application release, deployed checks and simulator evidence are recorded here after validation. Until then, implementation is delivered and release validation is in progress.
+Application commits: `7a1adc75784ff7c2792df4cc4bd352fccfb3b046` (movement history, write pause, saved-state validation and simulator support), followed by `d23eef7` (history-navigation permission parity and count label). The first App Hosting build/rollout was `2026-10-18-001`, READY/SUCCEEDED. The final application build/rollout `2026-10-18-002` is READY/SUCCEEDED at `d23eef7e9f941283f6e6cda0268380c0d76ff6a9`. Tag `inventory-phase4-2026-10-18` also includes this final documentation; later docs-only rollout does not change application behavior. Phase 4 is complete for the scope stated above.
+
+Passed on October 18, 2026:
+
+- All seven command/domain suites and actual Swift model fixtures; stock/order/pilot, reconciliation, movement, event-delivery/health and workspace checks.
+- Lint without warnings/errors, TypeScript and the full Next.js production build, including the final navigation correction. Fresh isolated dependencies were used because some existing local dependency files timed out during reads; repository dependencies were not replaced.
+- Deployed seven-action Firestore suite: API parity, retries/conflicts, receiving once, competing mutations, stock/batch/order/output/target consistency and complete rollback when staged event creation fails. New ledgers retained the canonical movement type.
+- Deployed movement HTTP suite: 1,005 records over 11 pages, legacy/new labels, no truncation/duplicates, stale cursor conflicts, both history permission variants, inactive states, organization/store restrictions, private-field exclusion and unchanged item/ledger update times. The ephemeral organization and Auth identity were removed.
+- Actual local HTTP pause check: all 14 write adapters rejected with 503; preview returned 200; inventory update time and ledger/outbox absence were verified.
+- Xcode 27.0 generic iOS device and arm64 iPhone 17/iOS 27 Simulator Debug builds. Simulator install/launch and test-owner sign-in succeeded, loading the assigned store, inventory and existing item detail/nutrition screen. The user authorized simulator use in place of the unavailable phone. Native UI posting was not independently exercised; all stock HTTP paths and Swift contracts were checked. Physical camera/VoiceOver/signing and comprehensive offline/conflict UX remain Phase 9 release checks.
+- Browser navigation through stock review findings, item link and movement history, plus fresh-review and empty/end states. No real-store stock was changed. An untouched native UI fixture and its two batches were removed; no native fixture operation was posted.
+
+Logs/screenshots for this session are under `/tmp/inventraker-phase4-*`; the reproducible checks above are retained in the repository. Earlier worker/OIDC, delivery receipt/monitor and client-rule-denial evidence remains in `docs/architecture/engine-contracts.md`. Native event subscriptions and expanded Phase 6 workflows are outside this phase's existing command boundary.
+
+
+Final operations check: Scheduler remained ENABLED with a successful automatic attempt and fresh `workspace-stock-v1` heartbeat, with no retries/dead letters reported in that run. Both native API origins returned the expected unauthenticated API response. Fixture cleanup was confirmed. The working tree retains only the pre-existing untracked `.firebase/` directory after the release documentation commit.

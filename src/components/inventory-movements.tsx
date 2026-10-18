@@ -4,7 +4,7 @@ import { useAuthSession } from "@/lib/auth-session"
 import { Button, ButtonLink, Panel, StatusPill } from "@/components/ui"
 import type { ItemMovement } from "@/lib/engines/inventory/movements"
 type Page = { schemaVersion: "1"; itemName: string; revision: number | null; rows: ItemMovement[]; scannedCount: number; nextCursor: string | null; complete: boolean }
-const labels: Record<ItemMovement["type"], string> = { receipt: "Received stock", area_transfer: "Stock area transfer", restock_reconciliation: "Restock and floor count", discard: "Discarded stock", portion_reclassification: "Portioned stock", count_adjustment: "Verified count", threshold_change: "Stock targets changed", unknown: "Unrecognized movement" }
+const labels: Record<ItemMovement["type"], string> = { receipt: "Received stock", area_transfer: "Stock area transfer", restock_reconciliation: "Restock and floor count", discard: "Discarded stock", portion_reclassification: "Portioned stock", count_adjustment: "Stock count", threshold_change: "Stock targets changed", unknown: "Unrecognized movement" }
 function balance(value: ItemMovement["before"]) {
   if (!value) return "Saved values need review"
   if ("onHand" in value) return `Floor ${value.frontStock} · Back ${value.backStock} · Total ${value.onHand}`

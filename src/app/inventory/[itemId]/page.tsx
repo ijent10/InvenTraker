@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { ArrowLeft, Pencil } from "lucide-react"
 
+import { InventoryHistoryLink } from "@/components/inventory-history-link"
 import { InventoryForm } from "@/components/inventory-form"
 import { NutritionCalculator } from "@/components/nutrition-calculator"
 import { PageHeader } from "@/components/page-header"
@@ -49,7 +50,7 @@ export default async function EditInventoryItemPage({
             <ButtonLink href="/inventory" variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>
               Back to inventory
             </ButtonLink>
-            <PermissionGate permission="history.view"><ButtonLink href={`/inventory/movements?storeId=${encodeURIComponent(item.storeId || "")}&itemId=${encodeURIComponent(item.id)}`} variant="secondary">Movement history</ButtonLink></PermissionGate>
+            <InventoryHistoryLink storeId={item.storeId || ""} itemId={item.id} />
             {!editing ? (
               <PermissionGate permission="inventory.edit">
                 <ButtonLink href={`/inventory/${item.id}?edit=1`} icon={<Pencil className="h-4 w-4" />}>

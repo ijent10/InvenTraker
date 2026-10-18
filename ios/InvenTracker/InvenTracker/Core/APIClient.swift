@@ -37,6 +37,24 @@ actor APIClient {
         }
     }
 
+    func workspaceCatalog(device: WorkspaceDevice, orgId: String) async throws -> WorkspaceCatalogResponse {
+        try await send(path: "/api/v1/workspace/catalog?device=\(device.rawValue)", orgId: orgId)
+    }
+    func workspaceLayout(device: WorkspaceDevice, orgId: String) async throws -> WorkspaceLayoutResponse {
+        try await send(path: "/api/v1/workspace/layout?device=\(device.rawValue)", orgId: orgId)
+    }
+    func saveWorkspaceLayout(_ layout: WorkspaceLayout, expectedRevision: Int) async throws -> WorkspaceLayoutCommit {
+        try await send(path: "/api/v1/workspace/layout", method: "PUT", body: WorkspaceLayoutUpdate(expectedRevision: expectedRevision, layout: layout), orgId: layout.organizationId)
+    }
+    func workspaceWidgets(storeId: String, orgId: String, ids: [String]) async throws -> NativeWorkspaceData {
+        var query = URLComponents(); query.queryItems = [URLQueryItem(name: "storeId", value: storeId), URLQueryItem(name: "widgets", value: ids.joined(separator: ","))]
+        return try await send(path: "/api/v1/workspace/widgets?\(query.percentEncodedQuery ?? "")", orgId: orgId)
+    }
+    func workspaceInvalidation(storeId: String, orgId: String) async throws -> NativeWorkspaceInvalidation {
+        var query = URLComponents(); query.queryItems = [URLQueryItem(name: "storeId", value: storeId)]
+        return try await send(path: "/api/v1/workspace/invalidation?\(query.percentEncodedQuery ?? "")", orgId: orgId)
+    }
+
     func storedSession() -> FirebaseSession? {
         if let activeSession { return activeSession }
         let restored = credentials.load()
@@ -251,33 +269,35 @@ actor APIClient {
         let _: APIEnvelope<AssistantDeleteResult> = try await send(path: "/api/mobile/v1/assistant/chats/\(id)", method: "DELETE", body: Optional<EmptyRequest>.none)
     }
 
-    private func send<Response: Decodable>(path: String, method: String = "GET") async throws -> Response {
-        try await send(path: path, method: method, body: Optional<EmptyRequest>.none)
+    private func send<Response: Decodable>(path: String, method: String = "GET", orgId: String? = nil) async throws -> Response {
+        try await send(path: path, method: method, body: Optional<EmptyRequest>.none, orgId: orgId)
     }
 
-    private func send<Response: Decodable, Body: Encodable>(path: String, method: String, body: Body?) async throws -> Response {
+    private func send<Response: Decodable, Body: Encodable>(path: String, method: String, body: Body?, orgId: String? = nil) async throws -> Response {
         var session = try await validSession()
         do {
-            return try await perform(path: path, method: method, body: body, token: session.idToken)
+            return try await perform(path: path, method: method, body: body, token: session.idToken, orgId: orgId)
         } catch let error as APIClientError where error.code == "invalid_session" || error.code == "unauthenticated" {
             session = try await refresh(session)
-            return try await perform(path: path, method: method, body: body, token: session.idToken)
+            return try await perform(path: path, method: method, body: body, token: session.idToken, orgId: orgId)
         }
     }
 
-    private func perform<Response: Decodable, Body: Encodable>(path: String, method: String, body: Body?, token: String) async throws -> Response {
+    private func perform<Response: Decodable, Body: Encodable>(path: String, method: String, body: Body?, token: String, orgId: String? = nil) async throws -> Response {
         guard let url = URL(string: path, relativeTo: AppConfig.baseURL)?.absoluteURL else { throw APIClientError.invalidResponse }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 30
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let orgId { request.setValue(orgId, forHTTPHeaderField: "x-inventracker-org") }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(body)
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIClientError.invalidResponse }
+        if http.statusCode == 409, path == "/api/v1/workspace/layout", method == "PUT" { return try decoder.decode(Response.self, from: data) }
         guard (200..<300).contains(http.statusCode) else {
             if let payload = try? decoder.decode(APIErrorEnvelope.self, from: data) {
                 throw APIClientError.server(payload.error.code, payload.error.message)

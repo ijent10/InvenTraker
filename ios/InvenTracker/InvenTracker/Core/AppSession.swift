@@ -21,7 +21,7 @@ final class AppSession: ObservableObject {
     @Published var assistantChats: [AssistantChat] = []
     let onDeviceAssistant = OnDeviceAssistant()
 
-    private let api = APIClient()
+    let api = APIClient()
     private let localPreferencesKey = "inventraker.mobile-preferences.v2"
 
     var inventory: [InventoryItem] { workspace?.inventory ?? [] }

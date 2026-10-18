@@ -35,7 +35,9 @@
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs",
     "engines:delivery": "node --experimental-strip-types scripts/check-engine-delivery.mts",
     "engines:health": "node --experimental-strip-types scripts/check-delivery-health.mts",
-    "inventory:movements": "node --experimental-strip-types scripts/check-inventory-movements.mts"
+    "inventory:movements": "node --experimental-strip-types scripts/check-inventory-movements.mts",
+    "workspace:swift": "swiftc ios/InvenTracker/InvenTracker/Core/Models.swift ios/InvenTracker/InvenTracker/Core/WorkspaceLayout.swift ios/InvenTracker/InvenTracker/Core/NativeWorkspaceStore.swift ios/InvenTracker/InvenTracker/Core/APIClient.swift ios/InvenTracker/InvenTracker/Core/CredentialStore.swift ios/InvenTracker/InvenTracker/Core/AppConfig.swift scripts/check-native-workspace.swift -o /tmp/inventraker-workspace-check && /tmp/inventraker-workspace-check fixtures/engine-contracts/workspace-v1.json",
+    "workspace:integration": "node scripts/check-workspace-http.mjs"
   },
   "dependencies": {
     "@emnapi/runtime": "1.11.3",

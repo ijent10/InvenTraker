@@ -59,7 +59,9 @@ export function snapWidgetSize(width: number, height: number, supported: WidgetS
   return workspaceSizes.filter((size) => supported.includes(size)).reduce((best, size) => {
     const a = widgetFootprint(best, device)
     const b = widgetFootprint(size, device)
-    return Math.hypot(b.gridWidth - width, b.gridHeight - height) < Math.hypot(a.gridWidth - width, a.gridHeight - height) ? size : best
+    // Quantize squared distance so JS and native floating-point hypot ties select the same first size.
+    const distance = (footprint: { gridWidth: number; gridHeight: number }) => Math.round(((footprint.gridWidth - width) ** 2 + (footprint.gridHeight - height) ** 2) * 1e9)
+    return distance(b) < distance(a) ? size : best
   })
 }
 

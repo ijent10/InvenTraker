@@ -5,12 +5,13 @@ struct WorkspaceView: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .home
+    @State private var customizingHome = false
     @State private var workPath = NavigationPath()
 
     var body: some View {
         TabView(selection: $tab) {
             NavigationStack(path: $workPath) {
-                HomeView(selectedTab: $tab, openWorkModule: openWorkModule)
+                HomeView(selectedTab: $tab, openWorkModule: openWorkModule, customizingHome: $customizingHome)
                     .navigationDestination(for: WorkShortcut.self) { shortcut in
                         WorkShortcutHostView(shortcut: shortcut)
                     }
@@ -30,7 +31,7 @@ struct WorkspaceView: View {
                     .tag(Tab.shortcut)
                     .tabItem { Label(session.workShortcut.tabTitle, systemImage: session.workShortcut.icon) }
             }
-            NavigationStack { AccountView() }
+            NavigationStack { AccountView(customizeHome: { workPath = NavigationPath(); tab = .home; customizingHome = true }) }
                 .tag(Tab.account)
                 .tabItem { Label("Account", systemImage: "person.crop.circle.fill") }
         }

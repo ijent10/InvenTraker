@@ -2,20 +2,30 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var session: AppSession
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Binding var selectedTab: WorkspaceView.Tab
     let openWorkModule: (WorkShortcut) -> Void
+    @Binding var customizingHome: Bool
+    @State private var standardHome = Bundle.main.object(forInfoDictionaryKey: "WorkspaceLayoutV2") as? Bool == false
     @State private var showNotifications = false
     @State private var showStores = false
 
+    private var workspaceDevice: WorkspaceDevice { UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular ? .tablet : .phone }
     private var workspace: WorkspaceBootstrap? { session.workspace }
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 organizationHeader
-                todayIssues
-                metricGrid
-                dueChecks
+                if standardHome {
+                    todayIssues
+                    metricGrid
+                    dueChecks
+                    Button("Try customizable home") { standardHome = false }
+                } else if let identity = workspace?.session {
+                    NativeWorkspaceView(api: session.api, uid: identity.uid, orgId: identity.orgId, storeId: session.selectedStoreId, device: workspaceDevice, editing: $customizingHome, openModule: openWorkModule, useStandardHome: { standardHome = true })
+                        .id("\(identity.uid):\(identity.orgId):\(workspaceDevice.rawValue)")
+                }
             }
             .padding(16)
             .padding(.bottom, 20)

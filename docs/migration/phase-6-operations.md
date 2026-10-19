@@ -30,7 +30,7 @@ Task APIs currently cap a task at 40 items. Directories are bounded to 200 store
 - Session state/schema checks: access, assignment, revision conflicts, manager-only review, mandatory return note, immutable terminal states, duplicate lines.
 - Real Firebase HTTP integration in a temporary organization: Auth, assignment visibility, no draft stock writes, review/return, concurrent count/receipt approval once, outbox failure atomic rollback, stock/batch/ledger consistency, private widget summaries, transfer invalidating a pending count, inactive and wrong-org/store denial. Temporary accounts and records are deleted in finally.
 - Existing engine and provider regressions, TypeScript, lint and production build.
-- Browser visual/accessibility interaction remains unverified while the Mac is locked. No native session UI parity is claimed; the existing native immediate stock actions remain compatible.
+- Safari verified the released Spot Checks page, local draft editor, responsive navigation and Receiving page loading under the signed-in store. No store records were saved through the browser. Full form interaction/accessibility checks remain pending; native Phase 5 gesture checks also remain pending. No native session UI parity is claimed; the existing native immediate stock actions remain compatible.
 
 Commands: `operations:check`, opt-in `operations:integration`, `engines:check`, `workspace:providers`, `typecheck`, `lint`, `build`.
 
@@ -41,3 +41,7 @@ Spot Check still needs offline reconciliation and production-scale paging/filter
 ## Rollback
 
 Revert the session routes/pages, navigation and optional widget catalog/provider additions to the previous release (`4295bfe`). Existing sessions remain stored and private; legacy direct stock commands are unchanged. Never delete ledger/outbox history to roll back a UI. Use the existing inventory-write pause if stock writes need to stop.
+
+## Published validation record
+
+Application commit `bdac1aaefd52f3c010d79a1bdd70c4ff0ea2ad13` was pushed to main and inventracker-clean-slate. Firebase build `build-2026-10-19-005` reached READY and rollout `rollout-2026-10-19-005` SUCCEEDED. The self-cleaning session HTTP suite then passed against `https://www.inventraker.com`, including scoped widgets, concurrent approvals, rollback and cross-engine revision conflicts. This report/status update changes documentation only.

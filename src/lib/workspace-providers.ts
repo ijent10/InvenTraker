@@ -3,13 +3,15 @@ import type { PermissionKey } from "./permissions"
 import { engineIdSchema } from "./engines/contracts.ts"
 
 export const workspaceEngines = engineIdSchema.options
-export type WorkspaceSource = "inventory" | "inventoryBatches" | "stockOperations" | "orders" | "healthChecks" | "waste" | "receiving" | "portions"
+export type WorkspaceSource = "operationSessions" | "inventory" | "inventoryBatches" | "stockOperations" | "orders" | "healthChecks" | "waste" | "receiving" | "portions"
 export type SourceResult = { records: Record<string, unknown>[]; partial: boolean; failed?: boolean }
 export type WidgetSummary = { state: "loaded" | "empty" | "permission-denied" | "engine-unavailable"; value: string; detail: string; partial?: boolean; candidates: WidgetCandidate[] }
 export type WorkspaceData = { stockRevision?: number; storeId: string; stores: { id: string; name: string }[]; generatedAt: string; widgets: Record<string, WidgetSummary> }
 
 type Provider = { permissions: PermissionKey[]; sources: WorkspaceSource[] }
 export const workspaceProviders: Record<string, Provider> = {
+  "count-tasks": { permissions: ["inventory.edit"], sources: ["operationSessions"] },
+  "delivery-tasks": { permissions: ["inventory.edit"], sources: ["operationSessions"] },
   inventory: { permissions: ["inventory.view"], sources: ["inventory"] },
   "low-stock": { permissions: ["inventory.view"], sources: ["inventory"] },
   expiration: { permissions: ["inventory.view"], sources: ["inventoryBatches"] },
@@ -81,6 +83,10 @@ export function buildWorkspaceSummaries(sources: Partial<Record<WorkspaceSource,
       const type = { "spot-check": "spot_check", restocks: "restock", transfers: "transfer" }[id]
       selected = records.filter((record) => record.operationType === type)
       detail = id === "transfers" ? "Front/back transfers in the stock ledger" : id === "spot-check" ? "Spot checks in the stock ledger" : "Restocks in the stock ledger"
+    } else if (["count-tasks", "delivery-tasks"].includes(id)) {
+      selected = records.filter(record => record.kind === (id === "count-tasks" ? "count" : "receiving") && ["draft", "submitted"].includes(text(record.status)))
+      detail = "Drafts and tasks awaiting manager review"
+      candidates = selected.filter(record => record.status === "submitted").map(record => candidate(id === "count-tasks" ? "spot-check" : "receiving", { ...record, name: id === "count-tasks" ? "Count awaiting review" : "Delivery awaiting review" }, "Submitted for manager review"))
     } else if (id === "receiving") detail = "Recorded receiving lines"
     else if (id === "production") detail = "Recorded cut and portion operations"
     else if (id === "waste") detail = "Recorded discard entries"

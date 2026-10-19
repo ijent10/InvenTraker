@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic"
 
 // Explicit projections prevent employee identities, notes, costs, and arbitrary engine fields from entering widget context.
 const fields: Record<WorkspaceSource, string[]> = {
+  operationSessions: ["storeId", "kind", "status"],
   inventory: ["storeId", "name", "status", "onHand", "reorderPoint"],
   inventoryBatches: ["storeId", "itemName", "status", "remainingQuantity", "expirationDate"],
   stockOperations: ["storeId", "operationType"],
@@ -34,6 +35,12 @@ export async function GET(request: Request) {
     const can = (permission: Parameters<typeof canMobile>[1]) => canMobile(principal, permission)
     const names = requiredWorkspaceSources(can, ids)
     const loaded = await Promise.allSettled(names.map(async (name) => {
+      if (name === "operationSessions" && !principal.isManager) {
+        const source = orgCollection(principal, name).where("storeId", "==", storeId)
+        const pages = await Promise.all(["createdBy", "assignedTo"].map(field => source.where(field, "==", principal.uid).select(...fields[name]).limit(1001).get()))
+        const records = [...new Map(pages.flatMap(page => page.docs.map(doc => [doc.id, mobileRecord(doc.id, doc.data())] as const))).values()]
+        return { records: records.slice(0, 1000), partial: records.length > 1000 || pages.some(page => page.size > 1000) } satisfies SourceResult
+      }
       const snapshot = await orgCollection(principal, name).where("storeId", "==", storeId).select(...fields[name]).limit(1001).get()
       return { records: snapshot.docs.slice(0, 1000).map((doc) => mobileRecord(doc.id, doc.data())), partial: snapshot.size > 1000 } satisfies SourceResult
     }))

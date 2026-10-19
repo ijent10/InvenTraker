@@ -47,5 +47,12 @@ assert.equal(summaries.health.state, "loaded", "one provider failure does not bl
 assert.equal(summaries.insights.partial, true)
 assert.match(summaries.inventory.detail, /loaded records only/)
 assert.deepEqual(new Set(workspaceEngines), new Set(["inventory", "spot-check", "restock", "receiving", "discards", "transfers", "production", "orders", "health-checks", "assistant", "insights"]))
-assert.equal(Object.keys(workspaceProviders).length, 14)
+assert.equal(Object.keys(workspaceProviders).length, 16)
+sources.operationSessions.records = [{ id: "count", kind: "count", status: "submitted" }, { id: "done", kind: "count", status: "posted" }, { id: "delivery", kind: "receiving", status: "draft" }]
+const tasks = buildWorkspaceSummaries(sources, () => true, now)
+assert.equal(tasks["count-tasks"].value, "1")
+assert.equal(tasks["count-tasks"].candidates[0].engineId, "spot-check")
+assert.equal(tasks["delivery-tasks"].value, "1")
+assert.equal(tasks["delivery-tasks"].candidates.length, 0)
+assert.equal(buildWorkspaceSummaries(sources, permission => permission === "inventory.view", now)["count-tasks"].state, "permission-denied")
 console.log("Workspace provider checks passed: permissions, source isolation, factual summaries, bounded counts, expiry, ranking, modes, failure isolation.")

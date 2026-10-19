@@ -27,6 +27,8 @@ export const navigation: NavigationItem[] = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/administrator", label: "Administrator", icon: ShieldCheck, permission: "platform.admin" },
   { href: "/inventory", label: "Inventory", icon: PackageSearch, permission: "inventory.view" },
+  { href: "/spot-checks", label: "Spot Checks", icon: ClipboardCheck, permission: "inventory.edit" },
+  { href: "/receiving", label: "Receiving", icon: PackageSearch, permission: "inventory.edit" },
   { href: "/orders", label: "Orders", icon: ShoppingCart, permission: "orders.view" },
   { href: "/health-checks", label: "Health Checks", icon: ClipboardCheck, permission: "health.view" },
   { href: "/files", label: "Files", icon: FolderOpen, permission: "files.view" },

@@ -1,10 +1,11 @@
+import type { Transaction } from "firebase-admin/firestore"
 import { adminFieldValue } from "@/lib/firebase-admin"
 import { mobileRecord, orgCollection, type MobilePrincipal } from "@/lib/mobile-api"
 import { stockChange, stockOperationSource } from "@/lib/stock-operations"
 import { postStockOperation } from "./post-stock-operation"
 import type { ReceivingRepository } from "./receiving"
 
-export async function firestoreReceivingRepository(principal: MobilePrincipal, request: Request): Promise<ReceivingRepository> {
+export async function firestoreReceivingRepository(principal: MobilePrincipal, request: Request, sharedTransaction?: Transaction): Promise<ReceivingRepository> {
   const FieldValue = await adminFieldValue()
   const inventory = orgCollection(principal, "inventory")
   const receiving = orgCollection(principal, "receiving")
@@ -12,8 +13,9 @@ export async function firestoreReceivingRepository(principal: MobilePrincipal, r
   const orders = orgCollection(principal, "orders")
   const operations = orgCollection(principal, "stockOperations")
   const history = orgCollection(principal, "history")
+  const run = <T>(callback: (transaction: Transaction) => Promise<T>): Promise<T> => sharedTransaction ? callback(sharedTransaction) : principal.db.runTransaction(callback)
   return {
-    runTransaction: (work) => principal.db.runTransaction(async (transaction) => {
+    runTransaction: (work) => run(async (transaction) => {
       const read = async (collection: typeof inventory, ids: string[]) => {
         const snapshots = await Promise.all(ids.map((id) => transaction.get(collection.doc(id))))
         return snapshots.filter((snapshot) => snapshot.exists).map((snapshot) => ({ ...mobileRecord(snapshot.id, snapshot.data()), id: snapshot.id }))

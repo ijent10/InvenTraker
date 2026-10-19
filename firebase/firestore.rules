@@ -297,6 +297,11 @@ service cloud.firestore {
         allow delete: if canManage(orgId, "inventory.archive");
       }
 
+      // Session access, assignment, review and posting are checked by the server API.
+      match /operationSessions/{sessionId}/{document=**} {
+        allow read, write: if false;
+      }
+
       match /stockOperations/{operationId} {
         allow read: if orgMember(orgId) && (hasPermission(orgId, "history.view") || hasPermission(orgId, "history.viewAll") || orgManager(orgId));
         allow write: if false;

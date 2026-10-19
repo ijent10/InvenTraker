@@ -5,6 +5,8 @@ import type { WidgetDefinition } from "./workspace-contracts"
 
 // Compatibility metadata only. Sample values in demo-data are never provider facts.
 const providers: Record<string, { engine: string; permissions: string[] }> = {
+  "count-tasks": { engine: "spot-check", permissions: ["inventory.edit"] },
+  "delivery-tasks": { engine: "receiving", permissions: ["inventory.edit"] },
   inventory: { engine: "inventory", permissions: ["inventory.view"] },
   orders: { engine: "orders", permissions: ["orders.view"] },
   assistant: { engine: "assistant", permissions: ["ai.use"] },

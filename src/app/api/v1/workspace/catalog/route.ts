@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     const migrated = migrateLegacyWidgetIds({ ids, definitions: legacyWidgetDefinitions, userId: principal.uid, organizationId: principal.orgId, deviceClass: device.data, now: new Date().toISOString() })
     const defaultLayout = migrateLegacyWidgetIds({ ids: workspaceWidgetCatalog.filter(widget => widget.defaultVisible && definitions.some(definition => definition.id === widget.id)).map(widget => widget.id), definitions: legacyWidgetDefinitions, userId: principal.uid, organizationId: principal.orgId, deviceClass: device.data, now: new Date().toISOString() }).layout
     let seedLayout = migrated.layout
+    let seedSource: "legacy" | "device" = "legacy"
     // Copy a different device's saved presentation once; never overwrite it or remove legacy preferences.
     for (const sourceDevice of ["desktop", "tablet", "phone"] as const) {
       if (sourceDevice === device.data) continue
@@ -30,8 +31,9 @@ export async function GET(request: Request) {
       const source = legacyWidgetRegistry.validate(dashboardLayoutSchema.parse(snapshot.data()))
       if (source.userId !== principal.uid || source.organizationId !== principal.orgId || source.deviceClass !== sourceDevice) throw new Error("Invalid saved layout scope")
       seedLayout = { ...source, id: `${principal.orgId}-${device.data}`, deviceClass: device.data, revision: 1, widgets: adaptWidgets(source.widgets, device.data), updatedAt: new Date().toISOString() }
+      seedSource = "device"
       break
     }
-    return Response.json({ schemaVersion: "1", definitions: definitions.map(definition => ({ ...definition, href: workspaceWidgetCatalog.find(widget => widget.id === definition.id)!.href })), seedLayout, defaultLayout, unresolvedIds: migrated.unresolvedIds }, { headers: { "Cache-Control": "private, no-store" } })
+    return Response.json({ schemaVersion: "1", definitions: definitions.map(definition => ({ ...definition, href: workspaceWidgetCatalog.find(widget => widget.id === definition.id)!.href })), seedLayout, defaultLayout, seedSource, unresolvedIds: migrated.unresolvedIds }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) { const response = mobileError(error); response.headers.set("Cache-Control", "private, no-store"); return response }
 }

@@ -14,3 +14,15 @@ export async function workspaceRequest(orgId: string, device: DeviceClass, updat
   if (!response.ok) throw new Error(data.message ?? data.error?.message ?? "Your layout could not be saved. Try again.")
   return { conflict: null, layout: data.layout ? dashboardLayoutSchema.parse(data.layout) : null }
 }
+
+
+export async function workspaceSeedRequest(orgId: string, device: DeviceClass) {
+  const user = auth?.currentUser
+  if (!user) throw new Error("Sign in to load your home screen.")
+  const response = await fetch(`/api/v1/workspace/catalog?device=${device}`, {
+    headers: { Authorization: `Bearer ${await user.getIdToken()}`, "x-inventracker-org": orgId }, cache: "no-store"
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message ?? data.error?.message ?? "Your home could not load.")
+  return { seedLayout: dashboardLayoutSchema.parse(data.seedLayout), seedSource: data.seedSource as "legacy" | "device" }
+}

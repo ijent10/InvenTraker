@@ -18,9 +18,10 @@ private actor WorkspaceTestAPI: NativeWorkspaceAPI {
     var failFacts = false
     var denyFacts = false
     var cursor = 1
+    var hideRemote = false
     init(_ catalog: WorkspaceCatalogResponse) { self.catalog = catalog }
     func workspaceCatalog(device: WorkspaceDevice, orgId: String) async throws -> WorkspaceCatalogResponse { catalog }
-    func workspaceLayout(device: WorkspaceDevice, orgId: String) async throws -> WorkspaceLayoutResponse { WorkspaceLayoutResponse(layout: remote) }
+    func workspaceLayout(device: WorkspaceDevice, orgId: String) async throws -> WorkspaceLayoutResponse { WorkspaceLayoutResponse(layout: hideRemote ? nil : remote) }
     func saveWorkspaceLayout(_ layout: WorkspaceLayout, expectedRevision: Int) async throws -> WorkspaceLayoutCommit {
         if failSave { throw URLError(.notConnectedToInternet) }
         if let remote, remote.revision != expectedRevision { return WorkspaceLayoutCommit(status: "conflict", layout: nil, current: remote) }
@@ -36,6 +37,7 @@ private actor WorkspaceTestAPI: NativeWorkspaceAPI {
     func workspaceInvalidation(storeId: String, orgId: String) async throws -> NativeWorkspaceInvalidation { NativeWorkspaceInvalidation(stockRevision: cursor) }
     func setFailure(_ enabled: Bool) { failSave = enabled }
     func setFactsFailure(_ enabled: Bool, denied: Bool = false) { failFacts = enabled; denyFacts = denied }
+    func setHideRemote(_ hidden: Bool) { hideRemote = hidden }
     func setRevision(_ value: Int) { var next = catalog.seedLayout; next.revision = value; remote = next }
 }
 @main struct CheckNativeWorkspace {
@@ -52,6 +54,7 @@ private actor WorkspaceTestAPI: NativeWorkspaceAPI {
         }
         let seed = fixture.catalog.seedLayout
         var bad = seed; bad.widgets[0].gridX = 99; precondition(!WorkspaceGeometry.valid(bad))
+        bad = seed; bad.widgets[1].gridX = Int.max; precondition(!WorkspaceGeometry.valid(bad))
         let api = WorkspaceTestAPI(fixture.catalog)
         let make = { NativeWorkspaceStore(api: api, uid: seed.userId, orgId: seed.organizationId, device: .phone) }
         let store = make(); await store.load(); store.discardDraft()
@@ -60,8 +63,8 @@ private actor WorkspaceTestAPI: NativeWorkspaceAPI {
         let recovered = make(); await recovered.load(); precondition(recovered.recovery?.layout.shapePreference == .circle)
         recovered.restoreDraft(); precondition(recovered.layout?.shapePreference == .circle)
         recovered.cancel(); precondition(recovered.layout == seed)
-        // Cancelling before the first save must retain expected revision zero.
-        let firstSave = await recovered.save(); precondition(firstSave && recovered.layout?.revision == 1)
+        // Initialization saves revision one; cancelling edits must preserve that saved revision.
+        let firstSave = await recovered.save(); precondition(firstSave && recovered.layout?.revision == 2)
         await store.load()
         store.setShape(.square); await api.setFailure(true)
         let offline = await store.save(); precondition(!offline && store.layout?.shapePreference == .square)
@@ -70,6 +73,21 @@ private actor WorkspaceTestAPI: NativeWorkspaceAPI {
         let collided = await store.save(); precondition(!collided && store.conflict?.revision == 7 && store.layout?.shapePreference == .square)
         let explicitSave = await store.save(keepingLocal: true); precondition(explicitSave && store.layout?.revision == 8)
         store.setShape(.circle); store.undo(); precondition(store.layout?.shapePreference == .square)
+        let beforeDrag = store.layout!
+        store.previewGesture(id: beforeDrag.widgets[0].id, dx: 1, dy: 4, resize: false)
+        precondition(store.activeGestureId == beforeDrag.widgets[0].id)
+        store.finishGesture(); precondition(WorkspaceGeometry.valid(store.layout!) && store.activeGestureId == nil)
+        store.undo(); precondition(store.layout == beforeDrag)
+        store.previewGesture(id: beforeDrag.widgets[0].id, dx: 10, dy: 10, resize: true)
+        store.finishGesture(); precondition(store.layout?.widgets[0].size == .extraLarge)
+        store.undo(); precondition(store.layout == beforeDrag)
+        await api.setRevision(12)
+        let remoteConflict = await store.save(); precondition(!remoteConflict && store.conflict?.revision == 12)
+        store.useRemote(); precondition(store.layout?.revision == 12 && store.conflict == nil)
+        await api.setHideRemote(true)
+        let racingInitialization = make(); await racingInitialization.load()
+        precondition(racingInitialization.layout?.revision == 12 && racingInitialization.conflict == nil, "Initialization adopts the concurrent saved home without overwriting it")
+        await api.setHideRemote(false)
         await store.refresh(storeId: "store-a", force: true); precondition(store.data?.storeId == "store-a")
         await api.setFactsFailure(true)
         await store.refresh(storeId: "store-b", force: true); precondition(store.data == nil && store.stale)

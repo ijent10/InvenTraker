@@ -48,7 +48,7 @@ struct AccountView: View {
                 Text("Access is controlled in the web portal. Pull to refresh or reopen the app after a permission change.")
             }
             Section("App") {
-                Button(action: customizeHome) { Label("Customize your home screen", systemImage: "square.grid.2x2") }
+                if AppConfig.workspaceLayoutV2Enabled { Button(action: customizeHome) { Label("Customize your home screen", systemImage: "square.grid.2x2") } }
                 if session.hasWorkAccess {
                     NavigationLink { WorkTabSettingsView() } label: {
                         HStack(spacing: 12) {

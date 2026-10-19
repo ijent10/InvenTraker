@@ -54,6 +54,7 @@ struct NativeWorkspaceView: View {
                 workspaceGrid(layout)
             }
         }
+        .disabled(model.saving || model.loading)
         .task { await model.load() }
         .task(id: refreshIdentity) {
             // Leaving Home or changing store cancels this task; old facts are scoped and discarded.

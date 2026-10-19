@@ -96,7 +96,7 @@ enum WorkspaceGeometry {
         for var widget in ordered {
             let footprint = widget.size.footprint(device)
             widget.gridWidth = footprint.width; widget.gridHeight = footprint.height
-            widget.gridX = max(0, min(device.columns - widget.gridWidth, widget.gridX)); widget.gridY = max(0, min(500, widget.gridY))
+            widget.gridX = max(0, min(device.columns - widget.gridWidth, widget.gridX)); widget.gridY = max(0, widget.gridY)
             if placed.contains(where: { overlaps(widget, $0) }) {
                 let lastRow = placed.reduce(widget.gridY) { max($0, $1.gridY + $1.gridHeight) }
                 search: for y in widget.gridY...lastRow {
@@ -127,9 +127,12 @@ enum WorkspaceGeometry {
     }
     static func valid(_ layout: WorkspaceLayout) -> Bool {
         guard layout.revision > 0, layout.widgets.count <= 60, Set(layout.widgets.map(\.id)).count == layout.widgets.count else { return false }
-        for (index, item) in layout.widgets.enumerated() {
+        // Validate every rectangle before overlap arithmetic, including corrupted local drafts.
+        for item in layout.widgets {
             let f = item.size.footprint(layout.deviceClass)
-            guard item.gridX >= 0, item.gridY >= 0, item.gridY <= 1000, item.gridWidth == f.width, item.gridHeight == f.height, item.gridX + f.width <= layout.deviceClass.columns else { return false }
+            guard item.gridX >= 0, item.gridX <= layout.deviceClass.columns, item.gridY >= 0, item.gridY <= 1000, item.gridWidth == f.width, item.gridHeight == f.height, item.gridX + f.width <= layout.deviceClass.columns else { return false }
+        }
+        for (index, item) in layout.widgets.enumerated() {
             if layout.widgets.dropFirst(index + 1).contains(where: { overlaps(item, $0) }) { return false }
         }
         return true

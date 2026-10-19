@@ -59,11 +59,20 @@ final class NativeWorkspaceStore: ObservableObject {
             definitions = catalog.definitions; seed = catalog.defaultLayout
             layout = remote.layout ?? catalog.seedLayout; base = layout; revision = remote.layout?.revision ?? 0; baseRevision = revision
             if let bytes = UserDefaults.standard.data(forKey: cacheKey), let draft = try? JSONDecoder().decode(NativeWorkspaceDraft.self, from: bytes), scoped(draft.layout), draft.expectedRevision >= 0 { recovery = draft }
+            if remote.layout == nil && recovery == nil, let initial = layout {
+                do {
+                    let initialized = try await api.saveWorkspaceLayout(initial, expectedRevision: 0)
+                    guard !Task.isCancelled else { return }
+                    if let saved = initialized.layout ?? initialized.current, scoped(saved) {
+                        layout = saved; base = saved; revision = saved.revision; baseRevision = revision
+                    }
+                } catch { message = "Your home is ready on this device. Customize and choose Done to sync it when connected." }
+            }
             if !catalog.unresolvedIds.isEmpty { message = "Some older widgets are no longer available. Your original preferences are preserved." }
         } catch { if !Task.isCancelled { message = "Your home could not load. Check your connection and retry." } }
     }
     func update(_ next: WorkspaceLayout) {
-        guard !saving, scoped(next), let previous = layout, next != previous else { return }
+        guard !saving, !loading, scoped(next), let previous = layout, next != previous else { return }
         history = Array((history + [previous]).suffix(30)); layout = next; message = ""
         cacheDraft()
     }
@@ -76,8 +85,8 @@ final class NativeWorkspaceStore: ObservableObject {
         revision = recovery.expectedRevision; layout = recovery.layout; self.recovery = nil; message = "Unfinished edits restored."
     }
     func discardDraft() { recovery = nil; UserDefaults.standard.removeObject(forKey: cacheKey) }
-    func undo() { guard !saving, let previous = history.popLast() else { return }; layout = previous; cacheDraft() }
-    func cancel() { guard !saving else { return }; gestureBase = nil; activeGestureId = nil; layout = base; revision = baseRevision; history = []; conflict = nil; message = ""; discardDraft() }
+    func undo() { guard !saving, !loading, let previous = history.popLast() else { return }; layout = previous; cacheDraft() }
+    func cancel() { guard !saving, !loading else { return }; gestureBase = nil; activeGestureId = nil; layout = base; revision = baseRevision; history = []; conflict = nil; message = ""; discardDraft() }
     func reset() {
         guard var next = seed, let current = layout else { return }
         next.id = current.id; next.revision = current.revision
@@ -98,7 +107,7 @@ final class NativeWorkspaceStore: ObservableObject {
     }
     func setShape(_ shape: WorkspaceShape) { guard var next = layout else { return }; next.shapePreference = shape; update(next) }
     func move(_ item: WorkspaceWidget, x: Int, y: Int) {
-        var next = item; next.gridX += x; next.gridY += y; configure(next)
+        var next = item; next.gridX += x; next.gridY = min(500, max(0, next.gridY + y)); configure(next)
     }
     func resize(_ item: WorkspaceWidget, larger: Bool) {
         let supported = definitions.first { $0.id == item.widgetDefinitionId }?.supportedSizes ?? WorkspaceSize.allCases
@@ -107,7 +116,7 @@ final class NativeWorkspaceStore: ObservableObject {
         var next = item; next.size = sizes[max(0, min(sizes.count - 1, index + (larger ? 1 : -1)))]; configure(next)
     }
     func previewGesture(id: String, dx: Double, dy: Double, resize: Bool) {
-        guard !saving else { return }
+        guard !saving, !loading else { return }
         if gestureBase == nil { gestureBase = layout; activeGestureId = id }
         guard var next = gestureBase, let index = next.widgets.firstIndex(where: { $0.id == id }) else { return }
         let item = next.widgets[index]
@@ -115,7 +124,7 @@ final class NativeWorkspaceStore: ObservableObject {
             let supported = definitions.first { $0.id == item.widgetDefinitionId }?.supportedSizes ?? WorkspaceSize.allCases
             next.widgets[index].size = WorkspaceGeometry.snap(width: Double(item.gridWidth) + dx, height: Double(item.gridHeight) + dy, supported: supported, device: device)
         } else {
-            next.widgets[index].gridX += Int(dx.rounded()); next.widgets[index].gridY += Int(dy.rounded())
+            next.widgets[index].gridX += Int(dx.rounded()); next.widgets[index].gridY = min(500, max(0, next.widgets[index].gridY + Int(dy.rounded())))
         }
         next.widgets = WorkspaceGeometry.pack(next.widgets, device: device, active: id)
         if scoped(next) { layout = next }
@@ -126,7 +135,7 @@ final class NativeWorkspaceStore: ObservableObject {
         next.widgets = WorkspaceGeometry.compact(next.widgets, device: device); update(next)
     }
     func save(keepingLocal: Bool = false) async -> Bool {
-        guard !saving, let proposed = layout else { return false }
+        guard !saving, !loading, let proposed = layout else { return false }
         saving = true; message = ""
         defer { saving = false }
         do {

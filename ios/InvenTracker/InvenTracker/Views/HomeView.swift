@@ -6,7 +6,7 @@ struct HomeView: View {
     @Binding var selectedTab: WorkspaceView.Tab
     let openWorkModule: (WorkShortcut) -> Void
     @Binding var customizingHome: Bool
-    @State private var standardHome = Bundle.main.object(forInfoDictionaryKey: "WorkspaceLayoutV2") as? Bool == false
+    @State private var standardHome = !AppConfig.workspaceLayoutV2Enabled
     @State private var showNotifications = false
     @State private var showStores = false
 
@@ -21,10 +21,10 @@ struct HomeView: View {
                     todayIssues
                     metricGrid
                     dueChecks
-                    Button("Try customizable home") { standardHome = false }
+                    if AppConfig.workspaceLayoutV2Enabled { Button("Try customizable home") { standardHome = false } }
                 } else if let identity = workspace?.session {
                     NativeWorkspaceView(api: session.api, uid: identity.uid, orgId: identity.orgId, storeId: session.selectedStoreId, device: workspaceDevice, editing: $customizingHome, openModule: openWorkModule, useStandardHome: { standardHome = true })
-                        .id("\(identity.uid):\(identity.orgId):\(workspaceDevice.rawValue)")
+                        .id([identity.uid, identity.orgId, workspaceDevice.rawValue])
                 }
             }
             .padding(16)
@@ -53,6 +53,9 @@ struct HomeView: View {
                         }
                 }
             }
+        }
+        .onChange(of: customizingHome) { _, requested in
+            if requested && AppConfig.workspaceLayoutV2Enabled { standardHome = false }
         }
         .navigationTitle("Home")
         .sheet(isPresented: $showNotifications) { NotificationsView() }

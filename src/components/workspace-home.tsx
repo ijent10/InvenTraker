@@ -14,7 +14,7 @@ import { legacyWidgetDefinitions, legacyWidgetRegistry } from "@/lib/workspace-l
 import { migrateLegacyWidgetIds } from "@/lib/workspace-registry"
 import { moveWidget, resizeWidget, adaptWidgets, packWidgets, workspaceColumns, workspaceSizes } from "@/lib/workspace-grid"
 import { dashboardLayoutSchema, type DashboardLayout, type DeviceClass, type WidgetShape } from "@/lib/workspace-contracts"
-import { workspaceRequest } from "@/lib/workspace-client"
+import { workspaceRequest, workspaceSeedRequest } from "@/lib/workspace-client"
 import { ShiftNotesWidget } from "@/components/shift-notes-widget"
 
 type Stats = Record<string, { value?: string; detail?: string }>
@@ -58,19 +58,37 @@ export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftN
       try {
         const remote = await workspaceRequest(session.orgId, device!)
         const preferences = remote.layout ? null : await readCloudWorkspacePreferences()
-        const next = remote.layout ?? migrateLegacyWidgetIds({
+        const catalog = remote.layout ? null : await workspaceSeedRequest(session.orgId, device!)
+        let next = remote.layout ?? (catalog?.seedSource === "device" ? catalog.seedLayout : migrateLegacyWidgetIds({
           ids: preferences?.dashboardWidgetIds ?? readDashboardWidgetIds(), definitions: legacyWidgetDefinitions,
           userId: session.user!.uid, organizationId: session.orgId, deviceClass: device!, now: new Date().toISOString()
-        }).layout
+        }).layout)
         if (cancelled) return
-        revision.current = remote.layout?.revision ?? 0
+        let expectedRevision = remote.layout?.revision ?? 0
+        let validDraft = false
+        try {
+          const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null")
+          if (cached) {
+            const draft = legacyWidgetRegistry.validate(dashboardLayoutSchema.parse(cached.layout))
+            validDraft = draft.userId === next.userId && draft.organizationId === next.organizationId && draft.deviceClass === next.deviceClass && Number.isSafeInteger(cached.expectedRevision) && cached.expectedRevision >= 0
+          }
+        } catch { /* Invalid drafts cannot suppress initialization. */ }
+        if (!remote.layout && !validDraft) {
+          try {
+            const initialized = await workspaceRequest(session.orgId, device!, { layout: next, expectedRevision: 0 })
+            next = initialized.layout ?? initialized.conflict ?? next
+            expectedRevision = initialized.layout?.revision ?? initialized.conflict?.revision ?? 0
+          } catch { if (!cancelled) setMessage("Your home is ready on this device. Customize and choose Done to sync it when connected.") }
+        }
+        if (cancelled) return
+        revision.current = expectedRevision
         base.current = next; setLayout(next)
         try {
           const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null")
           if (cached) {
             const draft = dashboardLayoutSchema.parse(cached.layout)
             legacyWidgetRegistry.validate(draft)
-            if (draft.userId === next.userId && draft.organizationId === next.organizationId && draft.deviceClass === next.deviceClass && Number.isInteger(cached.expectedRevision)) setRecovery({ layout: draft, expectedRevision: cached.expectedRevision })
+            if (draft.userId === next.userId && draft.organizationId === next.organizationId && draft.deviceClass === next.deviceClass && Number.isSafeInteger(cached.expectedRevision) && cached.expectedRevision >= 0) setRecovery({ layout: draft, expectedRevision: cached.expectedRevision })
           }
         } catch { /* Ignore invalid local drafts. */ }
       } catch {

@@ -15,7 +15,7 @@ struct NativeWorkspaceView: View {
     let openModule: (WorkShortcut) -> Void
     let useStandardHome: () -> Void
     private let gap: CGFloat = 12
-    private var rowHeight: CGFloat { typeSize.isAccessibilitySize ? 104 : 64 }
+    private var rowHeight: CGFloat { typeSize.isAccessibilitySize ? 128 : 84 }
 
     init(api: APIClient, uid: String, orgId: String, storeId: String, device: WorkspaceDevice, editing: Binding<Bool>, openModule: @escaping (WorkShortcut) -> Void, useStandardHome: @escaping () -> Void) {
         _model = StateObject(wrappedValue: NativeWorkspaceStore(api: api, uid: uid, orgId: orgId, device: device))
@@ -45,7 +45,7 @@ struct NativeWorkspaceView: View {
             if model.conflict != nil {
                 VStack(alignment: .leading, spacing: 10) {
                     Button("Load saved home") { model.useRemote(); editing = false }
-                    Button("Keep my edits as a new revision") { Task { if await model.save(keepingLocal: true) { editing = false } } }
+                    Button("Keep my edits") { Task { if await model.save(keepingLocal: true) { editing = false } } }
                 }.buttonStyle(.bordered).disabled(model.saving)
             }
             if let layout = model.layout {
@@ -113,7 +113,7 @@ struct NativeWorkspaceView: View {
                 ForEach(layout.widgets) { widget in
                     let width = CGFloat(widget.gridWidth) * (column + gap) - gap
                     let height = CGFloat(widget.gridHeight) * (rowHeight + gap) - gap
-                    widgetSurface(widget, layout: layout)
+                    widgetSurface(widget, layout: layout, circleDiameter: min(width, height))
                         .frame(width: max(1, width), height: height)
                         .overlay(alignment: .topLeading) { if editing { moveHandle(widget, column: column) } }
                         .overlay(alignment: .bottomTrailing) { if editing { resizeHandle(widget, column: column) } }
@@ -139,23 +139,24 @@ struct NativeWorkspaceView: View {
         }
         .frame(height: max(1, CGFloat(maxRow) * (rowHeight + gap) - gap))
     }
-    private func widgetSurface(_ widget: WorkspaceWidget, layout: WorkspaceLayout) -> some View {
+    private func widgetSurface(_ widget: WorkspaceWidget, layout: WorkspaceLayout, circleDiameter: CGFloat) -> some View {
         let definition = model.definitions.first { $0.id == widget.widgetDefinitionId }
         let shape = widget.shapeOverride ?? layout.shapePreference
         let summary = model.data?.storeId == storeId ? model.data?.widgets[widget.widgetDefinitionId] : nil
         let navigationOnly = definition?.dataSource.hasPrefix("navigation:") == true
         let candidates = model.factsAreStale ? [] : WorkspaceGeometry.candidates(summary?.candidates ?? [], widget: widget)
+        let value = definition == nil ? "Access unavailable" : navigationOnly ? "Open" : summary?.value ?? (model.stale ? "Offline" : "Loading…")
         return Button {
             if editing { configuredWidget = widget } else if let definition { navigate(definition) }
         } label: {
             VStack(alignment: shape == .circle ? .center : .leading, spacing: 8) {
                 Image(systemName: symbol(widget.widgetDefinitionId)).font(.title3).foregroundStyle(session.theme.accentColor)
                 Text(definition?.title ?? "Widget unavailable").font(.headline).lineLimit(2)
-                Text(definition == nil ? "Access unavailable" : navigationOnly ? "Open" : summary?.value ?? (model.stale ? "Offline" : "Loading…"))
+                Text(value + (summary?.partial == true ? " *" : ""))
                     .font(widget.size == .small ? .title3.bold() : .title.bold()).lineLimit(2).minimumScaleFactor(0.7)
                 if widget.size != .small && shape != .circle {
                     Text(summary?.detail ?? definition?.description ?? "Your role does not include this widget.").font(.caption).foregroundStyle(session.theme.mutedColor).lineLimit(3)
-                    if summary?.partial == true { Text("Partial coverage").font(.caption2).foregroundStyle(AppTheme.amber) }
+                    if summary?.partial == true { Text("Some records are not included").font(.caption2).foregroundStyle(AppTheme.amber) }
                     if widget.size == .large || widget.size == .extraLarge {
                         ForEach(candidates) { candidate in
                             VStack(alignment: .leading, spacing: 2) {
@@ -166,6 +167,7 @@ struct NativeWorkspaceView: View {
                     }
                 }
             }
+            .frame(maxWidth: shape == .circle ? max(44, circleDiameter - 40) : .infinity, maxHeight: .infinity, alignment: shape == .circle ? .center : .topLeading)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: shape == .circle ? .center : .topLeading)
             .padding(editing ? 32 : 16)
             .foregroundStyle(session.theme.textColor)
@@ -176,7 +178,7 @@ struct NativeWorkspaceView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.saving || (!editing && (definition == nil || summary?.state == "permission-denied")))
-        .accessibilityLabel("\(definition?.title ?? "Unavailable widget"), \(summary?.value ?? (navigationOnly ? "Open" : "Unavailable"))\(model.factsAreStale && !navigationOnly ? ", stale" : "")")
+        .accessibilityLabel("\(definition?.title ?? "Unavailable widget"), \(summary?.value ?? (navigationOnly ? "Open" : "Unavailable"))\(summary?.partial == true ? ", some records are not included" : "")\(model.factsAreStale && !navigationOnly ? ", stale" : "")")
         .accessibilityHint(editing ? "Open widget options. Move and resize actions are also available." : "Open this workspace module.")
     }
     private func moveHandle(_ widget: WorkspaceWidget, column: CGFloat) -> some View {

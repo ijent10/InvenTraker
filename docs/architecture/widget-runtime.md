@@ -1,8 +1,8 @@
 # InvenTraker Workspace Engine
 
-## Current gap
+## Starting point
 
-The current dashboard persists an ordered array of widget IDs and renders them through one static definition list. It supports add/remove/reorder, but not direct home-screen editing, coordinates, resizing, shapes, device variants, revisions, conflicts, or engine data providers.
+Before the Workspace Engine, the dashboard persisted an ordered array of widget IDs through a static definition list. The implementation below replaces that foundation additively; current Phase 5 delivery and verification limits are recorded in `docs/migration/phase-5-workspace.md`.
 
 ## Foundation implemented
 
@@ -16,7 +16,7 @@ The web home screen now uses `WorkspaceHome` through `HomeWorkspaceRuntime`. Per
 
 `GET/PUT /api/v1/workspace/layout` authenticate with the existing principal resolver and store documents in the server-only root `workspaceLayouts` collection. Document identity includes user, organization, and device. PUT validates geometry/provider contracts and compares revisions in a Firestore transaction. Conflicts return HTTP 409 and the current layout; the UI offers load remote or explicitly retry local. Layout edits are staged locally and committed with Done. Unfinished edits are cached under a user/organization/device-specific browser key for recovery. Legacy ordered IDs remain intact.
 
-The current renderer adapts summary density by size and uses existing live dashboard summaries. Unsupported metric data displays Unavailable rather than the legacy catalog's example values. Full engine data providers, automatic candidate selection, and native iOS customization remain pending.
+The current renderer adapts summary density by size and uses existing live dashboard summaries. Unsupported metric data displays Unavailable rather than the legacy catalog's example values. Scoped engine summaries, deterministic candidate selection and native customization are described in the follow-up sections below. Expanded operational workflows remain Phase 6.
 
 ## Ownership
 
@@ -125,7 +125,7 @@ Provider data invalidates on relevant engine events, organization/location chang
 
 Eight supported source collections cover the 11 domain summaries. Activity counts are record counts, not totals of incompatible units or fabricated session states. Spot-check/restock/transfer counts refer to the stock ledger. Transfers currently mean front/back movements. Assistant and Insights consume authorized inventory/expiry/order/check summaries only. Legacy navigation-only widgets stay navigational.
 
-The client polls visible pages at 60 seconds and refreshes on reconnect/visibility return; fetches time out after 20 seconds. Requests are aborted and prior context is hidden on organization/store/widget-set changes. Source failures are independent. Cached data is labeled stale after failure or two minutes; stale candidates are hidden. This is refresh-based invalidation; transactional event/outbox invalidation remains pending.
+The client polls visible pages at 60 seconds and refreshes on reconnect/visibility return; fetches time out after 20 seconds. Requests are aborted and prior context is hidden on organization/store/widget-set changes. Source failures are independent. Cached data is labeled stale after failure or two minutes; stale candidates are hidden. Stock-event invalidation and its refresh fallback are described in the follow-up section below.
 
 Large and extra-large rectangular widgets render bounded priority lists. Summary, automatic, and pinned modes persist in the existing versioned layout. Missing/expired pins fall back to the summary. Selection is engine- and size-filtered, critical-first, deterministically scored, then ID-tiebroken. `workspace:providers` checks filtering, privacy boundaries, source selection, expiry, modes and failure isolation.
 
@@ -148,3 +148,6 @@ Native rollback: set `WorkspaceLayoutV2` to Boolean false in `ios/InvenTracker/I
 
 
 Initialization now uses an explicit expected-revision-zero PUT after read-only seeding on both clients. A concurrent existing layout is adopted without overwriting it; a valid unfinished draft suppresses automatic initialization. Ordinary edits remain staged until Done. Web first use can also seed from another saved device. Native controls stay disabled during initialization so its response cannot overwrite edits made while loading. The native API base now uses the canonical `https://www.inventraker.com`; the older Firebase Hosting alias did not serve the new catalog route. Full Phase 5 status and verification limits are maintained in `docs/migration/phase-5-workspace.md`.
+
+
+The web editor now exposes per-widget shape overrides alongside content options. Undo updates the scoped recovery draft; Cancel restores the saved expected revision; loading a conflicting saved layout discards the rejected local draft. These keep recovery and revision state aligned with the visible editor.

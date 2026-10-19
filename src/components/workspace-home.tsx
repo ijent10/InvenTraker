@@ -36,6 +36,7 @@ export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftN
   const [conflict, setConflict] = useState<DashboardLayout | null>(null)
   const base = useRef<DashboardLayout | null>(null)
   const revision = useRef(0)
+  const baseRevision = useRef(0)
   const grid = useRef<HTMLDivElement>(null)
   const gesture = useRef<{ id: string; kind: "move" | "resize"; x: number; y: number; start: DashboardLayout; preview?: DashboardLayout; unit: number; timer?: ReturnType<typeof setTimeout>; ready: boolean; changed: boolean } | null>(null)
   const cacheKey = session.user && device ? `inventraker.workspace-draft:${session.user.uid}:${session.orgId}:${device}` : ""
@@ -81,7 +82,7 @@ export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftN
           } catch { if (!cancelled) setMessage("Your home is ready on this device. Customize and choose Done to sync it when connected.") }
         }
         if (cancelled) return
-        revision.current = expectedRevision
+        revision.current = expectedRevision; baseRevision.current = expectedRevision
         base.current = next; setLayout(next)
         try {
           const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null")
@@ -105,13 +106,20 @@ export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftN
     try { localStorage.setItem(cacheKey, JSON.stringify({ layout: next, expectedRevision: revision.current })) } catch { /* Cloud saving remains available. */ }
   }
 
+  function undo() {
+    if (saving || !history.length) return
+    const previous = history[history.length - 1]
+    setLayout(previous); setHistory(history.slice(0, -1))
+    try { localStorage.setItem(cacheKey, JSON.stringify({ layout: previous, expectedRevision: revision.current })) } catch { /* Keep the visible editor usable without local storage. */ }
+  }
+
   async function save(expected = revision.current) {
     if (!layout || !device) return
     setSaving(true); setMessage("")
     try {
       const result = await workspaceRequest(session.orgId, device, { layout, expectedRevision: expected })
       if (result.conflict) { setConflict(result.conflict); setMessage("Another session changed this layout. Choose which version to keep."); return }
-      if (result.layout) { revision.current = result.layout.revision; base.current = result.layout; setLayout(result.layout) }
+      if (result.layout) { revision.current = result.layout.revision; baseRevision.current = result.layout.revision; base.current = result.layout; setLayout(result.layout) }
       setConflict(null); setHistory([]); setEditing(false); setMessage("Home screen saved.")
       localStorage.removeItem(cacheKey)
       window.history.replaceState(null, "", "/dashboard#workspace")
@@ -191,20 +199,21 @@ export function WorkspaceHome({ shiftNotes = [] }: { widgetStats?: Stats; shiftN
       <div className="flex flex-wrap items-center gap-2">
         <button disabled={saving} onClick={() => setCatalog(!catalog)}><Plus className="inline h-4 w-4" /> Add widget</button>
         <label>Shape <select disabled={saving} value={layout.shapePreference} onChange={(event) => change({ ...layout, shapePreference: event.target.value as WidgetShape })}>{["rounded-square", "square", "circle"].map((shape) => <option key={shape} value={shape}>{shape.replace("-", " ")}</option>)}</select></label>
-        <button disabled={!history.length || saving} onClick={() => { setLayout(history[history.length - 1]); setHistory(history.slice(0, -1)) }}><Undo2 className="inline h-4 w-4" /> Undo</button>
+        <button disabled={!history.length || saving} onClick={undo}><Undo2 className="inline h-4 w-4" /> Undo</button>
         <button disabled={saving} onClick={() => change(migrateLegacyWidgetIds({ ids: dashboardWidgets.filter((w) => w.defaultVisible).map((w) => w.id), definitions: legacyWidgetDefinitions, userId: layout.userId, organizationId: layout.organizationId, deviceClass: layout.deviceClass, now: layout.updatedAt }).layout)}>Reset layout</button>
-        <button disabled={saving} onClick={() => { setLayout(base.current); setHistory([]); setEditing(false); setConflict(null); localStorage.removeItem(cacheKey); window.history.replaceState(null, "", "/dashboard#workspace") }}>Cancel</button>
+        <button disabled={saving} onClick={() => { revision.current = baseRevision.current; setLayout(base.current); setHistory([]); setEditing(false); setConflict(null); localStorage.removeItem(cacheKey); window.history.replaceState(null, "", "/dashboard#workspace") }}>Cancel</button>
         <button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Done"}</button>
       </div>
       <p className="text-sm text-[var(--app-muted)]">Drag a handle to move. Drag the lower corner to resize. Focus either handle and use arrow keys as an alternative.</p>
     </div>}
     <p role="status" aria-live="polite" className="my-2 text-sm">{message}</p>
-    {conflict && <div className="workspace-toolbar"><button onClick={() => { setLayout(conflict); base.current = conflict; revision.current = conflict.revision; setConflict(null); setHistory([]); setMessage("Loaded the other session’s layout.") }}>Load saved version</button><button onClick={() => void save(conflict.revision)}>Keep my layout</button></div>}
+    {conflict && <div className="workspace-toolbar"><button onClick={() => { setLayout(conflict); base.current = conflict; revision.current = conflict.revision; baseRevision.current = conflict.revision; setConflict(null); setHistory([]); setRecovery(null); setEditing(false); localStorage.removeItem(cacheKey); setMessage("Loaded the other session’s layout.") }}>Load saved version</button><button onClick={() => void save(conflict.revision)}>Keep my layout</button></div>}
     {editing && catalog && <div className="workspace-toolbar" aria-label="Widget catalog">{permitted.filter((definition) => !layout.widgets.some((w) => w.widgetDefinitionId === definition.id)).map((definition) => <button key={definition.id} onClick={() => change({ ...layout, widgets: packWidgets([...layout.widgets, { id: crypto.randomUUID(), widgetDefinitionId: definition.id, engineId: definition.engineId, size: "medium", gridX: 0, gridY: 0, gridWidth: 1, gridHeight: 1, mode: "automatic", preferences: {} }], layout.deviceClass) })}>{definition.title} +</button>)}</div>}
     {editing && contentWidget && <details className="workspace-toolbar">
       <summary className="cursor-pointer py-2 font-medium">Widget content</summary>
       <div className="flex flex-wrap items-center gap-3">
         <label>Widget <select aria-label="Content widget" value={contentWidget.id} onChange={(event) => setContentWidgetId(event.target.value)}>{layout.widgets.map((item) => <option key={item.id} value={item.id}>{legacyWidgetRegistry.get(item.widgetDefinitionId)?.title}</option>)}</select></label>
+        <label>Shape <select aria-label="Widget shape override" disabled={saving} value={contentWidget.shapeOverride ?? "home"} onChange={(event) => change({ ...layout, widgets: layout.widgets.map((item) => item.id === contentWidget.id ? { ...item, shapeOverride: event.target.value === "home" ? undefined : event.target.value as WidgetShape } : item) })}><option value="home">Use home shape</option>{legacyWidgetRegistry.get(contentWidget.widgetDefinitionId)?.supportedShapes.map((shape) => <option key={shape} value={shape}>{shape.replace("-", " ")}</option>)}</select></label>
         <label>Content <select aria-label="Content mode" disabled={saving} value={contentWidget.mode} onChange={(event) => change({ ...layout, widgets: layout.widgets.map((item) => item.id === contentWidget.id ? { ...item, mode: event.target.value as typeof item.mode, pinnedContentId: event.target.value === "pinned" ? contentOptions[0]?.id : undefined } : item) })}><option value="fixed">Summary</option><option value="automatic">Automatic priorities</option><option value="pinned" disabled={!contentOptions.length}>Pinned priority</option></select></label>
         {contentWidget.mode === "pinned" && <label>Priority <select aria-label="Pinned priority" disabled={saving} value={contentWidget.pinnedContentId ?? ""} onChange={(event) => change({ ...layout, widgets: layout.widgets.map((item) => item.id === contentWidget.id ? { ...item, pinnedContentId: event.target.value } : item) })}>{!contentOptions.some((item) => item.id === contentWidget.pinnedContentId) && <option value={contentWidget.pinnedContentId ?? ""}>Priority no longer available</option>}{contentOptions.map((item) => <option key={item.id} value={item.id}>{item.title} — {item.summary}</option>)}</select></label>}
       </div>

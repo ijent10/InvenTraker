@@ -1,7 +1,7 @@
 import type { DocumentData, Firestore } from "firebase-admin/firestore"
 import { EngineError } from "@/lib/engines/contracts"
 
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import { adminAppCheck, adminAuth, adminDb } from "@/lib/firebase-admin"
 import { DEFAULT_ORG_ID, firestoreCollections } from "@/lib/firestore-schema"
 import type { PermissionKey } from "@/lib/permissions"
 
@@ -39,6 +39,7 @@ export type MobilePrincipal = {
   member: DocumentData & { id: string }
   permissions: string[]
   isManager: boolean
+  appCheckVerified: boolean
 }
 
 function bearerToken(request: Request) {
@@ -56,9 +57,19 @@ export async function requireMobilePrincipal(request: Request, permission?: Perm
   const token = bearerToken(request)
   if (!token) throw new MobileApiError("Sign in is required.", 401, "unauthenticated")
 
-  const [auth, db] = await Promise.all([adminAuth(), adminDb()])
+  const [auth, db, appCheck] = await Promise.all([adminAuth(), adminDb(), adminAppCheck()])
   if (!auth || !db) {
     throw new MobileApiError("The InvenTraker data service is not configured.", 503, "service_unavailable")
+  }
+
+  const appCheckToken = request.headers.get("x-firebase-appcheck")?.trim()
+  const appCheckEnforced = process.env.MOBILE_APP_CHECK_ENFORCED === "true"
+  let appCheckVerified = false
+  if (appCheckToken && appCheck) {
+    appCheckVerified = Boolean(await appCheck.verifyToken(appCheckToken).catch(() => null))
+    if (!appCheckVerified) throw new MobileApiError("This app installation could not be verified.", 401, "invalid_app_check")
+  } else if (appCheckEnforced) {
+    throw new MobileApiError("Update InvenTracker to continue securely.", 401, "app_check_required")
   }
 
   let decoded: Awaited<ReturnType<typeof auth.verifyIdToken>>
@@ -101,7 +112,8 @@ export async function requireMobilePrincipal(request: Request, permission?: Perm
     db,
     member,
     permissions,
-    isManager
+    isManager,
+    appCheckVerified
   }
 }
 

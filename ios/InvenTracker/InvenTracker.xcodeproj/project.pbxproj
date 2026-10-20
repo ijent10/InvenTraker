@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A20000000000000000000003 /* LlamaRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000002 /* LlamaRuntime */; };
 		A20000000000000000000005 /* LlamaFramework in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000004 /* LlamaFramework */; };
+		B30000000000000000000003 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000002 /* FirebaseCore */; };
+		B30000000000000000000005 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000004 /* FirebaseAppCheck */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +38,8 @@
 			files = (
 				A20000000000000000000003 /* LlamaRuntime in Frameworks */,
 				A20000000000000000000005 /* LlamaFramework in Frameworks */,
+				B30000000000000000000003 /* FirebaseCore in Frameworks */,
+				B30000000000000000000005 /* FirebaseAppCheck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -80,6 +84,8 @@
 			packageProductDependencies = (
 				A20000000000000000000002 /* LlamaRuntime */,
 				A20000000000000000000004 /* LlamaFramework */,
+				B30000000000000000000002 /* FirebaseCore */,
+				B30000000000000000000004 /* FirebaseAppCheck */,
 			);
 			productName = InvenTracker;
 			productReference = A10000000000000000000001 /* InvenTracker.app */;
@@ -110,10 +116,11 @@
 			);
 			mainGroup = A10000000000000000000004;
 			minimizedProjectReferenceProxies = 1;
-			productRefGroup = A10000000000000000000005 /* Products */;
 			packageReferences = (
-				A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */,
+				A20000000000000000000001 /* XCLocalSwiftPackageReference "../LlamaRuntime" */,
+				B30000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
+			productRefGroup = A10000000000000000000005 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -146,8 +153,8 @@
 		A1000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
@@ -165,8 +172,8 @@
 		A1000000000000000000000D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
@@ -181,6 +188,7 @@
 		A1000000000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = InvenTracker/InvenTracker.entitlements;
@@ -197,11 +205,13 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan product barcodes for spot checks, receiving, restocks, transfers, and discards.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -212,6 +222,7 @@
 		A1000000000000000000000F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = InvenTracker/InvenTracker.entitlements;
@@ -227,11 +238,13 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan product barcodes for spot checks, receiving, restocks, transfers, and discards.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.inventraker.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				"ARCHS[sdk=iphonesimulator*]" = arm64;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -263,22 +276,43 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */ = {
+		A20000000000000000000001 /* XCLocalSwiftPackageReference "../LlamaRuntime" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../LlamaRuntime;
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		B30000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A20000000000000000000002 /* LlamaRuntime */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "../LlamaRuntime" */;
 			productName = LlamaRuntime;
 		};
 		A20000000000000000000004 /* LlamaFramework */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "LlamaRuntime" */;
+			package = A20000000000000000000001 /* XCLocalSwiftPackageReference "../LlamaRuntime" */;
 			productName = LlamaFramework;
+		};
+		B30000000000000000000002 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B30000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		B30000000000000000000004 /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B30000000000000000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

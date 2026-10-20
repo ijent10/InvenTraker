@@ -242,6 +242,7 @@ actor APIClient {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = 1800
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            try await AppCheckService.authorize(&request)
             let (url, response) = try await URLSession.shared.download(for: request)
             guard let http = response as? HTTPURLResponse else { throw APIClientError.invalidResponse }
             return (url, http)
@@ -289,6 +290,7 @@ actor APIClient {
         request.httpMethod = method
         request.timeoutInterval = 30
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await AppCheckService.authorize(&request)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let orgId { request.setValue(orgId, forHTTPHeaderField: "x-inventracker-org") }
         if let body {

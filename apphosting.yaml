@@ -1,4 +1,7 @@
 env:
+  - variable: MOBILE_APP_CHECK_ENFORCED
+    value: "false"
+    availability: [RUNTIME]
   - variable: INVENTORY_WRITES_ENABLED
     value: "true"
     availability: [RUNTIME]

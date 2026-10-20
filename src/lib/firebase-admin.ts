@@ -70,6 +70,13 @@ export async function adminStorage() {
   return getStorage(app)
 }
 
+export async function adminAppCheck() {
+  const app = await adminApp()
+  if (!app) return null
+  const { getAppCheck } = await import("firebase-admin/app-check")
+  return getAppCheck(app)
+}
+
 export async function adminFieldValue() {
   const { FieldValue } = await import("firebase-admin/firestore")
   return FieldValue

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 
-import { normalizeGtin, normalizeOpenFoodFactsProduct } from "../src/lib/open-food-facts-import.ts"
+import { mergeDuplicateProduct, normalizeGtin, normalizeOpenFoodFactsProduct } from "../src/lib/open-food-facts-import.ts"
 
 assert.equal(normalizeGtin("0737628064502"), "00737628064502")
 assert.equal(normalizeGtin("737628064502"), "00737628064502")
@@ -36,5 +36,14 @@ const nonfood = normalizeOpenFoodFactsProduct({ _id: "x", product_name: "Shampoo
 assert.equal("rejection" in nonfood && nonfood.rejection, "excluded:cosmetics")
 const missingUpc = normalizeOpenFoodFactsProduct({ _id: "source-only", product_name: "Unidentified Soup" }, importedAt)
 assert.equal("rejection" in missingUpc && missingUpc.rejection, "invalid_or_missing_upc")
+
+const merged = mergeDuplicateProduct(
+  { normalizedGtin: "00012345678905", productName: "Oat Cereal", ingredients: "", imageUrls: ["https://images.example/front.jpg"], nutrition: { per100gOr100ml: { proteinG: 4 } } },
+  { normalizedGtin: "00012345678905", productName: "Oat Cereal New Name", ingredients: "Oats, salt", imageUrls: ["https://images.example/front.jpg", "https://images.example/label.jpg"], nutrition: { per100gOr100ml: { proteinG: 5, fiberG: 8 }, perServing: { proteinG: 2 } } }
+)
+assert.equal(merged.productName, undefined)
+assert.equal(merged.ingredients, "Oats, salt")
+assert.deepEqual(merged.imageUrls, ["https://images.example/front.jpg", "https://images.example/label.jpg"])
+assert.deepEqual(merged.nutrition, { per100gOr100ml: { proteinG: 4, fiberG: 8 }, perServing: { proteinG: 2 } })
 
 console.log("Open Food Facts normalization checks passed.")

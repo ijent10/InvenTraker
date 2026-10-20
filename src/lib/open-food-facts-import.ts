@@ -256,6 +256,41 @@ function reasonableDuplicate(existing: Record<string, unknown>, candidate: Recor
   return candidateBrands.some((brand) => existingBrands.has(brand)) && tokenSimilarity(existingName, candidateName) >= 0.5
 }
 
+function isMissing(value: unknown) {
+  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0) ||
+    (typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value as Record<string, unknown>).length === 0)
+}
+
+function mergeEvidence(existing: unknown, candidate: unknown): unknown {
+  if (isMissing(existing)) return candidate
+  if (isMissing(candidate)) return existing
+  if (Array.isArray(existing) && Array.isArray(candidate)) {
+    return Array.from(new Set([...existing, ...candidate].map((value) => typeof value === "string" ? value : JSON.stringify(value))))
+      .map((value) => {
+        if (typeof value !== "string" || (!value.startsWith("{") && !value.startsWith("["))) return value
+        try { return JSON.parse(value) as unknown } catch { return value }
+      })
+  }
+  if (typeof existing === "object" && existing !== null && typeof candidate === "object" && candidate !== null && !Array.isArray(existing) && !Array.isArray(candidate)) {
+    const merged = { ...(existing as Record<string, unknown>) }
+    for (const [key, value] of Object.entries(candidate as Record<string, unknown>)) merged[key] = mergeEvidence(merged[key], value)
+    return merged
+  }
+  return existing
+}
+
+/** Fill gaps from another source row with the same verified GTIN without replacing existing facts. */
+export function mergeDuplicateProduct(existing: Record<string, unknown>, candidate: Record<string, unknown>) {
+  const protectedIdentity = new Set(["id", "normalizedGtin", "sourceBarcode", "productName", "normalizedName", "displayName", "status", "importRunId", "sourcePosition"])
+  const merged: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(candidate)) {
+    if (protectedIdentity.has(key)) continue
+    const combined = mergeEvidence(existing[key], value)
+    if (JSON.stringify(combined) !== JSON.stringify(existing[key])) merged[key] = combined
+  }
+  return merged
+}
+
 async function reconcileDuplicate(db: FirestoreDatabase, row: { id: string; data: Record<string, unknown> }) {
   const ref = db.collection("openFoodFactsStaging").doc(row.id)
   try {
@@ -267,6 +302,7 @@ async function reconcileDuplicate(db: FirestoreDatabase, row: { id: string; data
     if (reasonableDuplicate(existing, row.data)) {
       const { FieldValue } = await import("firebase-admin/firestore")
       await ref.set({
+        ...mergeDuplicateProduct(existing, row.data),
         sourceIds: FieldValue.arrayUnion(String(row.data.sourceId)),
         sourceNames: FieldValue.arrayUnion(String(row.data.productName)),
         duplicateSourceRecords: FieldValue.increment(1),

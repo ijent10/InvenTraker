@@ -31,6 +31,7 @@ Open Food Facts offers MongoDB, JSONL, CSV, and Parquet exports and states that 
 - A product must have a valid EAN-8, UPC-A, EAN-13, or GTIN-14 check digit to enter staging. Missing and invalid identifiers go to the rejection collection with their source ID.
 - The normalized GTIN-14 is the deterministic staging identity, making retries idempotent and exposing repeated UPCs.
 - When a UPC repeats, normalized names and brands are compared. Reasonable matches keep one product and merge source IDs/names; disagreements enter `openFoodFactsConflicts` with both candidates for verification.
+- Reasonable same-UPC matches also fill missing nutrition, ingredient, image, package, and market fields from the richer record. Existing populated facts and identity fields remain unchanged, and all contributing source IDs remain attached.
 - `openFoodFactsIdentities` groups exact normalized names across different UPCs. Brand and package quantity are appended as visible differentiators when present. Groups without either are marked for review and retain all UPCs under the shared name identity.
 - Missing values stay absent. No product facts are inferred.
 - Nutrient source keys are retained in `sourceNutrition`; normalized per-100 g/100 mL and per-serving values are stored separately with units in field names.

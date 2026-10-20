@@ -48,6 +48,10 @@ Open Food Facts offers MongoDB, JSONL, CSV, and Parquet exports and states that 
 
 Rollback is collection-scoped: disable the job and delete only documents tied to the pilot `importRunId`. Existing `centralCatalog`, organization, and inventory records are untouched. Promoted records need a separately reviewed rollback because promotion is intentionally outside ingestion.
 
+## Initial remote validation result
+
+Run `off-2026-10-20T01-52-46-432Z-d3f15302` executed in the hosted backend against the source metadata recorded above. It scanned 38 product documents, staged 25 US-market products, skipped 13 non-US records, and recorded zero validation rejects. All staged records remained `pending_review`; the run created no `centralCatalog`, organization-product, or inventory documents. A three-record inspection confirmed string barcodes with leading zeroes, valid normalized GTIN-14 identifiers, US country tags, ODbL attribution, pending-review status, and retained nutrition objects. The remote probe and validation used a short-lived platform administrator identity that was removed after the requests completed.
+
 ## Capacity and cost estimate
 
 Open Food Facts reported a compressed JSONL export around 11.1 GB in March 2026 and describes exports with millions of products. The exact MongoDB dump size is captured by each run instead of assumed. Plan for roughly 12–20 GB of inbound compressed transfer, 50–100 GB of decompressed stream volume, 4–6 million scanned records, and 8–30 GB of Firestore staging data plus indexes depending on US filtering and retained nutrition fields. The worker uses bounded memory and needs no dump-sized disk.

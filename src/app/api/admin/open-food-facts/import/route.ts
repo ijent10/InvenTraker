@@ -16,6 +16,31 @@ const bodySchema = z.object({
   resumeAfter: z.number().int().min(0).optional()
 })
 
+function runSummary(document: FirebaseFirestore.DocumentSnapshot) {
+  const data = document.data() ?? {}
+  return {
+    runId: document.id, mode: data.mode, status: data.status, scanned: data.scanned ?? 0, staged: data.staged ?? 0,
+    rejected: data.rejected ?? 0, skipped: data.skipped ?? 0, checkpointPosition: data.checkpointPosition ?? 0,
+    importedAt: data.importedAt, updatedAt: data.updatedAt, completedAt: data.completedAt, failedAt: data.failedAt, error: data.error
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { db } = await requirePlatformPrincipal(request)
+    const runId = new URL(request.url).searchParams.get("runId")?.trim()
+    if (runId) {
+      const snapshot = await db.collection("openFoodFactsImportRuns").doc(runId).get()
+      if (!snapshot.exists) throw new MobileApiError("Import run was not found.", 404, "import_run_not_found")
+      return Response.json({ data: runSummary(snapshot) })
+    }
+    const snapshot = await db.collection("openFoodFactsImportRuns").orderBy("importedAt", "desc").limit(20).get()
+    return Response.json({ data: snapshot.docs.map(runSummary) })
+  } catch (error) {
+    return mobileError(error)
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { db } = await requirePlatformPrincipal(request)

@@ -20,6 +20,7 @@ const normalized = normalizeOpenFoodFactsProduct({
   serving_size: "1 cup (240 ml)",
   nutriments: { "energy-kcal_100g": 44, "sodium_100g": 0.2, "energy-kcal_serving": 106 },
   image_front_url: "https://images.openfoodfacts.org/test.jpg",
+  selected_images: { ingredients: { display: { en: "https://images.openfoodfacts.org/ingredients.jpg" } } },
   last_modified_t: 1_700_000_000
 }, importedAt)
 assert.ok("record" in normalized)
@@ -29,6 +30,7 @@ if ("record" in normalized) {
   assert.equal(normalized.record.marketPriority, 100)
   assert.equal(normalized.record.importedAt, importedAt)
   assert.equal((normalized.record.nutrition as { per100gOr100ml: { sodiumG: number } }).per100gOr100ml.sodiumG, 0.2)
+  assert.deepEqual(normalized.record.imageUrls, ["https://images.openfoodfacts.org/test.jpg", "https://images.openfoodfacts.org/ingredients.jpg"])
   assert.equal("price" in normalized.record, false)
 }
 

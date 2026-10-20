@@ -82,6 +82,13 @@ function excluded(tags: string[]) {
   return HOT_OR_NONFOOD.find((tag) => joined.includes(tag))
 }
 
+function imageUrlsFrom(value: unknown, found = new Set<string>()): Set<string> {
+  if (typeof value === "string" && /^https:\/\//i.test(value)) found.add(value)
+  else if (Array.isArray(value)) value.forEach((entry) => imageUrlsFrom(entry, found))
+  else if (value && typeof value === "object") Object.values(value as Record<string, unknown>).forEach((entry) => imageUrlsFrom(entry, found))
+  return found
+}
+
 export function normalizeOpenFoodFactsProduct(source: SourceProduct, importedAt: string) {
   const sourceId = cleanString(source._id) ?? cleanString(source.code)
   if (!sourceId) return { rejection: "missing_source_identifier" as const }
@@ -140,7 +147,13 @@ export function normalizeOpenFoodFactsProduct(source: SourceProduct, importedAt:
     productQuantity: number(source.product_quantity),
     productQuantityUnit: cleanString(source.product_quantity_unit),
     packageQuantity: cleanString(source.packaging_quantity),
-    imageUrls: Array.from(new Set([source.image_front_url, source.image_url, source.image_nutrition_url, source.image_ingredients_url].map(cleanString).filter(Boolean))),
+    imageUrls: Array.from(imageUrlsFrom([
+      source.image_front_url,
+      source.image_url,
+      source.image_nutrition_url,
+      source.image_ingredients_url,
+      source.selected_images
+    ])),
     packaging: cleanString(source.packaging_text_en) ?? cleanString(source.packaging_text) ?? cleanString(source.packaging),
     packagingTags: strings(source.packaging_tags),
     countries,

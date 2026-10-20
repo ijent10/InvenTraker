@@ -116,6 +116,25 @@ function publicSource(data: FirebaseFirestore.DocumentData, sourceCollection: st
   return { ...source, sourceCollection }
 }
 
+function catalogNutrition(sourceValue: unknown, editedPer100: unknown, editedPerServing: unknown) {
+  const source = sourceValue && typeof sourceValue === "object" ? sourceValue as Record<string, unknown> : {}
+  const raw100 = editedPer100 ?? source.per100g ?? source.per100gOr100ml ?? {}
+  const rawServing = editedPerServing ?? source.perServing ?? {}
+  const addMilligrams = (value: unknown) => {
+    const record = value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : {}
+    if (record.sodiumMg === undefined && typeof record.sodiumG === "number") record.sodiumMg = record.sodiumG * 1_000
+    return record
+  }
+  return {
+    per100g: addMilligrams(raw100),
+    perServing: addMilligrams(rawServing),
+    servingSize: source.servingSize ?? null,
+    servingQuantity: source.servingQuantity ?? null,
+    servingQuantityUnit: source.servingQuantityUnit ?? null,
+    basis: source.basis ?? null
+  }
+}
+
 export async function catalogProductByGtin(db: FirestoreDatabase, input: string) {
   const normalizedGtin = normalizeGtin(input)
   if (!normalizedGtin) throw new CatalogApiError(400, "invalid_gtin", "Use a valid UPC, EAN, or GTIN with a correct check digit.")
@@ -142,6 +161,7 @@ export async function catalogProductByGtin(db: FirestoreDatabase, input: string)
   const productName = fields.productName ?? source.productName ?? source.name ?? ""
   const imageUrls = fields.imageUrls ?? source.imageUrls ?? source.images ?? []
   const brand = fields.brand ?? source.brand ?? (Array.isArray(source.brands) ? source.brands.join(", ") : "")
+  const nutrition = catalogNutrition(source.nutrition, fields.nutritionPer100, fields.nutritionPerServing)
   return serialize({
     id,
     gtin: normalizedGtin,
@@ -156,6 +176,7 @@ export async function catalogProductByGtin(db: FirestoreDatabase, input: string)
     generalizedCategoryKey: fields.category ?? source.category ?? null,
     standardSize: fields.standardSize ?? source.productQuantity ?? null,
     standardUnit: fields.standardUnit ?? source.productQuantityUnit ?? null,
+    nutrition,
     catalogRevision: overlay.revision ?? 0,
     catalogUpdatedAt: overlay.updatedAt ?? null,
     catalogUpdatedBy: overlay.actor ? { kind: overlay.actor.kind, client: overlay.actor.client } : null,

@@ -8,7 +8,7 @@ const schema = z.object({
   name: z.string().trim().min(2).max(120),
   client: z.enum(["inventraker", "simplipantri", "external"]),
   orgId: z.string().trim().min(1).max(160),
-  scopes: z.array(z.enum(["catalog:read", "catalog:contribute", "catalog:write"])).min(1),
+  scopes: z.array(z.enum(["catalog:read", "catalog:contribute", "catalog:write", "inventory:read"])).min(1),
   expiresAt: z.string().datetime().optional()
 }).strict()
 

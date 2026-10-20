@@ -96,6 +96,7 @@ export async function requireCatalogPrincipal(request: Request, requiredScope = 
   const scopes = ["catalog:read"]
   if (manager || permissions.includes("*") || permissions.includes("products.edit")) scopes.push("catalog:contribute")
   if (manager || permissions.includes("*") || permissions.includes("ai.verifyAutofill")) scopes.push("catalog:write")
+  if (manager || permissions.includes("*") || permissions.includes("inventory.view") || permissions.includes("inventory.edit")) scopes.push("inventory:read")
   if (!hasScope(scopes, requiredScope)) throw new CatalogApiError(403, "insufficient_scope", `Your account requires ${requiredScope}.`)
   return { kind: "user", id: decoded.uid, orgId, client: "inventraker", scopes, db }
 }

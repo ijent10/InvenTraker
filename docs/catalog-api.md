@@ -4,7 +4,7 @@ The versioned catalog API exposes the same UPC-backed product facts to InvenTrak
 
 Base URL: `https://inventraker.com/api/v1/catalog`
 
-Authentication uses either `Authorization: Bearer <Firebase ID token>` plus `X-InvenTraker-Org`, or `X-API-Key: <scoped key>`. Outside keys are stored as SHA-256 hashes, can expire, can be revoked, and are shown in plaintext only once. Available scopes are `catalog:read`, `catalog:contribute`, and `catalog:write`.
+Authentication uses either `Authorization: Bearer <Firebase ID token>` plus `X-InvenTraker-Org`, or `X-API-Key: <scoped key>`. Outside keys are stored as SHA-256 hashes, can expire, can be revoked, and are shown in plaintext only once. Available scopes are `catalog:read`, `catalog:contribute`, `catalog:write`, and `inventory:read`.
 
 ## Endpoints
 
@@ -13,6 +13,7 @@ Authentication uses either `Authorization: Bearer <Firebase ID token>` plus `X-I
 - `POST /resolve` resolves up to 100 barcodes for an AI, scanner, or import job.
 - `POST /contributions` accepts one or up to 100 product suggestions into a review queue.
 - `PATCH /products/{UPC}` applies a reviewed shared correction. `expectedRevision` provides optimistic concurrency and every accepted change creates an immutable edit event.
+- `GET /api/v1/inventory?storeId={id}&barcode={UPC}&limit=100` gives an organization-bound AI a safe inventory view. Its response uses a strict business-field allowlist and contains no employee names, user IDs, badge numbers, or edit-actor identifiers.
 - `GET|POST|DELETE /api/admin/catalog/api-keys` lists, creates, and revokes scoped outside credentials. It requires a platform administrator Firebase token.
 
 Example batch lookup:

@@ -47,4 +47,6 @@ Content-Type: application/json
 
 Direct Firestore access remains denied for API keys, source staging, corrections, and edit events. Organization inventory, prices, quantities, employees, and business records are outside this API and require their own organization-scoped authorization.
 
+An exact UPC lookup checks the staged record first. When its images, ingredients, or package size are incomplete, the server performs a rate-conscious lookup against the current Open Food Facts product endpoint, accepts the response only when its validated GTIN exactly matches, fills missing fields without replacing populated facts, and caches the result for at least 24 hours. Product-name searches never attach outside data to a different UPC.
+
 Open Food Facts records retain their source URL and ODbL attribution. Callers displaying or redistributing those facts must preserve the returned attribution and license fields.

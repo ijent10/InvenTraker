@@ -28,8 +28,10 @@ Open Food Facts offers MongoDB, JSONL, CSV, and Parquet exports and states that 
 
 - Barcodes remain strings. Leading zeroes are retained in `sourceBarcode`.
 - EAN-8, UPC-A, EAN-13, and GTIN-14 pass a GS1 check-digit calculation and normalize to a 14-digit GTIN for duplicate detection.
-- Invalid or absent barcodes do not discard an otherwise valid product. The Open Food Facts `_id` remains the stable source identifier.
-- Deterministic staging IDs are SHA-256 hashes of `openfoodfacts:{sourceId}`, making retries idempotent.
+- A product must have a valid EAN-8, UPC-A, EAN-13, or GTIN-14 check digit to enter staging. Missing and invalid identifiers go to the rejection collection with their source ID.
+- The normalized GTIN-14 is the deterministic staging identity, making retries idempotent and exposing repeated UPCs.
+- When a UPC repeats, normalized names and brands are compared. Reasonable matches keep one product and merge source IDs/names; disagreements enter `openFoodFactsConflicts` with both candidates for verification.
+- `openFoodFactsIdentities` groups exact normalized names across different UPCs. Brand and package quantity are appended as visible differentiators when present. Groups without either are marked for review and retain all UPCs under the shared name identity.
 - Missing values stay absent. No product facts are inferred.
 - Nutrient source keys are retained in `sourceNutrition`; normalized per-100 g/100 mL and per-serving values are stored separately with units in field names.
 - US-market records receive priority in validation and promotion queues. Full mode can retain international products without changing the schema.

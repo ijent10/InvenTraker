@@ -25,6 +25,7 @@ const normalized = normalizeOpenFoodFactsProduct({
 assert.ok("record" in normalized)
 if ("record" in normalized) {
   assert.equal(normalized.record.normalizedGtin, "00737628064502")
+  assert.equal(normalized.stagingId, "gtin-00737628064502")
   assert.equal(normalized.record.marketPriority, 100)
   assert.equal(normalized.record.importedAt, importedAt)
   assert.equal((normalized.record.nutrition as { per100gOr100ml: { sodiumG: number } }).per100gOr100ml.sodiumG, 0.2)
@@ -33,5 +34,7 @@ if ("record" in normalized) {
 
 const nonfood = normalizeOpenFoodFactsProduct({ _id: "x", product_name: "Shampoo", categories_tags: ["en:cosmetics"] }, importedAt)
 assert.equal("rejection" in nonfood && nonfood.rejection, "excluded:cosmetics")
+const missingUpc = normalizeOpenFoodFactsProduct({ _id: "source-only", product_name: "Unidentified Soup" }, importedAt)
+assert.equal("rejection" in missingUpc && missingUpc.rejection, "invalid_or_missing_upc")
 
 console.log("Open Food Facts normalization checks passed.")

@@ -144,6 +144,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /openFoodFactsConflicts/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /openFoodFactsIdentities/{documentId} {
+      allow read, write: if false;
+    }
+
     match /assistantProductMemory/{memoryId} {
       allow read, write: if false;
     }

@@ -92,12 +92,15 @@ export function normalizeOpenFoodFactsProduct(source: SourceProduct, importedAt:
   if (excludedTag) return { rejection: `excluded:${excludedTag}` as const, sourceId }
   const sourceBarcode = cleanString(source.code)
   const normalizedGtin = normalizeGtin(sourceBarcode)
+  if (!normalizedGtin) return { rejection: "invalid_or_missing_upc" as const, sourceId }
   const countries = strings(source.countries_tags)
   const isUsMarket = countries.some((country) => /(^|:)united-states$/.test(country.toLowerCase()))
   const nutriments = source.nutriments && typeof source.nutriments === "object" ? source.nutriments as SourceProduct : {}
   const modifiedTimestamp = number(source.last_modified_t)
-  const stagingId = createHash("sha256").update(`openfoodfacts:${sourceId}`).digest("hex")
+  const stagingId = `gtin-${normalizedGtin}`
   const quantity = cleanString(source.quantity)
+  const brands = strings(source.brands_tags).length ? strings(source.brands_tags) : strings(source.brands)
+  const differentiators = [brands[0], quantity].filter(Boolean)
   const record = compact({
     id: stagingId,
     status: "pending_review",
@@ -105,11 +108,16 @@ export function normalizeOpenFoodFactsProduct(source: SourceProduct, importedAt:
     sourceId,
     sourceUrl: `https://world.openfoodfacts.org/product/${encodeURIComponent(sourceBarcode ?? sourceId)}`,
     sourceBarcode,
-    normalizedGtin: normalizedGtin ?? undefined,
-    identifierStatus: sourceBarcode ? (normalizedGtin ? "valid_gtin" : "invalid_barcode_source_id_retained") : "source_id_only",
+    normalizedGtin,
+    identifierStatus: "valid_gtin",
     productName,
+    displayName: differentiators.length ? `${productName} · ${differentiators.join(" · ")}` : productName,
     normalizedName: normalizedName(productName),
-    brands: strings(source.brands_tags).length ? strings(source.brands_tags) : strings(source.brands),
+    brands,
+    differentiators,
+    requiresNameIdentityReview: differentiators.length === 0,
+    sourceIds: [sourceId],
+    sourceNames: [productName],
     manufacturer: cleanString(source.manufacturing_places),
     description: cleanString(source.generic_name_en) ?? cleanString(source.generic_name),
     categories: categoryTags,
@@ -234,6 +242,77 @@ async function flush(db: FirestoreDatabase, collection: string, rows: Array<{ id
   rows.length = 0
 }
 
+function tokenSimilarity(left: string, right: string) {
+  const a = new Set(left.split(" ").filter(Boolean)), b = new Set(right.split(" ").filter(Boolean))
+  const union = new Set([...a, ...b]).size
+  return union ? [...a].filter((token) => b.has(token)).length / union : 0
+}
+
+function reasonableDuplicate(existing: Record<string, unknown>, candidate: Record<string, unknown>) {
+  const existingName = String(existing.normalizedName ?? ""), candidateName = String(candidate.normalizedName ?? "")
+  if (existingName === candidateName || tokenSimilarity(existingName, candidateName) >= 0.75) return true
+  const existingBrands = new Set(Array.isArray(existing.brands) ? existing.brands.map((value) => String(value).toLowerCase()) : [])
+  const candidateBrands = Array.isArray(candidate.brands) ? candidate.brands.map((value) => String(value).toLowerCase()) : []
+  return candidateBrands.some((brand) => existingBrands.has(brand)) && tokenSimilarity(existingName, candidateName) >= 0.5
+}
+
+async function reconcileDuplicate(db: FirestoreDatabase, row: { id: string; data: Record<string, unknown> }) {
+  const ref = db.collection("openFoodFactsStaging").doc(row.id)
+  try {
+    await ref.create(row.data)
+  } catch (error) {
+    const code = String((error as { code?: unknown }).code ?? "")
+    if (code !== "6" && code !== "already-exists") throw error
+    const existing = (await ref.get()).data() ?? {}
+    if (reasonableDuplicate(existing, row.data)) {
+      const { FieldValue } = await import("firebase-admin/firestore")
+      await ref.set({
+        sourceIds: FieldValue.arrayUnion(String(row.data.sourceId)),
+        sourceNames: FieldValue.arrayUnion(String(row.data.productName)),
+        duplicateSourceRecords: FieldValue.increment(1),
+        lastDuplicateComparedAt: new Date().toISOString()
+      }, { merge: true })
+    } else {
+      const conflictId = createHash("sha256").update(`${row.id}:${String(row.data.sourceId)}`).digest("hex")
+      await db.collection("openFoodFactsConflicts").doc(conflictId).set({
+        status: "needs_verification", reason: "same_upc_conflicting_identity", normalizedGtin: row.data.normalizedGtin,
+        existingStagingId: row.id, existingName: existing.productName ?? "", candidateName: row.data.productName,
+        candidateBrand: row.data.brands ?? [], candidateSourceId: row.data.sourceId, candidate: row.data, createdAt: new Date().toISOString()
+      }, { merge: true })
+    }
+  }
+}
+
+async function flushStaging(db: FirestoreDatabase, rows: Array<{ id: string; data: Record<string, unknown> }>) {
+  if (!rows.length) return
+  const batch = db.batch()
+  rows.forEach((row) => batch.create(db.collection("openFoodFactsStaging").doc(row.id), row.data))
+  try {
+    await batch.commit()
+  } catch {
+    for (const row of rows) await reconcileDuplicate(db, row)
+  }
+  const identities = new Map<string, { names: Set<string>; gtins: Set<string>; candidateIds: Set<string>; requiresReview: boolean }>()
+  rows.forEach((row) => {
+    const key = String(row.data.normalizedName)
+    const identity = identities.get(key) ?? { names: new Set(), gtins: new Set(), candidateIds: new Set(), requiresReview: false }
+    identity.names.add(String(row.data.productName)); identity.gtins.add(String(row.data.normalizedGtin)); identity.candidateIds.add(row.id)
+    identity.requiresReview ||= row.data.requiresNameIdentityReview === true
+    identities.set(key, identity)
+  })
+  const { FieldValue } = await import("firebase-admin/firestore")
+  const identityBatch = db.batch()
+  identities.forEach((identity, key) => {
+    const id = createHash("sha256").update(key).digest("hex")
+    identityBatch.set(db.collection("openFoodFactsIdentities").doc(id), {
+      normalizedName: key, productNames: FieldValue.arrayUnion(...identity.names), normalizedGtins: FieldValue.arrayUnion(...identity.gtins),
+      stagingIds: FieldValue.arrayUnion(...identity.candidateIds), ...(identity.requiresReview ? { requiresReview: true } : {}), updatedAt: new Date().toISOString()
+    }, { merge: true })
+  })
+  await identityBatch.commit()
+  rows.length = 0
+}
+
 export async function runOpenFoodFactsImport(db: FirestoreDatabase, options: ImportOptions): Promise<ImportResult> {
   const sourceUrl = options.sourceUrl ?? OPEN_FOOD_FACTS_SOURCE
   const runId = options.runId ?? `off-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`
@@ -266,12 +345,12 @@ export async function runOpenFoodFactsImport(db: FirestoreDatabase, options: Imp
         stageRows.push({ id: normalized.stagingId, data: { ...normalized.record, importRunId: runId, sourcePosition: scanned } as Record<string, unknown> })
         if (sampleIds.length < 10) sampleIds.push(normalized.stagingId)
       }
-      if (stageRows.length >= 350) await flush(db, "openFoodFactsStaging", stageRows)
+      if (stageRows.length >= 350) await flushStaging(db, stageRows)
       if (rejectRows.length >= 350) await flush(db, "openFoodFactsRejects", rejectRows)
       if (scanned % 1000 === 0) await run.set({ scanned, staged, rejected, skipped, checkpointPosition: scanned, updatedAt: new Date().toISOString() }, { merge: true })
       if (staged >= maxAccepted || scanned >= maxScanned) break
     }
-    await flush(db, "openFoodFactsStaging", stageRows)
+    await flushStaging(db, stageRows)
     await flush(db, "openFoodFactsRejects", rejectRows)
     await run.set({ status: "completed", scanned, staged, rejected, skipped, checkpointPosition: scanned, completedAt: new Date().toISOString() }, { merge: true })
     return { runId, archiveFormat: "gzip-compressed MongoDB archive (magic 0x8199e26d), streamed as archive blocks containing BSON product documents", source, scanned, staged, rejected, skipped, resumableFrom: scanned, sampleIds }

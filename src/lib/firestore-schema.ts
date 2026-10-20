@@ -11,6 +11,8 @@ export const firestoreCollections = {
   openFoodFactsImportRuns: "openFoodFactsImportRuns",
   openFoodFactsStaging: "openFoodFactsStaging",
   openFoodFactsRejects: "openFoodFactsRejects",
+  openFoodFactsConflicts: "openFoodFactsConflicts",
+  openFoodFactsIdentities: "openFoodFactsIdentities",
   assistantProductMemory: "assistantProductMemory",
   users: "users",
   orgs: "orgs",
@@ -108,6 +110,8 @@ export const appDataModel = [
   ["Open Food Facts import runs", "openFoodFactsImportRuns/{runId}", "Server-only import checkpoints, source metadata, progress counters, and completion state."],
   ["Open Food Facts staging", "openFoodFactsStaging/{stagingId}", "Normalized global product candidates isolated from the production catalog until review and promotion."],
   ["Open Food Facts rejects", "openFoodFactsRejects/{rejectId}", "Server-only validation failures and excluded source records with reason codes."],
+  ["Open Food Facts conflicts", "openFoodFactsConflicts/{conflictId}", "Same-barcode candidates whose names or brands disagree and require manual verification."],
+  ["Open Food Facts identities", "openFoodFactsIdentities/{identityId}", "Normalized-name groups used to differentiate or group multiple valid UPCs."],
   [
     "Assistant product memory",
     "assistantProductMemory/{memoryId}",

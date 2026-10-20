@@ -160,23 +160,31 @@ async function sourceMetadata(sourceUrl: string) {
 }
 
 async function *bsonDocuments(sourceUrl: string) {
-  const response = await fetch(sourceUrl, { redirect: "follow", headers: { "user-agent": "InvenTraker/1.0 (product catalog import)" } })
+  const controller = new AbortController()
+  const response = await fetch(sourceUrl, { redirect: "follow", signal: controller.signal, headers: { "user-agent": "InvenTraker/1.0 (product catalog import)" } })
   if (!response.ok || !response.body) throw new Error(`Open Food Facts source request failed (${response.status}).`)
   const gunzip = createGunzip()
-  Readable.fromWeb(response.body as never).pipe(gunzip)
+  const source = Readable.fromWeb(response.body as never)
+  source.pipe(gunzip)
   let pending = Buffer.alloc(0)
-  for await (const chunk of gunzip) {
-    pending = Buffer.concat([pending, Buffer.from(chunk)])
-    while (pending.length >= 4) {
-      const documentLength = pending.readInt32LE(0)
-      if (documentLength < 5 || documentLength > 64 * 1024 * 1024) throw new Error(`Decompressed source is not a BSON document stream (next length ${documentLength}).`)
-      if (pending.length < documentLength) break
-      const rawDocument = pending.subarray(0, documentLength)
-      pending = pending.subarray(documentLength)
-      yield deserialize(rawDocument, { promoteLongs: true, promoteValues: true }) as SourceProduct
+  try {
+    for await (const chunk of gunzip) {
+      pending = Buffer.concat([pending, Buffer.from(chunk)])
+      while (pending.length >= 4) {
+        const documentLength = pending.readInt32LE(0)
+        if (documentLength < 5 || documentLength > 64 * 1024 * 1024) throw new Error(`Decompressed source is not a BSON document stream (next length ${documentLength}).`)
+        if (pending.length < documentLength) break
+        const rawDocument = pending.subarray(0, documentLength)
+        pending = pending.subarray(documentLength)
+        yield deserialize(rawDocument, { promoteLongs: true, promoteValues: true }) as SourceProduct
+      }
     }
+    if (pending.length) throw new Error(`Truncated BSON stream (${pending.length} trailing bytes).`)
+  } finally {
+    controller.abort()
+    source.destroy()
+    gunzip.destroy()
   }
-  if (pending.length) throw new Error(`Truncated BSON stream (${pending.length} trailing bytes).`)
 }
 
 async function flush(db: FirestoreDatabase, collection: string, rows: Array<{ id: string; data: Record<string, unknown> }>) {

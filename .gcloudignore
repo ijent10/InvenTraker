@@ -1,0 +1,15 @@
+.git/
+.github/
+.firebase/
+.next/
+node_modules/
+ios/
+public/
+fixtures/
+docs/
+src/**
+!src/lib/open-food-facts-import.ts
+scripts/**
+!scripts/open-food-facts-import.ts
+.env*
+firebase-debug*.log

@@ -12,9 +12,11 @@ Open Food Facts ingestion never creates organization products or inventory. New 
 
 ## Source and archive format
 
-The configured source is `https://static.openfoodfacts.org/data/openfoodfacts-mongodbdump.gz`. The worker performs a remote `HEAD`, streams the response through gzip, and validates each decompressed record as a length-prefixed BSON document. It rejects the stream if the first BSON length is implausible or a document is truncated. The validation run records the observed content length, ETag, and Last-Modified value in its run document.
+The configured source is `https://static.openfoodfacts.org/data/openfoodfacts-mongodbdump.gz`. A remote probe on October 19, 2026 observed a 16,092,745,487-byte gzip object with ETag `c6318173c404935929551c4a97997941-960` and Last-Modified `Mon, 19 Oct 2026 06:59:52 GMT`. After gzip decompression, its first four bytes are MongoDB's archive magic `0x8199e26d`; it is a MongoDB archive, not a plain BSON stream. The worker parses the archive prelude and namespace blocks, then streams only product BSON documents. It rejects invalid block lengths, missing terminators, truncated documents, and archives without a product namespace.
 
 No source dump is downloaded by the developer workstation. The small validation endpoint and the production Cloud Run Job both fetch and process the source inside Google infrastructure. Images remain remote URLs.
+
+MongoDB archive format reference: https://github.com/mongodb/mongo-tools/blob/master/common/archive/spec.md
 
 Open Food Facts offers MongoDB, JSONL, CSV, and Parquet exports and states that its database is licensed under ODbL. InvenTraker stores per-record attribution, the original product URL, source identifier, source modification time, and license. ODbL attribution and share-alike obligations require product/legal review before publishing a combined database. References:
 

@@ -166,20 +166,59 @@ async function *bsonDocuments(sourceUrl: string) {
   const gunzip = createGunzip()
   const source = Readable.fromWeb(response.body as never)
   source.pipe(gunzip)
+  const iterator = gunzip[Symbol.asyncIterator]()
   let pending = Buffer.alloc(0)
+  async function readExact(length: number): Promise<Buffer | null> {
+    while (pending.length < length) {
+      const next = await iterator.next()
+      if (next.done) return pending.length === 0 ? null : Promise.reject(new Error(`Truncated MongoDB archive (${pending.length} trailing bytes).`))
+      pending = Buffer.concat([pending, Buffer.from(next.value)])
+    }
+    const value = pending.subarray(0, length)
+    pending = pending.subarray(length)
+    return value
+  }
+  async function readDocumentOrTerminator(): Promise<Buffer | null | undefined> {
+    const lengthBytes = await readExact(4)
+    if (!lengthBytes) return undefined
+    const unsignedLength = lengthBytes.readUInt32LE(0)
+    if (unsignedLength === 0xffffffff) return null
+    if (unsignedLength < 5 || unsignedLength > 64 * 1024 * 1024) throw new Error(`Invalid BSON length ${unsignedLength} in MongoDB archive.`)
+    const remainder = await readExact(unsignedLength - 4)
+    if (!remainder) throw new Error("Truncated BSON document in MongoDB archive.")
+    return Buffer.concat([lengthBytes, remainder])
+  }
   try {
-    for await (const chunk of gunzip) {
-      pending = Buffer.concat([pending, Buffer.from(chunk)])
-      while (pending.length >= 4) {
-        const documentLength = pending.readInt32LE(0)
-        if (documentLength < 5 || documentLength > 64 * 1024 * 1024) throw new Error(`Decompressed source is not a BSON document stream (next length ${documentLength}).`)
-        if (pending.length < documentLength) break
-        const rawDocument = pending.subarray(0, documentLength)
-        pending = pending.subarray(documentLength)
-        yield deserialize(rawDocument, { promoteLongs: true, promoteValues: true }) as SourceProduct
+    const first = await readExact(4)
+    if (!first) throw new Error("Open Food Facts dump is empty after gzip decompression.")
+    if (first.readUInt32LE(0) !== 0x8199e26d) throw new Error(`Unsupported decompressed source signature ${first.toString("hex")}.`)
+    const preludeHeader = await readDocumentOrTerminator()
+    if (!preludeHeader || preludeHeader === null) throw new Error("MongoDB archive is missing its prelude header.")
+    deserialize(preludeHeader, { promoteLongs: true, promoteValues: true })
+    const productNamespaces = new Set<string>()
+    while (true) {
+      const metadataBytes = await readDocumentOrTerminator()
+      if (metadataBytes === null) break
+      if (!metadataBytes) throw new Error("MongoDB archive ended inside its prelude.")
+      const metadata = deserialize(metadataBytes, { promoteLongs: true, promoteValues: true }) as SourceProduct
+      if (/product/i.test(String(metadata.collection ?? ""))) productNamespaces.add(`${String(metadata.db ?? "")}.${String(metadata.collection ?? "")}`)
+    }
+    if (!productNamespaces.size) throw new Error("MongoDB archive prelude has no product collection.")
+    while (true) {
+      const headerBytes = await readDocumentOrTerminator()
+      if (headerBytes === undefined) break
+      if (headerBytes === null) throw new Error("MongoDB archive contains a headerless block.")
+      const header = deserialize(headerBytes, { promoteLongs: true, promoteValues: true }) as SourceProduct
+      const namespace = `${String(header.db ?? "")}.${String(header.collection ?? "")}`
+      while (true) {
+        const document = await readDocumentOrTerminator()
+        if (document === null) break
+        if (!document) throw new Error("MongoDB archive ended before a namespace block terminator.")
+        if (header.EOF !== true && productNamespaces.has(namespace)) {
+          yield deserialize(document, { promoteLongs: true, promoteValues: true }) as SourceProduct
+        }
       }
     }
-    if (pending.length) throw new Error(`Truncated BSON stream (${pending.length} trailing bytes).`)
   } finally {
     controller.abort()
     source.destroy()
@@ -235,7 +274,7 @@ export async function runOpenFoodFactsImport(db: FirestoreDatabase, options: Imp
     await flush(db, "openFoodFactsStaging", stageRows)
     await flush(db, "openFoodFactsRejects", rejectRows)
     await run.set({ status: "completed", scanned, staged, rejected, skipped, checkpointPosition: scanned, completedAt: new Date().toISOString() }, { merge: true })
-    return { runId, archiveFormat: "gzip-compressed concatenated BSON document stream (mongodump collection payload)", source, scanned, staged, rejected, skipped, resumableFrom: scanned, sampleIds }
+    return { runId, archiveFormat: "gzip-compressed MongoDB archive (magic 0x8199e26d), streamed as archive blocks containing BSON product documents", source, scanned, staged, rejected, skipped, resumableFrom: scanned, sampleIds }
   } catch (error) {
     await run.set({ status: "failed", scanned, staged, rejected, skipped, checkpointPosition: scanned, error: error instanceof Error ? error.message : String(error), failedAt: new Date().toISOString() }, { merge: true })
     throw error

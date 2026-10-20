@@ -1,6 +1,23 @@
 {
   "indexes": [
     {
+      "collectionGroup": "openFoodFactsStaging",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "marketPriority", "order": "DESCENDING" },
+        { "fieldPath": "normalizedName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "openFoodFactsStaging",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "normalizedGtin", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "engineOutbox",
       "queryScope": "COLLECTION",
       "fields": [
@@ -15,5 +32,16 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "openFoodFactsStaging",
+      "fieldPath": "sourceNutrition",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "openFoodFactsStaging",
+      "fieldPath": "ingredients",
+      "indexes": []
+    }
+  ]
 }

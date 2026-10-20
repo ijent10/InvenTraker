@@ -132,6 +132,18 @@ service cloud.firestore {
       allow delete: if platformAdmin();
     }
 
+    match /openFoodFactsImportRuns/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /openFoodFactsStaging/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /openFoodFactsRejects/{documentId} {
+      allow read, write: if false;
+    }
+
     match /assistantProductMemory/{memoryId} {
       allow read, write: if false;
     }

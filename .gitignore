@@ -21,6 +21,7 @@ test-results
 # Firebase emulator
 .firebase-emulator-data
 firebase-debug*.log
+.firebase/
 
 # Python
 __pycache__

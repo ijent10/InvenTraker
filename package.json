@@ -33,6 +33,8 @@
     "firebase:seed-demo-store": "node scripts/seed-demo-store.mjs",
     "firebase:provision-test-org": "node scripts/provision-test-organization.mjs",
     "firebase:migrate-batches": "node scripts/migrate-inventory-batches.mjs",
+    "catalog:off:validate": "node --experimental-strip-types scripts/open-food-facts-import.ts --mode=validation --max-accepted=25",
+    "catalog:off:check": "node --experimental-strip-types scripts/check-open-food-facts-import.mts",
     "engines:delivery": "node --experimental-strip-types scripts/check-engine-delivery.mts",
     "engines:health": "node --experimental-strip-types scripts/check-delivery-health.mts",
     "inventory:movements": "node --experimental-strip-types scripts/check-inventory-movements.mts",
@@ -45,9 +47,11 @@
     "@emnapi/runtime": "1.11.3",
     "@opentelemetry/api": "1.9.1",
     "@types/pdf-parse": "^1.1.5",
+    "bson": "^6.10.4",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.4.0",
     "fuse.js": "^7.4.2",
+    "google-auth-library": "10.7.0",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.12.0",
     "next": "^14.2.35",
@@ -57,8 +61,7 @@
     "stripe": "22.6.2",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5",
-    "zod": "^3.25.67",
-    "google-auth-library": "10.7.0"
+    "zod": "^3.25.67"
   },
   "devDependencies": {
     "@types/node": "^20.17.23",

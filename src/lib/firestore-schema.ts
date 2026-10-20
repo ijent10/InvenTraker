@@ -8,6 +8,9 @@ export const firestoreCollections = {
   platformSubscriptions: "platformSubscriptions",
   platformProductApprovals: "platformProductApprovals",
   centralCatalog: "centralCatalog",
+  openFoodFactsImportRuns: "openFoodFactsImportRuns",
+  openFoodFactsStaging: "openFoodFactsStaging",
+  openFoodFactsRejects: "openFoodFactsRejects",
   assistantProductMemory: "assistantProductMemory",
   users: "users",
   orgs: "orgs",
@@ -102,6 +105,9 @@ export const appDataModel = [
     "centralCatalog/{centralProductId}",
     "Global product identity for every scanned product across organizations: name, SKU/barcode, nutrition, average price, average expiration, average case quantity, images, and verified source metadata."
   ],
+  ["Open Food Facts import runs", "openFoodFactsImportRuns/{runId}", "Server-only import checkpoints, source metadata, progress counters, and completion state."],
+  ["Open Food Facts staging", "openFoodFactsStaging/{stagingId}", "Normalized global product candidates isolated from the production catalog until review and promotion."],
+  ["Open Food Facts rejects", "openFoodFactsRejects/{rejectId}", "Server-only validation failures and excluded source records with reason codes."],
   [
     "Assistant product memory",
     "assistantProductMemory/{memoryId}",

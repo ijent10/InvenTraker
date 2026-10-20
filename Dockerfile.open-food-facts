@@ -1,0 +1,10 @@
+FROM node:22-bookworm-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY tsconfig.json ./
+COPY src/lib/open-food-facts-import.ts src/lib/open-food-facts-import.ts
+COPY scripts/open-food-facts-import.ts scripts/open-food-facts-import.ts
+USER node
+ENTRYPOINT ["node", "--experimental-strip-types", "scripts/open-food-facts-import.ts"]
+CMD ["--mode=validation", "--max-accepted=25"]

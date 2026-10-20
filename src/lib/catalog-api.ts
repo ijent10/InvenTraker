@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { z } from "zod"
 
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { normalizeGtin } from "@/lib/open-food-facts-import"
+import { mergeDuplicateProduct, normalizeGtin, normalizeOpenFoodFactsProduct } from "@/lib/open-food-facts-import"
 
 type FirestoreDatabase = FirebaseFirestore.Firestore
 
@@ -155,7 +155,14 @@ export async function catalogProductByGtin(db: FirestoreDatabase, input: string)
   }
   if (!snapshot?.exists) throw new CatalogApiError(404, "product_not_found", "No catalog product uses that UPC or GTIN.")
   const edit = await db.collection("catalogProductEdits").doc(id).get()
-  const source = publicSource(snapshot.data() ?? {}, sourceCollection)
+  let source = publicSource(snapshot.data() ?? {}, sourceCollection)
+  if (sourceCollection === "openFoodFactsStaging" && needsLiveEnrichment(source)) {
+    const enriched = await liveOpenFoodFactsEnrichment(String(source.sourceBarcode ?? input), source)
+    if (enriched) {
+      source = { ...source, ...enriched }
+      await snapshot.ref.set({ ...enriched, lastLiveEnrichmentAt: new Date().toISOString() }, { merge: true }).catch(() => undefined)
+    }
+  }
   const overlay = edit.data() ?? {}
   const fields = overlay.fields ?? {}
   const productName = fields.productName ?? source.productName ?? source.name ?? ""
@@ -183,6 +190,32 @@ export async function catalogProductByGtin(db: FirestoreDatabase, input: string)
     attribution: source.attribution ?? "Product data from Open Food Facts, licensed under ODbL 1.0.",
     license: source.license ?? "ODbL-1.0"
   }) as Record<string, unknown>
+}
+
+function needsLiveEnrichment(source: Record<string, unknown>) {
+  const checkedAt = Date.parse(String(source.lastLiveEnrichmentAt ?? ""))
+  if (Number.isFinite(checkedAt) && Date.now() - checkedAt < 24 * 60 * 60 * 1_000) return false
+  return !Array.isArray(source.imageUrls) || source.imageUrls.length === 0 || !source.ingredients || (!source.netQuantity && !source.productQuantity)
+}
+
+async function liveOpenFoodFactsEnrichment(barcode: string, existing: Record<string, unknown>) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 6_000)
+  try {
+    const fields = ["code", "product_name", "product_name_en", "brands", "brands_tags", "generic_name", "generic_name_en", "categories_tags", "ingredients_text", "ingredients_text_en", "allergens_tags", "nutriments", "serving_size", "serving_quantity", "serving_quantity_unit", "quantity", "product_quantity", "product_quantity_unit", "packaging_quantity", "packaging", "packaging_text", "packaging_text_en", "packaging_tags", "countries_tags", "stores", "stores_tags", "image_front_url", "image_url", "image_nutrition_url", "image_ingredients_url", "selected_images", "last_modified_t"].join(",")
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}?fields=${fields}`, {
+      signal: controller.signal,
+      headers: { "user-agent": "InvenTraker/1.0 (shared catalog UPC enrichment)" }
+    })
+    if (!response.ok) return null
+    const body = await response.json() as { status?: number; product?: Record<string, unknown> }
+    if (body.status !== 1 || !body.product) return null
+    const normalized = normalizeOpenFoodFactsProduct(body.product, new Date().toISOString())
+    const record = "record" in normalized ? normalized.record : undefined
+    if (!record || record.normalizedGtin !== existing.normalizedGtin) return null
+    return mergeDuplicateProduct(existing, record as Record<string, unknown>)
+  } catch { return null }
+  finally { clearTimeout(timeout) }
 }
 
 export async function searchCatalog(db: FirestoreDatabase, query: string, limit: number) {
